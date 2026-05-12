@@ -26,6 +26,15 @@ class SelfPlay:
             port = base + (offset * stride)
             os.environ["FREECIV_LUAREMOTE_PORT"] = str(port)
             os.environ["FREECIV_PORT"] = str(port)
+        if hasattr(self.config, "server_port_base"):
+            base = int(self.config.server_port_base)
+            stride = int(getattr(self.config, "server_port_stride", 1))
+            offset = seed - self.config.seed
+            if offset < 0:
+                offset = 0
+            port = base + (offset * stride)
+            os.environ["FREECIV_SERVER_PORT"] = str(port)
+            os.environ["FREECIV_GAME_PORT"] = str(port)
         try:
             self.game = Game(seed, config=self.config)
         except TypeError:

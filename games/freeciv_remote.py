@@ -47,6 +47,12 @@ from freeciv_sim.state.multihead_state import (
     UNIT_SPECS,
     UNIT_OBSOLETE_BY,
 )
+from freeciv_sim.evaluation import (
+    potential_shaping_reward,
+    production_asset_value,
+    research_completion_value,
+    strategic_potential,
+)
 from freeciv_sim.rules.research import TECH_PREREQS, build_tech_costs
 from freeciv_sim.state.providers import GroundTruth, RandomMapProvider
 from freeciv_sim.remote.lua_actions import (
@@ -88,6 +94,14 @@ def _env_bool(name, default=False):
 
 
 SEA_UNIT_CLASSES = {"sea", "trireme"}
+BELIEF_OBSERVATION_PLANES = (
+    "visible_units",
+    "visible_cities",
+    "belief_units",
+    "threat",
+    "age",
+    "territory",
+)
 
 
 class MuZeroConfig:
@@ -117,6 +131,11 @@ class MuZeroConfig:
             _env_int("FREECIV_PORT", 4444),
         )
         self.luaremote_port_stride = _env_int("FREECIV_LUAREMOTE_PORT_STRIDE", 1)
+        self.server_port_base = _env_int(
+            "FREECIV_SERVER_PORT",
+            _env_int("FREECIV_GAME_PORT", 5555),
+        )
+        self.server_port_stride = _env_int("FREECIV_SERVER_PORT_STRIDE", 1)
         ### Game
         tmp_state = MultiheadState(
             self.map_config,
@@ -124,7 +143,16 @@ class MuZeroConfig:
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
-        self.observation_shape = tmp_state.encode(1).shape
+        self.observe_belief = _env_bool("FREECIV_OBSERVE_BELIEF", False)
+        self.base_observation_shape = tmp_state.encode(1).shape
+        if self.observe_belief:
+            self.observation_shape = (
+                self.base_observation_shape[0] + len(BELIEF_OBSERVATION_PLANES),
+                self.base_observation_shape[1],
+                self.base_observation_shape[2],
+            )
+        else:
+            self.observation_shape = self.base_observation_shape
         self.action_space = list(range(tmp_state.ACTION_SIZE))
         self.players = list(range(1))
         self.stacked_observations = 0
@@ -219,10 +247,26 @@ class MuZeroConfig:
 
 class Game(AbstractGame):
     def __init__(self, seed=None, config=None):
+        self.observe_belief = _env_bool("FREECIV_OBSERVE_BELIEF", False)
+        self.base_observation_channels = 15 + 2 * len(MultiheadState.RESEARCH_TECHS)
         if config is not None and hasattr(config, "map_config"):
             self.config = config.map_config
-            self.max_units = int(getattr(config, "max_units", _env_int("FREECIV_MAX_UNITS", 6)))
-            self.max_cities = int(getattr(config, "max_cities", _env_int("FREECIV_MAX_CITIES", 3)))
+            self.observe_belief = bool(
+                getattr(config, "observe_belief", self.observe_belief)
+            )
+            self.base_observation_channels = int(
+                getattr(
+                    config,
+                    "base_observation_shape",
+                    (self.base_observation_channels,),
+                )[0]
+            )
+            self.max_units = int(
+                getattr(config, "max_units", _env_int("FREECIV_MAX_UNITS", 6))
+            )
+            self.max_cities = int(
+                getattr(config, "max_cities", _env_int("FREECIV_MAX_CITIES", 3))
+            )
         else:
             map_w = _env_int("FREECIV_MAP_W", 4)
             map_h = _env_int("FREECIV_MAP_H", 16)
@@ -245,6 +289,10 @@ class Game(AbstractGame):
         self.reward_city = _env_float("FREECIV_REWARD_CITY", 12.0)
         self.reward_population = _env_float("FREECIV_REWARD_POPULATION", 2.0)
         self.reward_settler = _env_float("FREECIV_REWARD_SETTLER", 3.0)
+        self.reward_potential = _env_float("FREECIV_REWARD_POTENTIAL", 0.0)
+        self.reward_potential_discount = _env_float(
+            "FREECIV_REWARD_POTENTIAL_DISCOUNT", 1.0
+        )
 
         self.host = os.getenv("FREECIV_HOST", "127.0.0.1")
         self.server_host = os.getenv("FREECIV_SERVER_HOST", self.host)
@@ -256,6 +304,8 @@ class Game(AbstractGame):
         self.timeout = _env_float("FREECIV_TIMEOUT", 2.5)
         self.server_cmd = os.getenv("FREECIV_SERVER_CMD")
         self.client_cmd = os.getenv("FREECIV_CLIENT_CMD")
+        self.server_cmd = self._format_process_command(self.server_cmd)
+        self.client_cmd = self._format_process_command(self.client_cmd)
         self.restart_on_reset = _env_bool("FREECIV_CLIENT_RESTART", False)
         if self.server_cmd:
             self.restart_on_reset = True
@@ -268,6 +318,7 @@ class Game(AbstractGame):
         self.take_command = os.getenv("FREECIV_TAKE_COMMAND")
         self.take_wait = _env_float("FREECIV_TAKE_WAIT", 0.5)
         self.take_retries = _env_int("FREECIV_TAKE_RETRIES", 6)
+        self.debug_actions = _env_bool("FREECIV_ACTION_DEBUG", False)
         self._needs_restart = False
         self._server_process = None
         self._client_process = None
@@ -331,8 +382,13 @@ class Game(AbstractGame):
         self.belief_tb_enabled = _env_bool("FREECIV_BELIEF_TENSORBOARD", False)
         self.belief_tb_interval = max(1, _env_int("FREECIV_BELIEF_TENSORBOARD_INTERVAL", 1))
         self.belief_tb_dir = os.getenv("FREECIV_BELIEF_TENSORBOARD_DIR")
+        self.reward_tb_enabled = _env_bool(
+            "FREECIV_REWARD_TENSORBOARD",
+            self.belief_tb_enabled,
+        )
         self._belief_writer: SummaryWriter | None = None
         self._belief_last_logged_turn = None
+        self._reward_last_logged_step = None
         self.episode_index = 0
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
@@ -361,6 +417,10 @@ class Game(AbstractGame):
         finally:
             sock.close()
 
+    def _debug_action(self, message: str) -> None:
+        if self.debug_actions:
+            print(f"[freeciv-action] {message}", file=sys.stderr, flush=True)
+
     def _build_freeciv_env(self) -> dict[str, str]:
         project_root = ROOT_DIR
         freeciv_data = project_root / "freeciv" / "data"
@@ -385,6 +445,16 @@ class Game(AbstractGame):
         env.setdefault("FREECIV_LUAREMOTE_PORT", str(self.port))
         env.setdefault("FREECIV_PORT", str(self.port))
         return env
+
+    def _format_process_command(self, command: Optional[str]) -> Optional[str]:
+        if not command:
+            return command
+        return command.format(
+            server_port=self.server_port,
+            luaremote_port=self.port,
+            host=self.host,
+            server_host=self.server_host,
+        )
 
     def _start_process(self, command: str) -> subprocess.Popen:
         cmd = shlex.split(command)
@@ -492,6 +562,7 @@ class Game(AbstractGame):
         self._belief_turn = None
         self._belief_planes = {}
         self._belief_last_logged_turn = None
+        self._reward_last_logged_step = None
         self.acted_unit_slots.clear()
         self.acted_production_cities.clear()
         self.production_queue.clear()
@@ -529,6 +600,7 @@ class Game(AbstractGame):
         while time.monotonic() < deadline:
             try:
                 self.client.connect()
+                self._debug_action(f"connected_luaremote host={self.host} port={self.port}")
                 return
             except Exception as exc:
                 last_exc = exc
@@ -729,7 +801,7 @@ class Game(AbstractGame):
         }
 
     def _ensure_belief_writer(self) -> Optional[SummaryWriter]:
-        if not self.belief_tb_enabled:
+        if not (self.belief_tb_enabled or self.reward_tb_enabled):
             return None
         if self._belief_writer is not None:
             return self._belief_writer
@@ -746,7 +818,7 @@ class Game(AbstractGame):
         log_dir.mkdir(parents=True, exist_ok=True)
         self.belief_tb_dir = str(log_dir)
         self._belief_writer = SummaryWriter(log_dir)
-        print(f"[belief] tensorboard_logdir={log_dir}", file=sys.stderr)
+        print(f"[tensorboard] freeciv_logdir={log_dir}", file=sys.stderr)
         return self._belief_writer
 
     def _belief_heatmap_rgb(self, plane: numpy.ndarray) -> numpy.ndarray:
@@ -932,6 +1004,119 @@ class Game(AbstractGame):
             )
         writer.flush()
         self._belief_last_logged_turn = self.turns
+
+    def _reward_components(
+        self,
+        prev_visited: int,
+        new_visited: int,
+        prev_metrics: dict,
+        next_metrics: dict,
+        prev_state,
+        next_state,
+    ) -> dict[str, float]:
+        components = {
+            "explore": float(new_visited - prev_visited) * self.reward_explore,
+            "civ_score": (
+                next_metrics["civ_score"] - prev_metrics["civ_score"]
+            )
+            * self.reward_civ_score,
+            "city": (
+                next_metrics["city_count"] - prev_metrics["city_count"]
+            )
+            * self.reward_city,
+            "population": (
+                next_metrics["population"] - prev_metrics["population"]
+            )
+            * self.reward_population,
+            "settler": (
+                next_metrics["settler_count"] - prev_metrics["settler_count"]
+            )
+            * self.reward_settler,
+        }
+        if self.reward_potential:
+            components["strategic_potential"] = (
+                self.reward_potential
+                * potential_shaping_reward(
+                    prev_state,
+                    next_state,
+                    player=1,
+                    discount=self.reward_potential_discount,
+                )
+            )
+        return components
+
+    def _log_reward_tensorboard(
+        self,
+        reward_components: dict[str, float],
+        prev_state,
+        next_state,
+    ) -> None:
+        if not self.reward_tb_enabled:
+            return
+        writer = self._ensure_belief_writer()
+        if writer is None:
+            return
+        step = self.turns * max(1, self.max_actions_per_turn) + self.actions_this_turn
+        if self._reward_last_logged_step == step:
+            return
+        prefix = f"reward/episode_{self.episode_index:03d}"
+        total = float(sum(reward_components.values()))
+        writer.add_scalar(f"{prefix}/total", total, step)
+        for name, value in sorted(reward_components.items()):
+            writer.add_scalar(f"{prefix}/{name}", float(value), step)
+        if prev_state is not None or next_state is not None:
+            before = strategic_potential(prev_state, 1)
+            after = strategic_potential(next_state, 1)
+            writer.add_scalar(f"{prefix}/potential/before", before.total, step)
+            writer.add_scalar(f"{prefix}/potential/after", after.total, step)
+            for field in (
+                "cities",
+                "population",
+                "land",
+                "military",
+                "research",
+                "production",
+                "exploration",
+                "safety",
+            ):
+                writer.add_scalar(
+                    f"{prefix}/potential_delta/{field}",
+                    float(getattr(after, field) - getattr(before, field)),
+                    step,
+                )
+        writer.flush()
+        self._reward_last_logged_step = step
+
+    def _belief_observation_planes(self) -> list[numpy.ndarray]:
+        zeros = numpy.zeros(
+            (self.config.map_h, self.config.map_w),
+            dtype=numpy.float32,
+        )
+        planes = []
+        for name in BELIEF_OBSERVATION_PLANES:
+            plane = self._belief_planes.get(name)
+            if plane is None:
+                planes.append(zeros.copy())
+            else:
+                planes.append(numpy.asarray(plane, dtype=numpy.float32))
+        return planes
+
+    def _encode_observation(self, board_state):
+        if board_state is None:
+            channels = self.base_observation_channels
+            if self.observe_belief:
+                channels += len(BELIEF_OBSERVATION_PLANES)
+            return numpy.zeros(
+                (channels, self.config.map_h, self.config.map_w),
+                dtype=numpy.float32,
+            )
+        observation = board_state.encode(1)
+        if not self.observe_belief:
+            return observation
+        return numpy.concatenate(
+            (observation, numpy.stack(self._belief_observation_planes(), axis=0)),
+            axis=0,
+        )
 
     def _try_refresh_controlled_units(self):
         try:
@@ -1915,6 +2100,33 @@ class Game(AbstractGame):
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
         if prod_start >= len(valid):
             return valid
+        applied_value_mask = False
+        for slot_idx in range(len(self.city_slots)):
+            start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
+            end = start + self._last_state.PRODUCTION_ITEM_COUNT
+            if start >= len(valid):
+                break
+            end = min(end, len(valid), prod_end)
+            candidates = []
+            for action_idx in range(start, end):
+                if not valid[action_idx]:
+                    continue
+                item_idx = action_idx - start
+                kind, name = self._last_state.PRODUCTION_ITEM_NAMES[item_idx]
+                value = production_asset_value(self._last_state, 1, kind, name)
+                candidates.append((value, action_idx))
+            if not candidates:
+                continue
+            best_value = max(value for value, _action_idx in candidates)
+            if best_value <= 0.0:
+                continue
+            cutoff = best_value * 0.95
+            for value, action_idx in candidates:
+                if value < cutoff:
+                    valid[action_idx] = 0
+            applied_value_mask = True
+        if applied_value_mask:
+            return valid
         desired_unit = self._select_production_unit()
         if not desired_unit:
             return valid
@@ -1992,16 +2204,38 @@ class Game(AbstractGame):
             return valid
         if not self.city_slots or self.current_research:
             return valid
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
+        research_candidates = []
+        for action_idx in range(econ_offset, min(research_end, len(valid))):
+            if not valid[action_idx]:
+                continue
+            tech_idx = action_idx - econ_offset
+            if 0 <= tech_idx < len(self._last_state.RESEARCH_TECHS):
+                tech = self._last_state.RESEARCH_TECHS[tech_idx]
+                value = research_completion_value(self._last_state, 1, tech)
+                research_candidates.append((value, action_idx))
+        if research_candidates:
+            best_value = max(value for value, _action_idx in research_candidates)
+            if best_value > 0.0:
+                valid[econ_offset:research_end] = 0
+                cutoff = best_value * 0.95
+                for value, action_idx in research_candidates:
+                    if value >= cutoff:
+                        valid[action_idx] = 1
+                return valid
         flags = self._last_state.research_done.get(1, {})
-        tech_name = pick_next_priority_tech(flags, TECH_PREREQS, self._last_state.RESEARCH_TECHS)
+        tech_name = pick_next_priority_tech(
+            flags,
+            TECH_PREREQS,
+            self._last_state.RESEARCH_TECHS,
+        )
         if not tech_name:
             return valid
         try:
             tech_idx = self._last_state.RESEARCH_TECHS.index(tech_name)
         except ValueError:
             return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
-        research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
         if econ_offset >= len(valid):
             return valid
         action_idx = econ_offset + tech_idx
@@ -2319,6 +2553,7 @@ class Game(AbstractGame):
 
     def _apply_action(self, action, board_state, owned_cities):
         if action == board_state.PASS_ACTION:
+            self._debug_action(f"pass action={action}")
             return
 
         if action < board_state.MOVE_SIZE:
@@ -2335,7 +2570,15 @@ class Game(AbstractGame):
             if dir_idx >= len(self.dir_ids):
                 return
             dir_id = self.dir_ids[dir_idx]
+            before_pos = self.client.get_unit_pos(unit_id) if self.debug_actions else None
             success = self.client.move_dir_id(unit_id, dir_id)
+            after_pos = self.client.get_unit_pos(unit_id) if self.debug_actions else None
+            self._debug_action(
+                "move "
+                f"action={action} unit_slot={unit_idx} unit_id={unit_id} "
+                f"dir_idx={dir_idx} dir_id={dir_id} success={success} "
+                f"before={before_pos or unit_pos} after={after_pos}"
+            )
             if success and self._last_snapshot is not None:
                 self.previous_pos = self._last_snapshot.player_pos
             return
@@ -2359,14 +2602,24 @@ class Game(AbstractGame):
             target = (int(nx), int(ny))
             city_id = self.visible_enemy_city_ids.get(target)
             if city_id is not None:
-                self.client.conquer_city(unit_id, city_id)
+                success = self.client.conquer_city(unit_id, city_id)
+                self._debug_action(
+                    f"conquer_city action={action} unit_id={unit_id} city_id={city_id} success={success}"
+                )
                 if not self._city_exists(city_id):
                     return
             if dir_idx < len(self.dir_ids):
                 dir_id = self.dir_ids[dir_idx]
-                if self.client.attack_dir_id(unit_id, dir_id):
+                success = self.client.attack_dir_id(unit_id, dir_id)
+                self._debug_action(
+                    f"attack_dir action={action} unit_id={unit_id} dir_id={dir_id} success={success}"
+                )
+                if success:
                     return
-            self.client.attack_target(unit_id, int(nx), int(ny))
+            success = self.client.attack_target(unit_id, int(nx), int(ny))
+            self._debug_action(
+                f"attack_target action={action} unit_id={unit_id} target=({int(nx)}, {int(ny)}) success={success}"
+            )
             return
 
         econ_idx = action - (board_state.MOVE_SIZE + board_state.ATTACK_SIZE)
@@ -2374,11 +2627,14 @@ class Game(AbstractGame):
             if not owned_cities:
                 return
             tech_name = board_state.RESEARCH_TECHS[econ_idx]
-            alpha_live.set_research_to_target(
+            success = alpha_live.set_research_to_target(
                 self.client,
                 self.player_id,
                 research_flags=self._last_snapshot.research_flags,
                 tech_name=tech_name,
+            )
+            self._debug_action(
+                f"research action={action} player_id={self.player_id} tech={tech_name} success={success}"
             )
             return
         if board_state.ECON_BUILD_CITY_OFFSET <= econ_idx < board_state.ECON_PRODUCTION_OFFSET:
@@ -2394,7 +2650,10 @@ class Game(AbstractGame):
             city_name = f"MuZeroCity{len(owned_cities) + 1}"
             built = self.client.found_city(unit_id, city_name)
             if not built:
-                self.client.build_city(unit_id)
+                built = self.client.build_city(unit_id)
+            self._debug_action(
+                f"build_city action={action} unit_slot={unit_idx} unit_id={unit_id} success={built}"
+            )
             return
         if board_state.ECON_PRODUCTION_OFFSET <= econ_idx < board_state.ECON_PASS_OFFSET:
             rel = econ_idx - board_state.ECON_PRODUCTION_OFFSET
@@ -2412,6 +2671,9 @@ class Game(AbstractGame):
                 name,
                 count=self.production_queue_add,
             )
+            self._debug_action(
+                f"production action={action} city_slot={city_slot} city_id={city_id} item={kind}:{name} queued={queued}"
+            )
             if queued:
                 print(
                     f"[production] city={city_id} append {kind} {name} x{queued}",
@@ -2428,6 +2690,7 @@ class Game(AbstractGame):
             if self.restart_on_reset and self.client_cmd:
                 self._shutdown_client_for_restart()
             return self.reset(), 0.0, True
+        prev_state = board_state
         prev_metrics = self._reward_metrics(board_state)
 
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
@@ -2458,8 +2721,10 @@ class Game(AbstractGame):
 
         if end_turn:
             try:
-                self.client.end_turn()
+                success = self.client.end_turn()
+                self._debug_action(f"end_turn success={success} turn={self.turns}")
             except Exception:
+                self._debug_action(f"end_turn exception turn={self.turns}")
                 pass
             self.turns += 1
             self.actions_this_turn = 0
@@ -2479,27 +2744,17 @@ class Game(AbstractGame):
 
         new_visited = len(self.visited_tiles)
         next_metrics = self._reward_metrics(board_state)
-        reward = 0.0
-        reward += float(new_visited - prev_visited) * self.reward_explore
-        reward += (
-            next_metrics["civ_score"] - prev_metrics["civ_score"]
-        ) * self.reward_civ_score
-        reward += (
-            next_metrics["city_count"] - prev_metrics["city_count"]
-        ) * self.reward_city
-        reward += (
-            next_metrics["population"] - prev_metrics["population"]
-        ) * self.reward_population
-        reward += (
-            next_metrics["settler_count"] - prev_metrics["settler_count"]
-        ) * self.reward_settler
-        if board_state is not None:
-            observation = board_state.encode(1)
-        else:
-            observation = numpy.zeros(
-                (_observation_channels(), self.config.map_h, self.config.map_w),
-                dtype=numpy.float32,
-            )
+        reward_components = self._reward_components(
+            prev_visited,
+            new_visited,
+            prev_metrics,
+            next_metrics,
+            prev_state,
+            board_state,
+        )
+        reward = float(sum(reward_components.values()))
+        self._log_reward_tensorboard(reward_components, prev_state, board_state)
+        observation = self._encode_observation(board_state)
         return observation, reward, done
 
     def to_play(self):
@@ -2745,7 +3000,7 @@ class Game(AbstractGame):
         self.episode_index += 1
         self._reset_episode_state()
         state = self._sync_state()
-        return state.encode(1)
+        return self._encode_observation(state)
 
     def close(self):
         try:
