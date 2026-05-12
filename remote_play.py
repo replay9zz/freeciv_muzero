@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime
 import json
 import os
@@ -227,6 +228,10 @@ def main() -> None:
     ap.add_argument("--score-log", help="Write civ scores to JSONL every N turns.")
     ap.add_argument("--score-log-interval", type=int, default=25)
     ap.add_argument(
+        "--turn-score-csv",
+        help="Write per-turn player civ scores to this CSV (episode,turn,p0,p1).",
+    )
+    ap.add_argument(
         "--json",
         action="store_true",
         help="Emit JSONL results (one line per episode plus a summary).",
@@ -282,6 +287,30 @@ def main() -> None:
         json_fp = json_path.open("w", encoding="utf-8")
         json_records = []
         print(f"JSONL output: {json_path}", file=sys.stderr)
+
+    turn_score_path = None
+    turn_score_fp = None
+    turn_score_writer = None
+    if args.turn_score_csv:
+        if list_player_scores is None:
+            print(
+                "Warning: turn score CSV requested but freeciv_rl is unavailable.",
+                file=sys.stderr,
+            )
+        else:
+            turn_score_path = Path(args.turn_score_csv).expanduser()
+            _write_checkpoint_file(turn_score_path.parent, checkpoint_path)
+            file_exists = turn_score_path.exists()
+            turn_score_fp = turn_score_path.open("a", newline="", encoding="utf-8")
+            turn_score_writer = csv.writer(turn_score_fp)
+            try:
+                if not file_exists or turn_score_path.stat().st_size == 0:
+                    turn_score_writer.writerow(
+                        ["episode", "turn", "player0_score", "player1_score"]
+                    )
+                    turn_score_fp.flush()
+            except OSError:
+                pass
 
     score_log_path = None
     score_log_fp = None
@@ -367,6 +396,7 @@ def main() -> None:
         done = False
         steps = 0
         start = time.monotonic()
+        last_turn_csv = None
         while not done and steps < args.max_moves:
             legal_actions = game.legal_actions()
             if not legal_actions:
@@ -405,6 +435,19 @@ def main() -> None:
             if score_parts:
                 line += " " + " ".join(score_parts)
             print(line, file=log_fp)
+            if (
+                turn_score_writer is not None
+                and list_player_scores is not None
+                and turn is not None
+                and turn > 0
+                and turn != last_turn_csv
+            ):
+                scores = list_player_scores(game.client)
+                p0 = scores.get(0, (None, None, ""))[0]
+                p1 = scores.get(1, (None, None, ""))[0]
+                turn_score_writer.writerow([episode + 1, turn, p0, p1])
+                turn_score_fp.flush()
+                last_turn_csv = turn
             if (
                 score_log_fp is not None
                 and list_player_scores is not None
@@ -482,6 +525,8 @@ def main() -> None:
         json_fp.close()
     if score_log_fp is not None:
         score_log_fp.close()
+    if turn_score_fp is not None:
+        turn_score_fp.close()
 
     game.close()
 
