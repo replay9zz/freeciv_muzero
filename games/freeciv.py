@@ -1,4 +1,5 @@
 import datetime
+import os
 import pathlib
 import sys
 from collections import deque
@@ -23,8 +24,19 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
 from .tech_policy import pick_next_priority_tech
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def _make_map_config() -> MapConfig:
-    cfg = MapConfig(map_w=4, map_h=16, max_turns=100)
+    max_turns = _env_int("FREECIV_MAX_TURNS", 100)
+    cfg = MapConfig(map_w=4, map_h=16, max_turns=max_turns)
     # cfg = MapConfig(map_w=4, map_h=16, max_turns=2000)
     cfg.attack_reward = 0.2
     cfg.city_capture_reward = 8.0
