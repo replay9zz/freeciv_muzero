@@ -80,7 +80,6 @@ class MuZeroConfig:
             _env_int("FREECIV_PORT", 4444),
         )
         self.luaremote_port_stride = _env_int("FREECIV_LUAREMOTE_PORT_STRIDE", 1)
-
         ### Game
         tmp_state = MultiheadState(
             self.map_config,
