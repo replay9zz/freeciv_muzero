@@ -95,6 +95,16 @@ def _query_score(client, player_id):
     return None, None
 
 
+def _current_civ_score(game):
+    state = getattr(game, "_last_state", None)
+    if state is None:
+        return None
+    try:
+        return state.civilization_score(1)
+    except Exception:
+        return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Run a MuZero Freeciv model against a LuaRemote Freeciv client."
@@ -207,6 +217,7 @@ def main() -> None:
         )
 
     emit_human = args.episodes > 1
+    log_fp = sys.stderr if args.json else sys.stdout
     win_count = 0
     score_values = []
     for episode in range(args.episodes):
@@ -227,18 +238,29 @@ def main() -> None:
                     add_exploration_noise=False,
                 )
                 action = SelfPlay.select_action(root, args.temperature)
-            if not args.json:
-                turn = getattr(game, "turns", None)
-                prefix = f"[step {steps}]" if turn is None else f"[turn {turn} step {steps}]"
-                enemy_units = getattr(game, "visible_enemy_units", None)
-                enemy_cities = getattr(game, "visible_enemy_cities", None)
-                extra = ""
-                if isinstance(enemy_units, list):
-                    extra += f" enemy_units={len(enemy_units)}"
-                if isinstance(enemy_cities, list):
-                    extra += f" enemy_cities={len(enemy_cities)}"
-                print(f"{prefix} action={game.action_to_string(action)}{extra}")
             observation, _reward, done = game.step(action)
+            turn = getattr(game, "turns", None)
+            prefix = f"[step {steps}]" if turn is None else f"[turn {turn} step {steps}]"
+            enemy_units = getattr(game, "visible_enemy_units", None)
+            enemy_cities = getattr(game, "visible_enemy_cities", None)
+            extra = ""
+            if isinstance(enemy_units, list):
+                extra += f" enemy_units={len(enemy_units)}"
+            if isinstance(enemy_cities, list):
+                extra += f" enemy_cities={len(enemy_cities)}"
+            civ_score = _current_civ_score(game)
+            fc_score, fc_winner = _query_score(game.client, getattr(game, "player_id", None))
+            score_parts = []
+            if civ_score is not None:
+                score_parts.append(f"civ_score={civ_score:.2f}")
+            if fc_score is not None:
+                score_parts.append(f"fc_score={fc_score}")
+            if fc_winner is not None:
+                score_parts.append(f"fc_win={fc_winner}")
+            line = f"{prefix} action={game.action_to_string(action)}{extra}"
+            if score_parts:
+                line += " " + " ".join(score_parts)
+            print(line, file=log_fp)
             if args.render:
                 game.render()
             steps += 1

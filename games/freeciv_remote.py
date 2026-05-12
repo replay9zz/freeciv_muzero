@@ -34,6 +34,8 @@ from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS, build_tech_
 from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
 from freeciv_rl.lua_helper import (
     auto_settler as lua_auto_settler,
+    list_all_unit_status,
+    list_player_scores,
     list_city_sizes,
     list_tile_owners,
     set_government as lua_set_government,
@@ -218,6 +220,7 @@ class Game(AbstractGame):
         self.unit_positions = []
         self.unit_slot_types = []
         self.unit_type_labels = {}
+        self.unit_status: list[tuple[int, int, int, int, str, int, int]] = []
         self.city_slots = []
         self.city_sizes: dict[int, int] = {}
         self.production_locked = set()
@@ -231,6 +234,7 @@ class Game(AbstractGame):
         self.visible_enemy_city_ids: dict[tuple[int, int], int] = {}
         self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
         self.tile_owners: dict[tuple[int, int], int] = {}
+        self.player_scores: dict[int, tuple[Optional[float], Optional[bool], str]] = {}
         if self.unit_id is not None:
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
             pos_info = alpha_live.parse_position_result(pos_result)
@@ -325,6 +329,30 @@ class Game(AbstractGame):
             self.tile_owners = {}
             self._tile_owner_refresh_pending = True
 
+    def _refresh_unit_status(self) -> None:
+        if self.client is None:
+            self.unit_status = []
+            return
+        try:
+            self.unit_status = list_all_unit_status(self.client)
+        except Exception:
+            self.unit_status = []
+
+    def _refresh_player_scores(self) -> None:
+        if self.client is None:
+            self.player_scores = {}
+            return
+        try:
+            self.player_scores = list_player_scores(self.client)
+        except Exception:
+            self.player_scores = {}
+
+    def _unit_status_by_id(self) -> dict[int, tuple[int, int, int, str, int, int]]:
+        status_by_id: dict[int, tuple[int, int, int, str, int, int]] = {}
+        for uid, ux, uy, owner, name, hp, moves in self.unit_status:
+            status_by_id[int(uid)] = (int(ux), int(uy), int(owner), name, int(hp), int(moves))
+        return status_by_id
+
     def _refresh_controlled_units(self):
         controlled, self.player_id = alpha_live.discover_controlled_units(
             self.client, self.player_id
@@ -359,17 +387,26 @@ class Game(AbstractGame):
         self.unit_id = self.controlled_units[0]
         return True
 
-    def _collect_unit_info(self):
+    def _collect_unit_info(self, status_by_id):
         unit_entries = []
         unit_type_labels = {}
         for uid in self.controlled_units:
+            unit_hp = None
+            status = status_by_id.get(uid)
+            if status is not None:
+                ux, uy, _owner, unit_type, hp, _moves = status
+                unit_type = unit_type or ""
+                unit_hp = hp
+                unit_type_labels[uid] = unit_type
+                unit_entries.append((uid, int(ux), int(uy), unit_type, unit_hp))
+                continue
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(uid))
             pos_info = alpha_live.parse_position_result(pos_result)
             if pos_info is None:
                 continue
             unit_type = alpha_live.get_unit_rule_name(self.client, uid) or ""
             unit_type_labels[uid] = unit_type
-            unit_entries.append((uid, int(pos_info[0]), int(pos_info[1]), unit_type))
+            unit_entries.append((uid, int(pos_info[0]), int(pos_info[1]), unit_type, unit_hp))
         unit_entries.sort(key=lambda entry: entry[0])
         return unit_entries, unit_type_labels
 
@@ -491,7 +528,8 @@ class Game(AbstractGame):
         return snapshot
 
     def _build_state(self, snapshot, owned_cities, enemy_cities):
-        unit_entries, unit_type_labels = self._collect_unit_info()
+        status_by_id = self._unit_status_by_id()
+        unit_entries, unit_type_labels = self._collect_unit_info(status_by_id)
         self.unit_type_labels = unit_type_labels
         unit_names = {name.lower(): name for name in UNIT_SPECS.keys()}
         state = MultiheadState.__new__(MultiheadState)  # type: ignore[misc]
@@ -551,7 +589,7 @@ class Game(AbstractGame):
         self.unit_positions = []
         self.unit_slot_types = []
         can_build_flags = []
-        for uid, ux, uy, unit_type in unit_entries[: self.max_units]:
+        for uid, ux, uy, unit_type, unit_hp in unit_entries[: self.max_units]:
             unit_key = (unit_type or "").strip().lower()
             unit_name = unit_names.get(unit_key)
             if unit_name is None and unit_key.endswith("s"):
@@ -560,13 +598,17 @@ class Game(AbstractGame):
                 unit_name = "Settlers"
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
-                unit = MHUnit(ux, uy, 10, 2, 1, 1, unit_name or "Warriors", True, False, None)
+                hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
+                unit = MHUnit(
+                    ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None
+                )
                 slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
+                hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
                 unit = MHUnit(
                     ux,
                     uy,
-                    spec.hp,
+                    hp_val,
                     spec.atk,
                     spec.df,
                     spec.firepower,
@@ -587,27 +629,66 @@ class Game(AbstractGame):
             self.unit_positions.append(None)
             self.unit_slot_types.append("")
 
-        enemy_coords = [
-            (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
-        ]
-        for ex, ey in enemy_coords[: self.max_units]:
-            spec = UNIT_SPECS.get("Warriors")
-            if spec is None:
-                enemy = MHUnit(ex, ey, 10, 2, 1, 1, "Warriors", True, False, None)
-            else:
-                enemy = MHUnit(
-                    ex,
-                    ey,
-                    spec.hp,
-                    spec.atk,
-                    spec.df,
-                    spec.firepower,
-                    spec.name,
-                    True,
-                    False,
-                    None,
-                )
-            state.units[-1].append(enemy)
+        enemy_units = []
+        if status_by_id:
+            for uid, (ux, uy, owner, unit_type, hp, _moves) in status_by_id.items():
+                if owner < 0:
+                    continue
+                if self.player_id is not None and owner == self.player_id:
+                    continue
+                enemy_units.append((uid, ux, uy, unit_type, hp))
+            enemy_units.sort(key=lambda entry: entry[0])
+        if enemy_units:
+            for _uid, ex, ey, unit_type, unit_hp in enemy_units[: self.max_units]:
+                unit_key = (unit_type or "").strip().lower()
+                unit_name = unit_names.get(unit_key)
+                if unit_name is None and unit_key.endswith("s"):
+                    unit_name = unit_names.get(unit_key[:-1])
+                if unit_name is None and ("settler" in unit_key or "migrant" in unit_key):
+                    unit_name = "Settlers"
+                spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
+                if spec is None:
+                    hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
+                    enemy = MHUnit(
+                        ex, ey, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None
+                    )
+                else:
+                    hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
+                    enemy = MHUnit(
+                        ex,
+                        ey,
+                        hp_val,
+                        spec.atk,
+                        spec.df,
+                        spec.firepower,
+                        spec.name,
+                        True,
+                        False,
+                        None,
+                    )
+                state.units[-1].append(enemy)
+        else:
+            enemy_coords = [
+                (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
+            ]
+            for ex, ey in enemy_coords[: self.max_units]:
+                spec = UNIT_SPECS.get("Warriors")
+                if spec is None:
+                    enemy = MHUnit(ex, ey, 10, 2, 1, 1, "Warriors", True, False, None)
+                else:
+                    enemy = MHUnit(
+                        ex,
+                        ey,
+                        spec.hp,
+                        spec.atk,
+                        spec.df,
+                        spec.firepower,
+                        spec.name,
+                        True,
+                        False,
+                        None,
+                    )
+                state.units[-1].append(enemy)
         while len(state.units[-1]) < self.max_units:
             state.units[-1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None))
 
@@ -1191,13 +1272,25 @@ class Game(AbstractGame):
         self._last_snapshot = snapshot
         self._maybe_switch_government(snapshot.research_flags)
         self._try_refresh_controlled_units()
+        self._refresh_unit_status()
+        self._refresh_player_scores()
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         enemy_cities = self._visible_enemy_cities()
         self._last_state = self._build_state(snapshot, owned_cities, enemy_cities)
         self._tile_owner_refresh_pending = True
-        self.visible_enemy_units = [
-            (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
-        ]
+        enemy_units = []
+        for _uid, ux, uy, owner, _name, _hp, _moves in self.unit_status:
+            if owner < 0:
+                continue
+            if self.player_id is not None and owner == self.player_id:
+                continue
+            enemy_units.append((int(ux), int(uy)))
+        if enemy_units:
+            self.visible_enemy_units = enemy_units
+        else:
+            self.visible_enemy_units = [
+                (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
+            ]
         self.visible_enemy_cities = [(cx, cy) for _cid, cx, cy in enemy_cities]
         self.visible_enemy_city_ids = {
             (int(cx), int(cy)): int(city_id) for city_id, cx, cy in enemy_cities
@@ -1207,6 +1300,8 @@ class Game(AbstractGame):
             for (x, y), status in snapshot.status_lookup.items()
             if status and len(status) >= 3 and status[2]
         }
+        if self.visible_enemy_units:
+            self.visible_enemy_unit_coords.update(self.visible_enemy_units)
         self.autosettler_units.intersection_update(set(self.unit_slots))
         self._maybe_enable_autosettlers()
         self.production_locked.intersection_update(set(self.city_slots))

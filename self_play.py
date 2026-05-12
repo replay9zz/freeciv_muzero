@@ -136,6 +136,7 @@ class SelfPlay:
             self.game.render()
 
         with torch.no_grad():
+            last_logged_turn = None
             while (
                 not done and len(game_history.action_history) <= self.config.max_moves
             ):
@@ -177,6 +178,36 @@ class SelfPlay:
                     )
 
                 observation, reward, done = self.game.step(action)
+                turn = getattr(self.game, "turns", None)
+                if turn is not None and turn != last_logged_turn:
+                    last_logged_turn = turn
+                    civ_score = None
+                    state = getattr(self.game, "_last_state", None)
+                    if state is not None and hasattr(state, "civilization_score"):
+                        try:
+                            civ_score = state.civilization_score(1)
+                        except Exception:
+                            civ_score = None
+                    score_line = f"[selfplay] turn={turn}"
+                    if civ_score is not None:
+                        score_line += f" civ_score={civ_score:.2f}"
+                    player_scores = getattr(self.game, "player_scores", None)
+                    if isinstance(player_scores, dict) and player_scores:
+                        parts = []
+                        for pid in sorted(player_scores.keys()):
+                            score, win, name = player_scores[pid]
+                            tag = f"{pid}"
+                            if name:
+                                tag += f":{name}"
+                            if score is not None:
+                                tag += f":{score:.0f}"
+                            if win is True:
+                                tag += ":W"
+                            elif win is False:
+                                tag += ":L"
+                            parts.append(tag)
+                        score_line += " scores=[" + ",".join(parts) + "]"
+                    print(score_line)
 
                 if render:
                     print(f"Played action: {self.game.action_to_string(action)}")

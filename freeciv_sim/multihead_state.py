@@ -952,11 +952,7 @@ class MultiheadState:
             if self.research_done[player].get(target, False):
                 self.research_target[player] = None
                 continue
-            cost = TECH_COSTS.get(target, 0.0)
-            if self.tech_costs:
-                cost = self.tech_costs.get(target, cost)
-            if cost <= 0:
-                cost = getattr(self.cfg, "base_tech_cost", 10.0)
+            cost = self._research_cost(player, target)
             if self.research_progress[player] >= cost:
                 self.research_progress[player] -= cost
                 self.research_done[player][target] = True
@@ -965,6 +961,39 @@ class MultiheadState:
                 )
                 self.scores[player] += reward
                 self.research_target[player] = None
+
+    @staticmethod
+    def _normalize_tech_cost_style(style: str) -> str:
+        return ''.join(ch for ch in (style or "").lower() if ch.isalnum())
+
+    @staticmethod
+    def _round_cost(value: float) -> int:
+        if value <= 0:
+            return 0
+        return int(value + 0.5)
+
+    def _techs_researched(self, player: Player) -> int:
+        return sum(1 for done in self.research_done[player].values() if done)
+
+    def _research_cost(self, player: Player, target: str) -> float:
+        style = self._normalize_tech_cost_style(getattr(self.cfg, "tech_cost_style", ""))
+        if style in {"civ1civ2", "civiii"}:
+            techs = max(1, self._techs_researched(player))
+            base = getattr(self.cfg, "base_tech_cost", 10.0) * techs
+            factor = getattr(self.cfg, "tech_cost_factor", 1.0)
+            sciencebox = getattr(self.cfg, "sciencebox", 100)
+            cost = base * factor * (sciencebox / 100.0)
+            min_cost = getattr(self.cfg, "min_tech_cost", 0.0)
+            if min_cost > 0 and cost < min_cost:
+                cost = min_cost
+            return self._round_cost(cost)
+        cost = TECH_COSTS.get(target, 0.0)
+        if self.tech_costs:
+            cost = self.tech_costs.get(target, cost)
+        if cost <= 0:
+            cost = getattr(self.cfg, "base_tech_cost", 10.0)
+        sciencebox = getattr(self.cfg, "sciencebox", 100)
+        return self._round_cost(cost * (sciencebox / 100.0))
 
     def _resolve_terminal(self) -> None:
         alive_me = any(u.alive for u in self.units[1]) or bool(self.cities[1])
