@@ -260,7 +260,7 @@ def main() -> None:
         or args.max_turns != config.map_config.max_turns
     ):
         raise SystemExit(
-            "Map config mismatch. Use 4x16/128 to match the trained checkpoint."
+            "Map config mismatch. Use 2x9/128 to match the trained checkpoint."
         )
     config.players = [0]
     config.num_simulations = args.num_simulations

@@ -25,7 +25,7 @@ class MuZeroConfig:
         self.seed = 0
         self.max_num_gpus = None
 
-        self.map_config = MapConfig(map_w=4, map_h=16, max_turns=128)
+        self.map_config = MapConfig(map_w=2, map_h=9, max_turns=128)
         self.max_units = 6
         self.max_cities = 3
 
@@ -134,7 +134,7 @@ class MuZeroConfig:
 
 class Game(AbstractGame):
     def __init__(self, seed=None):
-        self.config = MapConfig(map_w=4, map_h=16, max_turns=128)
+        self.config = MapConfig(map_w=2, map_h=9, max_turns=128)
         self.max_units = 6
         self.max_cities = 3
         rng = numpy.random.default_rng(seed) if seed is not None else None
@@ -160,10 +160,12 @@ class Game(AbstractGame):
     def step(self, action):
         prev_score = float(self.state.scores[self.player])
         current_player = self.player
+        prev_turn = self.state.turn
         self.state.step(current_player, action)
         done = self.state.terminal_reason is not None
         reward = float(self.state.scores[current_player]) - prev_score
-        self.player = -current_player
+        if self.state.turn != prev_turn:
+            self.player = -current_player
         return self._observation(), reward, done
 
     def to_play(self):

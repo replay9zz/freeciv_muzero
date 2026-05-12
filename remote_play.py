@@ -86,6 +86,16 @@ def main() -> None:
                 add_exploration_noise=False,
             )
             action = SelfPlay.select_action(root, args.temperature)
+        turn = getattr(game, "turns", None)
+        prefix = f"[step {steps}]" if turn is None else f"[turn {turn} step {steps}]"
+        enemy_units = getattr(game, "visible_enemy_units", None)
+        enemy_cities = getattr(game, "visible_enemy_cities", None)
+        extra = ""
+        if isinstance(enemy_units, list):
+            extra += f" enemy_units={len(enemy_units)}"
+        if isinstance(enemy_cities, list):
+            extra += f" enemy_cities={len(enemy_cities)}"
+        print(f"{prefix} action={game.action_to_string(action)}{extra}")
         observation, _reward, done = game.step(action)
         if args.render:
             game.render()

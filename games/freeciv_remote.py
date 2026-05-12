@@ -178,6 +178,8 @@ class Game(AbstractGame):
         self.city_slots = []
         self.production_locked = set()
         self.current_research = None
+        self.visible_enemy_units: list[tuple[int, int]] = []
+        self.visible_enemy_cities: list[tuple[int, int]] = []
         if self.unit_id is not None:
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
             pos_info = alpha_live.parse_position_result(pos_result)
@@ -196,6 +198,7 @@ class Game(AbstractGame):
         self.max_actions_per_turn = _env_int(
             "FREECIV_MAX_ACTIONS_PER_TURN", max(1, self.max_units * 2)
         )
+        self.acted_unit_slots: set[int] = set()
         self._last_snapshot = None
         self._last_state = None
         self.previous_pos = None
@@ -286,6 +289,25 @@ class Game(AbstractGame):
                     continue
         return tiles
 
+    def _visible_enemy_cities(self):
+        if self.player_id is None:
+            return []
+        visible_tiles = set(self._visible_tiles_from_player())
+        if not visible_tiles:
+            return []
+        try:
+            cities = alpha_live.list_all_cities(self.client)
+        except Exception:
+            return []
+        visible = []
+        for city_id, cx, cy, owner, _name in cities:
+            if owner == self.player_id:
+                continue
+            coord = (int(cx), int(cy))
+            if coord in visible_tiles:
+                visible.append((int(city_id), coord[0], coord[1]))
+        return visible
+
     def _snapshot_from_city(self, owned_cities):
         if not owned_cities:
             raise RuntimeError("No controllable units or cities available.")
@@ -350,7 +372,7 @@ class Game(AbstractGame):
         )
         return snapshot
 
-    def _build_state(self, snapshot, owned_cities):
+    def _build_state(self, snapshot, owned_cities, enemy_cities):
         unit_entries, _unit_type_labels = self._collect_unit_info()
         unit_names = {name.lower(): name for name in UNIT_SPECS.keys()}
         state = MultiheadState.__new__(MultiheadState)  # type: ignore[misc]
@@ -375,6 +397,7 @@ class Game(AbstractGame):
         state.turn = self.turns
         state.actions_this_turn = 0
         state.max_actions_per_turn = max(1, self.max_units * 2)
+        state.acted_unit_slots = {1: set(), -1: set()}
         state.kills = {1: 0, -1: 0}
         state.scores = {1: 0.0, -1: 0.0}
         state.winner = None
@@ -461,6 +484,8 @@ class Game(AbstractGame):
         for city_id, cx, cy in owned_cities[: self.max_cities]:
             state.cities[1].append(City(x=int(cx), y=int(cy), size=1))
             self.city_slots.append(city_id)
+        for _city_id, cx, cy in enemy_cities[: self.max_cities]:
+            state.cities[-1].append(City(x=int(cx), y=int(cy), size=1))
 
         return state
 
@@ -503,7 +528,12 @@ class Game(AbstractGame):
         self._last_snapshot = snapshot
         self._try_refresh_controlled_units()
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
-        self._last_state = self._build_state(snapshot, owned_cities)
+        enemy_cities = self._visible_enemy_cities()
+        self._last_state = self._build_state(snapshot, owned_cities, enemy_cities)
+        self.visible_enemy_units = [
+            (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
+        ]
+        self.visible_enemy_cities = [(cx, cy) for _cid, cx, cy in enemy_cities]
         self.production_locked.intersection_update(set(self.city_slots))
         self.current_research = None
         if isinstance(snapshot.research_name, str):
@@ -607,6 +637,15 @@ class Game(AbstractGame):
                     action = action_idx
                     break
         self._apply_action(action, board_state, owned_cities)
+        if action < board_state.MOVE_SIZE:
+            self.acted_unit_slots.add(action // board_state.MOVE_PER_UNIT)
+        elif action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
+            rel = action - board_state.MOVE_SIZE
+            self.acted_unit_slots.add(rel // board_state.ATTACK_PER_UNIT)
+        else:
+            econ_idx = action - (board_state.MOVE_SIZE + board_state.ATTACK_SIZE)
+            if board_state.ECON_BUILD_CITY_OFFSET <= econ_idx < board_state.ECON_PRODUCTION_OFFSET:
+                self.acted_unit_slots.add(econ_idx - board_state.ECON_BUILD_CITY_OFFSET)
         self.actions_this_turn += 1
 
         end_turn = action == board_state.PASS_ACTION
@@ -620,6 +659,7 @@ class Game(AbstractGame):
                 pass
             self.turns += 1
             self.actions_this_turn = 0
+            self.acted_unit_slots.clear()
             if self.sleep:
                 time.sleep(self.sleep)
 
@@ -684,6 +724,20 @@ class Game(AbstractGame):
                 start = prod_start + slot_idx * self._last_state.PRODUCTION_UNIT_COUNT
                 end = start + self._last_state.PRODUCTION_UNIT_COUNT
                 valid[start:end] = 0
+        if self.acted_unit_slots:
+            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            for slot_idx in self.acted_unit_slots:
+                if slot_idx < 0 or slot_idx >= self.max_units:
+                    continue
+                move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+                move_end = move_start + self._last_state.MOVE_PER_UNIT
+                atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
+                atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+                valid[move_start:move_end] = 0
+                valid[atk_start:atk_end] = 0
+                build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
+                if 0 <= build_idx < len(valid):
+                    valid[build_idx] = 0
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any() and alive_units:
@@ -692,6 +746,7 @@ class Game(AbstractGame):
 
     def reset(self):
         self.turns = 0
+        self.acted_unit_slots.clear()
         state = self._sync_state()
         return state.encode(1)
 
