@@ -24,8 +24,12 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     City,
     MHUnit,
     MultiheadState,
+    BUILDING_REQ_BUILDINGS,
+    BUILDING_TECHS,
     PRODUCTION_ITEM_NAMES,
     PRODUCTION_UNIT_NAMES,
+    UnitSpec,
+    UNIT_GENERATION_CHAINS,
     UNIT_TECHS,
     UNIT_SPECS,
     UNIT_OBSOLETE_BY,
@@ -34,10 +38,13 @@ from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS, build_tech_
 from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
 from freeciv_rl.lua_helper import (
     auto_settler as lua_auto_settler,
+    list_city_adjacent_water,
+    list_city_buildings,
     list_all_unit_status,
     list_player_scores,
     list_city_sizes,
     list_tile_owners,
+    list_units_by_homecity,
     set_government as lua_set_government,
 )
 
@@ -223,10 +230,15 @@ class Game(AbstractGame):
         self.unit_status: list[tuple[int, int, int, int, str, int, int]] = []
         self.city_slots = []
         self.city_sizes: dict[int, int] = {}
-        self.production_locked = set()
-        self.city_production_choice: dict[int, str] = {}
-        self.city_production_switches: dict[int, int] = {}
+        self.production_queue: dict[int, list[tuple[str, str]]] = {}
+        self.production_current: dict[int, tuple[str, str] | None] = {}
+        self.max_production_queue = _env_int("FREECIV_PRODUCTION_QUEUE_MAX", 3)
+        self.production_queue_add = _env_int("FREECIV_PRODUCTION_QUEUE_ADD", 3)
+        self._city_buildings: dict[int, set[str]] = {}
+        self._city_unit_counts: dict[int, dict[str, int]] = {}
+        self._city_adjacent_water: dict[int, dict[str, bool]] = {}
         self.current_research = None
+        self._last_research_flags: dict[str, bool] = {}
         self.autosettler_units: set[int] = set()
         self.gov_switch_sent: set[str] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
@@ -743,13 +755,61 @@ class Game(AbstractGame):
         label = (name or "").lower()
         return any(tag in label for tag in ("settler", "worker", "engineer", "migrant"))
 
+    def _unit_strength_score(self, spec: UnitSpec) -> int:
+        return (
+            spec.atk * 100
+            + spec.df * 90
+            + spec.hp * 10
+            + spec.firepower * 50
+            + spec.moves * 20
+        )
+
+    def _unit_best_upgrade(self, name: str) -> str:
+        candidates: list[str] = []
+        for chain in UNIT_GENERATION_CHAINS:
+            if name not in chain:
+                continue
+            best = None
+            for unit_name in chain:
+                if unit_name in UNIT_SPECS and self._unit_unlocked(unit_name):
+                    best = unit_name
+            if best:
+                candidates.append(best)
+        if not candidates:
+            return name
+
+        def score(unit_name: str) -> int:
+            spec = UNIT_SPECS.get(unit_name)
+            if spec is None:
+                return -1
+            return self._unit_strength_score(spec)
+
+        return max(candidates, key=score)
+
     def _unit_obsolete(self, name: str) -> bool:
         if self._unit_is_obsolete_exempt(name):
             return False
+        if self._unit_best_upgrade(name) != name:
+            return True
         obsolete_by = UNIT_OBSOLETE_BY.get(name)
         if not obsolete_by:
             return False
         return self._unit_unlocked(obsolete_by)
+
+    def _upgrade_unit_name(self, name: str) -> str:
+        upgraded = self._unit_best_upgrade(name)
+        if upgraded != name:
+            return upgraded
+        seen = {name}
+        while True:
+            obsolete_by = UNIT_OBSOLETE_BY.get(name)
+            if not obsolete_by or obsolete_by in seen:
+                break
+            if not self._unit_unlocked(obsolete_by):
+                break
+            name = obsolete_by
+            seen.add(name)
+        return name
 
     def _enemy_threats(self) -> set[tuple[int, int]]:
         threats = set(self.visible_enemy_unit_coords or [])
@@ -859,6 +919,197 @@ class Game(AbstractGame):
                 frontier.append((nx, ny, dist + 1))
         return True
 
+    def _set_city_production(self, city_id: int, kind: str, name: str) -> bool:
+        if self.client is None:
+            return False
+        prod_kind = "UnitType" if kind == "unit" else "Building"
+        try:
+            return bool(
+                self.client.queue_city_production(city_id, prod_kind, name, 0)
+            )
+        except Exception:
+            return False
+
+    def _city_water_access(self, city_id: int) -> tuple[bool, bool]:
+        info = self._city_adjacent_water.get(city_id)
+        if not info:
+            return False, False
+        return bool(info.get("river", False)), bool(info.get("lake", False))
+
+    def _building_allowed_by_water(self, city_id: int, name: str) -> bool:
+        if not name:
+            return True
+        lowered = name.lower()
+        if not lowered.startswith("aqueduct"):
+            return True
+        has_river, has_lake = self._city_water_access(city_id)
+        if "river" in lowered:
+            return has_river
+        if "lake" in lowered:
+            return has_lake
+        return not has_river and not has_lake
+
+    def _building_allowed_by_requirements(self, city_id: int, name: str) -> bool:
+        if not name:
+            return True
+        lowered = name.lower()
+        if "palace" in lowered:
+            return False
+        if self._last_state is None:
+            return True
+        tech_flags = self._last_state.research_done.get(1, {})
+        techs = BUILDING_TECHS.get(name, [])
+        if techs and not all(tech_flags.get(tech, False) for tech in techs):
+            return False
+        req_buildings = BUILDING_REQ_BUILDINGS.get(name, [])
+        if req_buildings:
+            built = self._city_buildings.get(city_id, set())
+            if not all(req in built for req in req_buildings):
+                return False
+        return True
+
+    def _queue_city_production(self, city_id: int, kind: str, name: str, count: int = 1) -> int:
+        queue = self.production_queue.setdefault(city_id, [])
+        if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
+            return 0
+        if kind == "building":
+            if not self._building_allowed_by_water(city_id, name):
+                return 0
+            if not self._building_allowed_by_requirements(city_id, name):
+                return 0
+            if name in self._city_buildings.get(city_id, set()):
+                return 0
+        added = 0
+        to_add = max(1, int(count))
+        while added < to_add:
+            if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
+                break
+            if self.client is not None:
+                prod_kind = "UnitType" if kind == "unit" else "Building"
+                position = 0 if self.production_current.get(city_id) is None and not queue else -1
+                try:
+                    ok = bool(
+                        self.client.queue_city_production(city_id, prod_kind, name, position)
+                    )
+                except Exception:
+                    ok = False
+                if not ok:
+                    break
+            queue.append((kind, name))
+            added += 1
+        if added and self.production_current.get(city_id) is None and queue:
+            self.production_current[city_id] = queue[0]
+        return added
+
+    def _production_completed(
+        self,
+        city_id: int,
+        item: tuple[str, str],
+        prev_buildings: dict[int, set[str]],
+        prev_units: dict[int, dict[str, int]],
+        buildings: dict[int, set[str]],
+        units: dict[int, dict[str, int]],
+    ) -> bool:
+        kind, name = item
+        if kind == "building":
+            return (
+                name in buildings.get(city_id, set())
+                and name not in prev_buildings.get(city_id, set())
+            )
+        if kind == "unit":
+            prev = prev_units.get(city_id, {}).get(name, 0)
+            now = units.get(city_id, {}).get(name, 0)
+            return now > prev
+        return False
+
+    def _refresh_production_queues(self) -> None:
+        if self.client is None:
+            return
+        try:
+            buildings = list_city_buildings(self.client, PRODUCTION_BUILDING_NAMES)
+        except Exception:
+            buildings = {}
+        try:
+            units = list_units_by_homecity(self.client)
+        except Exception:
+            units = {}
+        prev_buildings = self._city_buildings
+        prev_units = self._city_unit_counts
+        self._city_buildings = buildings
+        self._city_unit_counts = units
+        for city_id in list(self.production_queue.keys()):
+            if city_id not in self.city_slots:
+                self.production_queue.pop(city_id, None)
+                self.production_current.pop(city_id, None)
+                continue
+            queue = self.production_queue.get(city_id)
+            if not queue:
+                continue
+            current = self.production_current.get(city_id)
+            if current is None and queue:
+                current = queue[0]
+                if self._set_city_production(city_id, *current):
+                    self.production_current[city_id] = current
+            if current and self._production_completed(
+                city_id,
+                current,
+                prev_buildings,
+                prev_units,
+                buildings,
+                units,
+            ):
+                kind, name = current
+                print(
+                    f"[production] city={city_id} completed {kind} {name}",
+                    file=sys.stderr,
+                )
+                if queue and queue[0] == current:
+                    queue.pop(0)
+                else:
+                    try:
+                        queue.remove(current)
+                    except ValueError:
+                        pass
+                self.production_current[city_id] = None
+            if queue and self.production_current.get(city_id) is None:
+                next_item = queue[0]
+                if self._set_city_production(city_id, *next_item):
+                    self.production_current[city_id] = next_item
+                    print(
+                        f"[production] city={city_id} queued {next_item[0]} {next_item[1]}",
+                        file=sys.stderr,
+                    )
+
+    def _refresh_city_adjacent_water(self) -> None:
+        if self.client is None:
+            return
+        try:
+            self._city_adjacent_water = list_city_adjacent_water(self.client)
+        except Exception:
+            self._city_adjacent_water = {}
+
+    def _refresh_queue_on_research_change(self, research_flags: dict[str, bool]) -> None:
+        if research_flags == self._last_research_flags:
+            return
+        self._last_research_flags = dict(research_flags)
+        for city_id, queue in self.production_queue.items():
+            if not queue:
+                continue
+            updated: list[tuple[str, str]] = []
+            changed = False
+            for idx, (kind, name) in enumerate(queue):
+                if idx == 0:
+                    updated.append((kind, name))
+                    continue
+                if kind == "unit":
+                    upgraded = self._upgrade_unit_name(name)
+                    if upgraded != name:
+                        name = upgraded
+                        changed = True
+                updated.append((kind, name))
+            if changed:
+                self.production_queue[city_id] = updated
+
     def _prefer_production_actions(self, valid):
         if self._last_state is None or not self.city_slots:
             return valid
@@ -898,61 +1149,17 @@ class Game(AbstractGame):
         return valid
 
     def _force_production_actions(self, valid, raw_valid):
-        if self._last_state is None or not self.city_slots:
-            return valid
-        desired_unit = self._select_production_unit()
-        if not desired_unit:
-            return valid
-        desired_idx = None
-        for idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
-            if kind == "unit" and name == desired_unit:
-                desired_idx = idx
-                break
-        if desired_idx is None:
-            return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
-        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
-        forced = numpy.zeros_like(valid)
-        for slot_idx, city_id in enumerate(self.city_slots):
-            if city_id in self.production_locked:
-                current_choice = self.city_production_choice.get(city_id)
-                if current_choice == "Settlers":
-                    if (
-                        slot_idx < len(self._last_state.cities[1])
-                        and self._last_state.cities[1][slot_idx].size < 2
-                    ):
-                        self.production_locked.discard(city_id)
-                    else:
-                        continue
-                elif current_choice == desired_unit:
-                    continue
-                else:
-                    switch_count = self.city_production_switches.get(city_id, 0)
-                    if (
-                        switch_count >= 1
-                        or current_choice is None
-                        or current_choice != "Warriors"
-                        or desired_unit == "Warriors"
-                    ):
-                        continue
-                    self.production_locked.discard(city_id)
-            if desired_unit == "Settlers":
-                if slot_idx >= len(self._last_state.cities[1]):
-                    continue
-                if self._last_state.cities[1][slot_idx].size < 2:
-                    continue
-            action = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT + desired_idx
-            if action >= len(valid) or action >= prod_end:
-                continue
-            if raw_valid[action]:
-                forced[action] = 1
-        if forced.any():
-            return forced
         return valid
 
     def _deprioritize_worker_production(self, valid):
         if self._last_state is None or not self.city_slots:
+            return valid
+        worker_count = 0
+        for city_counts in self._city_unit_counts.values():
+            for name, count in city_counts.items():
+                if self._production_is_worker_like(name):
+                    worker_count += count
+        if worker_count <= 0:
             return valid
         econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
@@ -968,19 +1175,17 @@ class Game(AbstractGame):
             if not valid[start:end].any():
                 continue
             worker_actions = []
-            other_unit_actions = []
+            other_actions = []
             for item_idx in range(end - start):
                 action_idx = start + item_idx
                 if action_idx >= len(valid) or not valid[action_idx]:
                     continue
                 kind, name = PRODUCTION_ITEM_NAMES[item_idx]
-                if kind != "unit":
-                    continue
-                if self._production_is_worker_like(name):
+                if kind == "unit" and self._production_is_worker_like(name):
                     worker_actions.append(action_idx)
                 else:
-                    other_unit_actions.append(action_idx)
-            if other_unit_actions and worker_actions:
+                    other_actions.append(action_idx)
+            if other_actions and worker_actions:
                 for action_idx in worker_actions:
                     valid[action_idx] = 0
         return valid
@@ -1277,6 +1482,8 @@ class Game(AbstractGame):
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         enemy_cities = self._visible_enemy_cities()
         self._last_state = self._build_state(snapshot, owned_cities, enemy_cities)
+        self._refresh_queue_on_research_change(snapshot.research_flags)
+        self._refresh_city_adjacent_water()
         self._tile_owner_refresh_pending = True
         enemy_units = []
         for _uid, ux, uy, owner, _name, _hp, _moves in self.unit_status:
@@ -1304,21 +1511,7 @@ class Game(AbstractGame):
             self.visible_enemy_unit_coords.update(self.visible_enemy_units)
         self.autosettler_units.intersection_update(set(self.unit_slots))
         self._maybe_enable_autosettlers()
-        self.production_locked.intersection_update(set(self.city_slots))
-        if self.city_slots:
-            self.city_production_choice = {
-                cid: name
-                for cid, name in self.city_production_choice.items()
-                if cid in self.city_slots
-            }
-            self.city_production_switches = {
-                cid: count
-                for cid, count in self.city_production_switches.items()
-                if cid in self.city_slots
-            }
-        else:
-            self.city_production_choice.clear()
-            self.city_production_switches.clear()
+        self._refresh_production_queues()
         self.current_research = None
         if isinstance(snapshot.research_name, str):
             if snapshot.research_name.startswith("__TECH__"):
@@ -1412,15 +1605,17 @@ class Game(AbstractGame):
                 return
             city_id = self.city_slots[city_slot]
             kind, name = PRODUCTION_ITEM_NAMES[item_idx]
-            prod_kind = "UnitType" if kind == "unit" else "Building"
-            if self.client.set_city_production(city_id, prod_kind, name):
-                self.production_locked.add(city_id)
-                previous = self.city_production_choice.get(city_id)
-                self.city_production_choice[city_id] = name
-                if previous and previous != name:
-                    self.city_production_switches[city_id] = (
-                        self.city_production_switches.get(city_id, 0) + 1
-                    )
+            queued = self._queue_city_production(
+                city_id,
+                kind,
+                name,
+                count=self.production_queue_add,
+            )
+            if queued:
+                print(
+                    f"[production] city={city_id} append {kind} {name} x{queued}",
+                    file=sys.stderr,
+                )
             return
 
     def step(self, action):
@@ -1499,7 +1694,6 @@ class Game(AbstractGame):
             except Exception:
                 return []
         valid = self._last_state.valid_moves(1)
-        raw_valid = valid.copy()
         alive_units = any(u.alive for u in self._last_state.units[1])
         if not self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
@@ -1524,17 +1718,46 @@ class Game(AbstractGame):
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             valid[econ_offset:research_end] = 0
-        valid = self._prefer_research_actions(valid)
-        if self.production_locked and self.city_slots:
+        if self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            for slot_idx, city_id in enumerate(self.city_slots):
-                if city_id not in self.production_locked:
-                    continue
-                start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
-                end = start + self._last_state.PRODUCTION_ITEM_COUNT
-                valid[start:end] = 0
-        valid = self._force_production_actions(valid, raw_valid)
+            for city_slot, city_id in enumerate(self.city_slots):
+                for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+                    if kind != "building":
+                        continue
+                    if not self._building_allowed_by_water(city_id, name):
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+                    elif not self._building_allowed_by_requirements(city_id, name):
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+            if self.max_production_queue > 0:
+                prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+                for city_slot, city_id in enumerate(self.city_slots):
+                    queue = self.production_queue.get(city_id, [])
+                    if len(queue) < self.max_production_queue:
+                        continue
+                    start = (
+                        prod_start
+                        + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                    )
+                    end = start + self._last_state.PRODUCTION_ITEM_COUNT
+                    if start >= len(valid):
+                        break
+                    end = min(end, len(valid), prod_end)
+                    valid[start:end] = 0
+        valid = self._prefer_research_actions(valid)
+        valid = self._deprioritize_worker_production(valid)
         if self.acted_unit_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             for slot_idx in self.acted_unit_slots:
@@ -1549,8 +1772,6 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
-        valid = self._prefer_production_actions(valid)
-        valid = self._deprioritize_worker_production(valid)
         valid = self._prefer_worker_evasion(valid)
         valid = self._mask_autosettler_actions(valid)
         forced = self._force_settler_city_actions(valid)
@@ -1571,6 +1792,11 @@ class Game(AbstractGame):
             self._connect_client()
         self.turns = 0
         self.acted_unit_slots.clear()
+        self.production_queue.clear()
+        self.production_current.clear()
+        self._city_buildings.clear()
+        self._city_unit_counts.clear()
+        self._city_adjacent_water.clear()
         state = self._sync_state()
         return state.encode(1)
 

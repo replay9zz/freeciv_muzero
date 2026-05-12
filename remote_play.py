@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy
 import torch
 
 from games import freeciv_remote
@@ -28,6 +29,74 @@ def load_weights(checkpoint_path: Path, map_location) -> dict:
     if isinstance(checkpoint, dict):
         return checkpoint
     raise ValueError("Unsupported checkpoint format; expected dict with weights.")
+
+
+def _infer_in_channels(weights: dict) -> int | None:
+    for key in (
+        "representation_network.module.conv.weight",
+        "representation_network.conv.weight",
+    ):
+        tensor = weights.get(key)
+        if tensor is not None and hasattr(tensor, "shape") and len(tensor.shape) >= 2:
+            return int(tensor.shape[1])
+    for key, tensor in weights.items():
+        if "representation_network" not in key or "conv.weight" not in key:
+            continue
+        if hasattr(tensor, "shape") and len(tensor.shape) >= 2:
+            return int(tensor.shape[1])
+    for key, tensor in weights.items():
+        if "representation_network" not in key or "weight" not in key:
+            continue
+        if hasattr(tensor, "dim") and tensor.dim() == 4:
+            return int(tensor.shape[1])
+    return None
+
+
+def _build_obs_adapter(native_channels: int, model_channels: int, num_techs: int):
+    if native_channels == model_channels:
+        return None
+    native_base = native_channels - (2 * num_techs + 1)
+    model_base = model_channels - (2 * num_techs + 1)
+    if native_base <= 0 or model_base <= 0:
+        return None
+
+    if native_base == model_base + 8:
+        def adapter(obs):
+            if obs.shape[0] != native_channels:
+                return obs
+            base_head = obs[:6]
+            base_tail = obs[native_base - 8:native_base]
+            research = obs[native_base:native_base + 2 * num_techs]
+            final_plane = obs[native_base + 2 * num_techs:native_base + 2 * num_techs + 1]
+            return numpy.concatenate((base_head, base_tail, research, final_plane), axis=0)
+
+        return adapter
+
+    if model_base == native_base + 8:
+        def adapter(obs):
+            if obs.shape[0] != native_channels:
+                return obs
+            base_head = obs[:6]
+            pad = numpy.zeros((8, obs.shape[1], obs.shape[2]), dtype=obs.dtype)
+            base_tail = obs[6:native_base]
+            research = obs[native_base:native_base + 2 * num_techs]
+            final_plane = obs[native_base + 2 * num_techs:native_base + 2 * num_techs + 1]
+            return numpy.concatenate((base_head, pad, base_tail, research, final_plane), axis=0)
+
+        return adapter
+
+    def adapter(obs):
+        if obs.shape[0] == model_channels:
+            return obs
+        if obs.shape[0] > model_channels:
+            return obs[:model_channels]
+        pad = numpy.zeros(
+            (model_channels - obs.shape[0], obs.shape[1], obs.shape[2]),
+            dtype=obs.dtype,
+        )
+        return numpy.concatenate((obs, pad), axis=0)
+
+    return adapter
 
 
 def _parse_score_line(text: str):
@@ -197,12 +266,39 @@ def main() -> None:
     _set_env("FREECIV_DIR_IDS", args.dir_ids)
     _set_env("FREECIV_SLEEP", args.sleep)
 
+    device = torch.device(args.device)
+    weights = load_weights(checkpoint_path, map_location=device)
+
     config = freeciv_remote.MuZeroConfig()
     config.num_simulations = args.num_simulations
+    native_obs_shape = config.observation_shape
+    checkpoint_channels = _infer_in_channels(weights)
+    obs_adapter = None
+    if checkpoint_channels is not None and checkpoint_channels != native_obs_shape[0]:
+        num_techs = len(freeciv_remote.MultiheadState.RESEARCH_TECHS)
+        obs_adapter = _build_obs_adapter(
+            native_obs_shape[0],
+            checkpoint_channels,
+            num_techs,
+        )
+        if obs_adapter is None:
+            raise SystemExit(
+                "Checkpoint observation channels do not match the remote encoder "
+                f"({checkpoint_channels} vs {native_obs_shape[0]})."
+            )
+        config.observation_shape = (
+            checkpoint_channels,
+            native_obs_shape[1],
+            native_obs_shape[2],
+        )
+        print(
+            "Using observation compatibility adapter: "
+            f"checkpoint={checkpoint_channels}, remote={native_obs_shape[0]}",
+            file=sys.stderr,
+        )
 
-    device = torch.device(args.device)
     model = models.MuZeroNetwork(config)
-    model.set_weights(load_weights(checkpoint_path, map_location=device))
+    model.set_weights(weights)
     model.to(device)
     model.eval()
 
@@ -222,6 +318,8 @@ def main() -> None:
     score_values = []
     for episode in range(args.episodes):
         observation = game.reset()
+        if obs_adapter is not None:
+            observation = obs_adapter(observation)
         done = False
         steps = 0
         start = time.monotonic()
@@ -239,6 +337,8 @@ def main() -> None:
                 )
                 action = SelfPlay.select_action(root, args.temperature)
             observation, _reward, done = game.step(action)
+            if obs_adapter is not None:
+                observation = obs_adapter(observation)
             turn = getattr(game, "turns", None)
             prefix = f"[step {steps}]" if turn is None else f"[turn {turn} step {steps}]"
             enemy_units = getattr(game, "visible_enemy_units", None)

@@ -14,6 +14,7 @@ fi
 : "${FREECIV_BUILD_DIR:=/home/ubuntu/freeciv_test/freeciv_build_v3_2}"
 : "${FREECIV_CLIENT_BIN:=freeciv-gtk3.22}"
 : "${FREECIV_LUAREMOTE_PORT:=4444}"
+: "${FREECIV_SERVER_PORT:=}"
 : "${FREECIV_START_SCRIPT:=/tmp/freeciv_auto_start.serv}"
 
 if [[ -z "${scenario_file}" ]]; then
@@ -26,6 +27,10 @@ fi
 
 export FREECIV_LUAREMOTE_PORT
 
+if [[ -z "${FREECIV_SERVER_PORT}" ]]; then
+  FREECIV_SERVER_PORT="$((FREECIV_LUAREMOTE_PORT + 1000))"
+fi
+
 cat > "${FREECIV_START_SCRIPT}" <<'EOF'
 start
 EOF
@@ -33,4 +38,5 @@ EOF
 cd "${FREECIV_BUILD_DIR}"
 exec xvfb-run -a ./run.sh "${FREECIV_CLIENT_BIN}" \
   --file "${scenario_file}" \
+  --port "${FREECIV_SERVER_PORT}" \
   --read "${FREECIV_START_SCRIPT}"
