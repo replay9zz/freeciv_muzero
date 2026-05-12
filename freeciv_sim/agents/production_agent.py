@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from freeciv_sim.evaluation import production_asset_value
+
 
 @dataclass
 class ProductionAgent:
@@ -14,12 +16,31 @@ class ProductionAgent:
         legal = self.legal_actions(game)
         if not legal:
             return []
-        desired_unit = getattr(game, "_select_production_unit", lambda: None)()
-        if not desired_unit or getattr(game, "_last_state", None) is None:
+        if getattr(game, "_last_state", None) is None:
             return legal
         state = game._last_state
         econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
         prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
+        valued = []
+        for action in legal:
+            if action < prod_start:
+                continue
+            rel = action - prod_start
+            item_idx = rel % state.PRODUCTION_ITEM_COUNT
+            kind, name = state.PRODUCTION_ITEM_NAMES[item_idx]
+            valued.append((production_asset_value(state, 1, kind, name), action))
+        if valued:
+            best_value = max(value for value, _action in valued)
+            if best_value > 0.0:
+                return [
+                    action
+                    for value, action in valued
+                    if value >= best_value * 0.95
+                ]
+
+        desired_unit = getattr(game, "_select_production_unit", lambda: None)()
+        if not desired_unit:
+            return legal
         preferred = []
         for action in legal:
             if action < prod_start:
