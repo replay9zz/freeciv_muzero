@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 import time
+from collections import deque
 from typing import Optional
 
 import numpy
@@ -24,10 +25,15 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     PRODUCTION_UNIT_NAMES,
     UNIT_TECHS,
     UNIT_SPECS,
+    UNIT_OBSOLETE_BY,
 )
-from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS
+from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS, build_tech_costs
 from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
-from freeciv_rl.lua_helper import set_government as lua_set_government
+from freeciv_rl.lua_helper import (
+    auto_settler as lua_auto_settler,
+    list_city_sizes,
+    set_government as lua_set_government,
+)
 
 from .tech_policy import pick_next_priority_tech
 
@@ -185,8 +191,12 @@ class Game(AbstractGame):
         self.unit_slot_types = []
         self.unit_type_labels = {}
         self.city_slots = []
+        self.city_sizes: dict[int, int] = {}
         self.production_locked = set()
+        self.city_production_choice: dict[int, str] = {}
+        self.city_production_switches: dict[int, int] = {}
         self.current_research = None
+        self.autosettler_units: set[int] = set()
         self.gov_switch_sent: set[str] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
         self.visible_enemy_cities: list[tuple[int, int]] = []
@@ -403,6 +413,14 @@ class Game(AbstractGame):
             },
             -1: {tech: False for tech in MultiheadState.RESEARCH_TECHS},
         }
+        state.research_target = {1: None, -1: None}
+        state.research_progress = {1: 0.0, -1: 0.0}
+        state.tech_costs = build_tech_costs(
+            TECH_PREREQS,
+            style=self.config.tech_cost_style,
+            base_cost=self.config.base_tech_cost,
+            min_cost=self.config.min_tech_cost,
+        )
         state.turn = self.turns
         state.actions_this_turn = 0
         state.max_actions_per_turn = max(1, self.max_units * 2)
@@ -496,6 +514,10 @@ class Game(AbstractGame):
             city_walls = alpha_live.list_city_walls(self.client)
         except Exception:
             city_walls = {}
+        try:
+            self.city_sizes = list_city_sizes(self.client)
+        except Exception:
+            self.city_sizes = {}
 
         self.city_slots = []
         for city_id, cx, cy in owned_cities[: self.max_cities]:
@@ -503,7 +525,7 @@ class Game(AbstractGame):
                 City(
                     x=int(cx),
                     y=int(cy),
-                    size=1,
+                    size=int(self.city_sizes.get(int(city_id), 1)),
                     has_city_walls=bool(city_walls.get(city_id, False)),
                 )
             )
@@ -513,7 +535,7 @@ class Game(AbstractGame):
                 City(
                     x=int(cx),
                     y=int(cy),
-                    size=1,
+                    size=int(self.city_sizes.get(int(city_id), 1)),
                     has_city_walls=bool(city_walls.get(city_id, False)),
                 )
             )
@@ -524,6 +546,45 @@ class Game(AbstractGame):
         if 0 <= slot_idx < len(self.unit_slot_types):
             return (self.unit_slot_types[slot_idx] or "").lower()
         return ""
+
+    def _unit_is_worker_like(self, label: str) -> bool:
+        return any(tag in label for tag in ("worker", "engineer", "migrant", "settler"))
+
+    def _unit_is_autosettler_candidate(self, label: str) -> bool:
+        return any(tag in label for tag in ("worker", "engineer", "migrant"))
+
+    def _production_is_worker_like(self, name: str) -> bool:
+        label = (name or "").lower()
+        return any(tag in label for tag in ("worker", "engineer", "migrant"))
+
+    def _unit_is_obsolete_exempt(self, name: str) -> bool:
+        label = (name or "").lower()
+        return any(tag in label for tag in ("settler", "worker", "engineer", "migrant"))
+
+    def _unit_obsolete(self, name: str) -> bool:
+        if self._unit_is_obsolete_exempt(name):
+            return False
+        obsolete_by = UNIT_OBSOLETE_BY.get(name)
+        if not obsolete_by:
+            return False
+        return self._unit_unlocked(obsolete_by)
+
+    def _enemy_threats(self) -> set[tuple[int, int]]:
+        threats = set(self.visible_enemy_unit_coords or [])
+        if self.visible_enemy_units:
+            threats.update(self.visible_enemy_units)
+        return threats
+
+    def _is_threat_adjacent(self, pos: tuple[int, int], threats: set[tuple[int, int]]) -> bool:
+        if not threats or self.movement is None:
+            return False
+        ux, uy = pos
+        for nx, ny in self.movement.get_native_neighbors(ux, uy):
+            if nx is None or ny is None:
+                continue
+            if (int(nx), int(ny)) in threats:
+                return True
+        return False
 
     def _unit_unlocked(self, unit_name: str) -> bool:
         if self._last_state is None:
@@ -542,24 +603,38 @@ class Game(AbstractGame):
     def _select_production_unit(self) -> Optional[str]:
         if self._last_state is None:
             return None
-        archer_count = sum(
-            1 for name in self.unit_slot_types if "archer" in (name or "").lower()
+        settler_count = sum(
+            1 for name in self.unit_slot_types if "settler" in (name or "").lower()
         )
-        phalanx_count = sum(
-            1 for name in self.unit_slot_types if "phalanx" in (name or "").lower()
-        )
-        desired_archers = min(3, self.max_units)
-        desired_phalanx = 1
-        archers_unlocked = self._unit_unlocked("Archers")
-        phalanx_unlocked = self._unit_unlocked("Phalanx")
-        if archers_unlocked and archer_count < desired_archers:
-            return "Archers"
-        if phalanx_unlocked and phalanx_count < desired_phalanx:
-            return "Phalanx"
-        if archers_unlocked:
-            return "Archers"
-        if phalanx_unlocked:
-            return "Phalanx"
+        city_sizes = [city.size for city in self._last_state.cities[1]]
+        can_make_settler = any(size >= 2 for size in city_sizes)
+        if (
+            can_make_settler
+            and len(self.city_slots) < self.max_cities
+            and settler_count < 1
+            and self._unit_unlocked("Settlers")
+        ):
+            return "Settlers"
+        candidates = []
+        for name in PRODUCTION_UNIT_NAMES:
+            if not self._unit_unlocked(name):
+                continue
+            if self._unit_obsolete(name):
+                continue
+            if name == "Settlers" or self._production_is_worker_like(name):
+                continue
+            spec = UNIT_SPECS.get(name)
+            if spec is None:
+                continue
+            if spec.atk <= 0 and spec.df <= 0:
+                continue
+            score = spec.atk * 2.0 + spec.df * 1.5 + spec.hp * 0.1 + spec.moves * 0.5
+            candidates.append((score, name))
+        if candidates:
+            candidates.sort(reverse=True)
+            return candidates[0][1]
+        if self._unit_unlocked("Warriors"):
+            return "Warriors"
         return None
 
     def _city_exists(self, city_id: int) -> bool:
@@ -571,6 +646,36 @@ class Game(AbstractGame):
             if int(cid) == int(city_id):
                 return True
         return False
+
+    def _city_spacing_ok(self, pos: tuple[int, int]) -> bool:
+        if self._last_state is None or self.movement is None:
+            return True
+        min_dist = getattr(self.config, "city_min_distance", 0)
+        if min_dist <= 0:
+            return True
+        if not self._last_state.cities[1]:
+            return True
+        x, y = pos
+        frontier = deque()
+        frontier.append((x, y, 0))
+        seen = {(x, y)}
+        while frontier:
+            cx, cy, dist = frontier.popleft()
+            if dist >= min_dist:
+                continue
+            for city in self._last_state.cities[1]:
+                if city.x == cx and city.y == cy:
+                    return False
+            for nx, ny in self.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None:
+                    continue
+                if (nx, ny) in seen:
+                    continue
+                if self._last_state.gt and self._last_state.gt.au_map[ny, nx] != "A":
+                    continue
+                seen.add((nx, ny))
+                frontier.append((nx, ny, dist + 1))
+        return True
 
     def _prefer_production_actions(self, valid):
         if self._last_state is None or not self.city_slots:
@@ -591,6 +696,11 @@ class Game(AbstractGame):
         if desired_idx is None:
             return valid
         for slot_idx in range(len(self.city_slots)):
+            if desired_unit == "Settlers":
+                if slot_idx >= len(self._last_state.cities[1]):
+                    continue
+                if self._last_state.cities[1][slot_idx].size < 2:
+                    continue
             start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
             end = start + self._last_state.PRODUCTION_ITEM_COUNT
             if start >= len(valid):
@@ -603,6 +713,94 @@ class Game(AbstractGame):
                 for action_idx in range(start, end):
                     if action_idx != desired_action:
                         valid[action_idx] = 0
+        return valid
+
+    def _force_production_actions(self, valid, raw_valid):
+        if self._last_state is None or not self.city_slots:
+            return valid
+        desired_unit = self._select_production_unit()
+        if not desired_unit:
+            return valid
+        desired_idx = None
+        for idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+            if kind == "unit" and name == desired_unit:
+                desired_idx = idx
+                break
+        if desired_idx is None:
+            return valid
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        forced = numpy.zeros_like(valid)
+        for slot_idx, city_id in enumerate(self.city_slots):
+            if city_id in self.production_locked:
+                current_choice = self.city_production_choice.get(city_id)
+                if current_choice == "Settlers":
+                    if (
+                        slot_idx < len(self._last_state.cities[1])
+                        and self._last_state.cities[1][slot_idx].size < 2
+                    ):
+                        self.production_locked.discard(city_id)
+                    else:
+                        continue
+                elif current_choice == desired_unit:
+                    continue
+                else:
+                    switch_count = self.city_production_switches.get(city_id, 0)
+                    if (
+                        switch_count >= 1
+                        or current_choice is None
+                        or current_choice != "Warriors"
+                        or desired_unit == "Warriors"
+                    ):
+                        continue
+                    self.production_locked.discard(city_id)
+            if desired_unit == "Settlers":
+                if slot_idx >= len(self._last_state.cities[1]):
+                    continue
+                if self._last_state.cities[1][slot_idx].size < 2:
+                    continue
+            action = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT + desired_idx
+            if action >= len(valid) or action >= prod_end:
+                continue
+            if raw_valid[action]:
+                forced[action] = 1
+        if forced.any():
+            return forced
+        return valid
+
+    def _deprioritize_worker_production(self, valid):
+        if self._last_state is None or not self.city_slots:
+            return valid
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        if prod_start >= len(valid):
+            return valid
+        for slot_idx in range(len(self.city_slots)):
+            start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
+            end = start + self._last_state.PRODUCTION_ITEM_COUNT
+            if start >= len(valid):
+                break
+            end = min(end, len(valid), prod_end)
+            if not valid[start:end].any():
+                continue
+            worker_actions = []
+            other_unit_actions = []
+            for item_idx in range(end - start):
+                action_idx = start + item_idx
+                if action_idx >= len(valid) or not valid[action_idx]:
+                    continue
+                kind, name = PRODUCTION_ITEM_NAMES[item_idx]
+                if kind != "unit":
+                    continue
+                if self._production_is_worker_like(name):
+                    worker_actions.append(action_idx)
+                else:
+                    other_unit_actions.append(action_idx)
+            if other_unit_actions and worker_actions:
+                for action_idx in worker_actions:
+                    valid[action_idx] = 0
         return valid
 
     def _prefer_research_actions(self, valid):
@@ -644,6 +842,171 @@ class Game(AbstractGame):
             ok = False
         if ok:
             self.gov_switch_sent.add(target)
+
+    def _maybe_enable_autosettlers(self) -> None:
+        if not self.unit_slots:
+            return
+        threats = self._enemy_threats()
+        for slot_idx, unit_id in enumerate(self.unit_slots):
+            if unit_id is None:
+                continue
+            label = self._unit_slot_label(slot_idx)
+            if not self._unit_is_autosettler_candidate(label):
+                continue
+            if unit_id in self.autosettler_units:
+                continue
+            pos = self.unit_positions[slot_idx] if slot_idx < len(self.unit_positions) else None
+            if pos is not None and self._is_threat_adjacent(pos, threats):
+                continue
+            try:
+                ok = lua_auto_settler(self.client, unit_id)
+            except Exception:
+                ok = False
+            if ok:
+                self.autosettler_units.add(unit_id)
+
+    def _mask_autosettler_actions(self, valid):
+        if self._last_state is None or not self.autosettler_units:
+            return valid
+        threats = self._enemy_threats()
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        for slot_idx, unit_id in enumerate(self.unit_slots):
+            if unit_id is None or unit_id not in self.autosettler_units:
+                continue
+            pos = self.unit_positions[slot_idx] if slot_idx < len(self.unit_positions) else None
+            if pos is not None and self._is_threat_adjacent(pos, threats):
+                continue
+            move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+            move_end = move_start + self._last_state.MOVE_PER_UNIT
+            atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
+            atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+            valid[move_start:move_end] = 0
+            valid[atk_start:atk_end] = 0
+            build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
+            if 0 <= build_idx < len(valid):
+                valid[build_idx] = 0
+        return valid
+
+    def _city_site_ok(self, x: int, y: int, player: int) -> bool:
+        if self._last_state is None or self._last_state.gt is None:
+            return False
+        if self._last_state.gt.au_map[y, x] != "A":
+            return False
+        if self._last_state._city_at(x, y, player) is not None:
+            return False
+        if self._last_state._city_at(x, y, -player) is not None:
+            return False
+        for p in (1, -1):
+            for u in self._last_state.units[p]:
+                if u.alive and u.x == x and u.y == y:
+                    return False
+        if self.movement is not None:
+            for nx, ny in self.movement.get_native_neighbors(x, y):
+                if nx is None or ny is None:
+                    continue
+                for u in self._last_state.units[-player]:
+                    if u.alive and u.x == nx and u.y == ny:
+                        return False
+        return self._last_state._city_spacing_ok(player, x, y)
+
+    def _settler_first_step(self, start: tuple[int, int], player: int):
+        if self._last_state is None or self.movement is None or self._last_state.gt is None:
+            return None
+        sx, sy = start
+        neighbors = self.movement.get_native_neighbors(sx, sy)
+        seen = {(sx, sy)}
+        queue = deque()
+        for dir_idx, (nx, ny) in enumerate(neighbors):
+            if nx is None or ny is None:
+                continue
+            if self._last_state.gt.au_map[ny, nx] != "A":
+                continue
+            seen.add((nx, ny))
+            queue.append((nx, ny, dir_idx, 1))
+        while queue:
+            cx, cy, first_dir, dist = queue.popleft()
+            if self._city_site_ok(cx, cy, player):
+                return first_dir, dist
+            for nx, ny in self.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None:
+                    continue
+                if (nx, ny) in seen:
+                    continue
+                if self._last_state.gt.au_map[ny, nx] != "A":
+                    continue
+                seen.add((nx, ny))
+                queue.append((nx, ny, first_dir, dist + 1))
+        return None
+
+    def _force_settler_city_actions(self, valid):
+        if self._last_state is None:
+            return None
+        player = 1
+        if len(self._last_state.cities[player]) >= self._last_state.max_cities:
+            return None
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        build_base = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
+        build_actions = []
+        best_move = None
+        for idx, u in enumerate(self._last_state.units[player]):
+            if not u.alive or not u.can_build_city:
+                continue
+            build_action = build_base + idx
+            if 0 <= build_action < len(valid) and valid[build_action]:
+                build_actions.append(build_action)
+                continue
+            step = self._settler_first_step((u.x, u.y), player)
+            if step is None:
+                continue
+            dir_idx, dist = step
+            action = idx * self._last_state.MOVE_PER_UNIT + dir_idx
+            if 0 <= action < len(valid) and valid[action]:
+                if best_move is None or dist < best_move[0]:
+                    best_move = (dist, action)
+        if build_actions:
+            return build_actions
+        if best_move is not None:
+            return [best_move[1]]
+        return None
+
+    def _prefer_worker_evasion(self, valid):
+        if self._last_state is None or self.movement is None:
+            return valid
+        threats = self._enemy_threats()
+        if not threats:
+            return valid
+        forced = valid.copy()
+        for slot_idx, pos in enumerate(self.unit_positions):
+            if pos is None:
+                continue
+            label = self._unit_slot_label(slot_idx)
+            if not self._unit_is_worker_like(label):
+                continue
+            if not self._is_threat_adjacent(pos, threats):
+                continue
+            unit_id = self.unit_slots[slot_idx] if slot_idx < len(self.unit_slots) else None
+            if unit_id is not None and unit_id in self.autosettler_units:
+                self.autosettler_units.discard(unit_id)
+            ux, uy = pos
+            cur_dist = min(abs(ux - tx) + abs(uy - ty) for (tx, ty) in threats)
+            move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+            move_end = move_start + self._last_state.MOVE_PER_UNIT
+            safe_moves = []
+            for dir_idx, (nx, ny) in enumerate(self.movement.get_native_neighbors(ux, uy)):
+                if nx is None or ny is None:
+                    continue
+                action_idx = move_start + dir_idx
+                if action_idx >= len(forced) or not forced[action_idx]:
+                    continue
+                dist = min(abs(nx - tx) + abs(ny - ty) for (tx, ty) in threats)
+                if dist > cur_dist:
+                    safe_moves.append(action_idx)
+            if safe_moves:
+                for action_idx in range(move_start, min(move_end, len(forced))):
+                    forced[action_idx] = 0
+                for action_idx in safe_moves:
+                    forced[action_idx] = 1
+        return forced
 
     def _prefer_attack_actions(self, valid):
         if self._last_state is None:
@@ -734,7 +1097,23 @@ class Game(AbstractGame):
             for (x, y), status in snapshot.status_lookup.items()
             if status and len(status) >= 3 and status[2]
         }
+        self.autosettler_units.intersection_update(set(self.unit_slots))
+        self._maybe_enable_autosettlers()
         self.production_locked.intersection_update(set(self.city_slots))
+        if self.city_slots:
+            self.city_production_choice = {
+                cid: name
+                for cid, name in self.city_production_choice.items()
+                if cid in self.city_slots
+            }
+            self.city_production_switches = {
+                cid: count
+                for cid, count in self.city_production_switches.items()
+                if cid in self.city_slots
+            }
+        else:
+            self.city_production_choice.clear()
+            self.city_production_switches.clear()
         self.current_research = None
         if isinstance(snapshot.research_name, str):
             if snapshot.research_name.startswith("__TECH__"):
@@ -808,7 +1187,10 @@ class Game(AbstractGame):
             if unit_idx >= len(self.unit_slots):
                 return
             unit_id = self.unit_slots[unit_idx]
-            if unit_id is None:
+            unit_pos = self.unit_positions[unit_idx]
+            if unit_id is None or unit_pos is None:
+                return
+            if not self._city_spacing_ok(unit_pos):
                 return
             city_name = f"MuZeroCity{len(owned_cities) + 1}"
             built = self.client.found_city(unit_id, city_name)
@@ -828,6 +1210,12 @@ class Game(AbstractGame):
             prod_kind = "UnitType" if kind == "unit" else "Building"
             if self.client.set_city_production(city_id, prod_kind, name):
                 self.production_locked.add(city_id)
+                previous = self.city_production_choice.get(city_id)
+                self.city_production_choice[city_id] = name
+                if previous and previous != name:
+                    self.city_production_switches[city_id] = (
+                        self.city_production_switches.get(city_id, 0) + 1
+                    )
             return
 
     def step(self, action):
@@ -902,6 +1290,7 @@ class Game(AbstractGame):
             except Exception:
                 return []
         valid = self._last_state.valid_moves(1)
+        raw_valid = valid.copy()
         alive_units = any(u.alive for u in self._last_state.units[1])
         if not self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
@@ -936,6 +1325,7 @@ class Game(AbstractGame):
                 start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
                 end = start + self._last_state.PRODUCTION_ITEM_COUNT
                 valid[start:end] = 0
+        valid = self._force_production_actions(valid, raw_valid)
         if self.acted_unit_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             for slot_idx in self.acted_unit_slots:
@@ -951,6 +1341,12 @@ class Game(AbstractGame):
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
         valid = self._prefer_production_actions(valid)
+        valid = self._deprioritize_worker_production(valid)
+        valid = self._prefer_worker_evasion(valid)
+        valid = self._mask_autosettler_actions(valid)
+        forced = self._force_settler_city_actions(valid)
+        if forced:
+            return forced
         valid = self._prefer_attack_actions(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0

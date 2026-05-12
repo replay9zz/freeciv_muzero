@@ -168,18 +168,28 @@ class Game(AbstractGame):
         self.player = 1
 
     def _score_diff(self) -> float:
-        return float(self.state.scores[1] - self.state.scores[-1])
+        return float(
+            self.state.civilization_score(1) - self.state.civilization_score(-1)
+        )
 
     def _observation(self):
         return self.state.encode(self.player)
 
     def step(self, action):
-        prev_score = float(self.state.scores[self.player])
+        prev_score = float(self.state.civilization_score(self.player))
+        visited_before = (
+            int(self.state.visited[self.player].sum())
+            if self.state.visited.get(self.player) is not None
+            else 0
+        )
         current_player = self.player
         prev_turn = self.state.turn
         self.state.step(current_player, action)
         done = self.state.terminal_reason is not None
-        reward = float(self.state.scores[current_player]) - prev_score
+        reward = float(self.state.civilization_score(current_player)) - prev_score
+        if self.state.visited.get(current_player) is not None:
+            visited_after = int(self.state.visited[current_player].sum())
+            reward += (visited_after - visited_before) * self.config.move_reward
         if self.state.turn != prev_turn:
             self.player = -current_player
         return self._observation(), reward, done
@@ -187,8 +197,135 @@ class Game(AbstractGame):
     def to_play(self):
         return 0 if self.player == 1 else 1
 
+    def _production_is_worker_like(self, name: str) -> bool:
+        label = (name or "").lower()
+        return any(tag in label for tag in ("worker", "engineer", "migrant"))
+
+    def _deprioritize_worker_production(self, valid):
+        state = self.state
+        player = self.player
+        if not state.cities[player]:
+            return valid
+        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
+        prod_end = econ_offset + state.ECON_PASS_OFFSET
+        if prod_start >= len(valid):
+            return valid
+        for city_idx in range(len(state.cities[player])):
+            start = prod_start + city_idx * state.PRODUCTION_ITEM_COUNT
+            end = start + state.PRODUCTION_ITEM_COUNT
+            if start >= len(valid):
+                break
+            end = min(end, len(valid), prod_end)
+            if not valid[start:end].any():
+                continue
+            worker_actions = []
+            other_unit_actions = []
+            for item_idx in range(end - start):
+                action_idx = start + item_idx
+                if action_idx >= len(valid) or not valid[action_idx]:
+                    continue
+                kind, name = state.PRODUCTION_ITEM_NAMES[item_idx]
+                if kind != "unit":
+                    continue
+                if self._production_is_worker_like(name):
+                    worker_actions.append(action_idx)
+                else:
+                    other_unit_actions.append(action_idx)
+            if other_unit_actions and worker_actions:
+                for action_idx in worker_actions:
+                    valid[action_idx] = 0
+        return valid
+
+    def _city_site_ok(self, x: int, y: int, player: int) -> bool:
+        state = self.state
+        if state.gt is None:
+            return False
+        if state.gt.au_map[y, x] != "A":
+            return False
+        if state._city_at(x, y, player) is not None:
+            return False
+        if state._city_at(x, y, -player) is not None:
+            return False
+        for p in (1, -1):
+            for u in state.units[p]:
+                if u.alive and u.x == x and u.y == y:
+                    return False
+        if state.movement is not None:
+            for nx, ny in state.movement.get_native_neighbors(x, y):
+                if nx is None or ny is None:
+                    continue
+                for u in state.units[-player]:
+                    if u.alive and u.x == nx and u.y == ny:
+                        return False
+        return state._city_spacing_ok(player, x, y)
+
+    def _settler_first_step(self, start: tuple[int, int], player: int):
+        state = self.state
+        if state.movement is None or state.gt is None:
+            return None
+        sx, sy = start
+        neighbors = state.movement.get_native_neighbors(sx, sy)
+        seen = {(sx, sy)}
+        queue = deque()
+        for dir_idx, (nx, ny) in enumerate(neighbors):
+            if nx is None or ny is None:
+                continue
+            if state.gt.au_map[ny, nx] != "A":
+                continue
+            seen.add((nx, ny))
+            queue.append((nx, ny, dir_idx, 1))
+        while queue:
+            cx, cy, first_dir, dist = queue.popleft()
+            if self._city_site_ok(cx, cy, player):
+                return first_dir, dist
+            for nx, ny in state.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None:
+                    continue
+                if (nx, ny) in seen:
+                    continue
+                if state.gt.au_map[ny, nx] != "A":
+                    continue
+                seen.add((nx, ny))
+                queue.append((nx, ny, first_dir, dist + 1))
+        return None
+
+    def _force_settler_city_actions(self, valid):
+        state = self.state
+        player = self.player
+        if len(state.cities[player]) >= state.max_cities:
+            return None
+        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        build_base = econ_offset + state.ECON_BUILD_CITY_OFFSET
+        build_actions = []
+        best_move = None
+        for idx, u in enumerate(state.units[player]):
+            if not u.alive or not u.can_build_city:
+                continue
+            build_action = build_base + idx
+            if 0 <= build_action < len(valid) and valid[build_action]:
+                build_actions.append(build_action)
+                continue
+            step = self._settler_first_step((u.x, u.y), player)
+            if step is None:
+                continue
+            dir_idx, dist = step
+            action = idx * state.MOVE_PER_UNIT + dir_idx
+            if 0 <= action < len(valid) and valid[action]:
+                if best_move is None or dist < best_move[0]:
+                    best_move = (dist, action)
+        if build_actions:
+            return build_actions
+        if best_move is not None:
+            return [best_move[1]]
+        return None
+
     def legal_actions(self):
         valid = self.state.valid_moves(self.player)
+        valid = self._deprioritize_worker_production(valid)
+        forced = self._force_settler_city_actions(valid)
+        if forced:
+            return forced
         legal = [idx for idx, allowed in enumerate(valid) if allowed]
         if not legal:
             return []
