@@ -1,5 +1,14 @@
 # Checkpoints
-results/
+results/*
+
+# Remote Play
+!results/remote_play
+results/remote_play/*
+*.log
+*.serv
+
+# Play Results
+!results/remote_play/2026-01-19--16-23-02/
 
 # Editors
 .vscode/
