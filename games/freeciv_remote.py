@@ -32,6 +32,7 @@ from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
 from freeciv_rl.lua_helper import (
     auto_settler as lua_auto_settler,
     list_city_sizes,
+    list_tile_owners,
     set_government as lua_set_government,
 )
 
@@ -60,7 +61,7 @@ class MuZeroConfig:
 
         map_w = _env_int("FREECIV_MAP_W", 4)
         map_h = _env_int("FREECIV_MAP_H", 16)
-        max_turns = _env_int("FREECIV_MAX_TURNS", 128)
+        max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
         self.map_config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
@@ -168,7 +169,7 @@ class Game(AbstractGame):
     def __init__(self, seed=None):
         map_w = _env_int("FREECIV_MAP_W", 4)
         map_h = _env_int("FREECIV_MAP_H", 16)
-        max_turns = _env_int("FREECIV_MAX_TURNS", 128)
+        max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
         self.config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
@@ -202,6 +203,7 @@ class Game(AbstractGame):
         self.visible_enemy_cities: list[tuple[int, int]] = []
         self.visible_enemy_city_ids: dict[tuple[int, int], int] = {}
         self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
+        self.tile_owners: dict[tuple[int, int], int] = {}
         if self.unit_id is not None:
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
             pos_info = alpha_live.parse_position_result(pos_result)
@@ -224,6 +226,19 @@ class Game(AbstractGame):
         self._last_snapshot = None
         self._last_state = None
         self.previous_pos = None
+        self._tile_owner_refresh_pending = True
+
+    def _refresh_tile_owners(self) -> None:
+        if self.client is None:
+            return
+        try:
+            self.tile_owners = list_tile_owners(
+                self.client, self.config.map_w, self.config.map_h
+            )
+            self._tile_owner_refresh_pending = False
+        except Exception:
+            self.tile_owners = {}
+            self._tile_owner_refresh_pending = True
 
     def _refresh_controlled_units(self):
         controlled, self.player_id = alpha_live.discover_controlled_units(
@@ -420,6 +435,7 @@ class Game(AbstractGame):
             style=self.config.tech_cost_style,
             base_cost=self.config.base_tech_cost,
             min_cost=self.config.min_tech_cost,
+            cost_factor=getattr(self.config, "tech_cost_factor", 1.0),
         )
         state.turn = self.turns
         state.actions_this_turn = 0
@@ -892,6 +908,12 @@ class Game(AbstractGame):
             return False
         if self._last_state.gt.au_map[y, x] != "A":
             return False
+        if self._tile_owner_refresh_pending:
+            self._refresh_tile_owners()
+        if player == 1:
+            owner = self.tile_owners.get((x, y))
+            if owner is not None and self.player_id is not None and owner != self.player_id:
+                return False
         if self._last_state._city_at(x, y, player) is not None:
             return False
         if self._last_state._city_at(x, y, -player) is not None:
@@ -1085,6 +1107,7 @@ class Game(AbstractGame):
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         enemy_cities = self._visible_enemy_cities()
         self._last_state = self._build_state(snapshot, owned_cities, enemy_cities)
+        self._tile_owner_refresh_pending = True
         self.visible_enemy_units = [
             (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
         ]
