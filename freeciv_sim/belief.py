@@ -52,9 +52,16 @@ class BeliefTracker:
 
     def begin_turn(self) -> None:
         for mem in self.slots.values():
-            mem.visible_units.fill(0.0)
-            mem.visible_cities.fill(0.0)
+            self._clear_visible(mem)
             mem.last_seen_age += 1.0
+
+    def begin_observation(self) -> None:
+        for mem in self.slots.values():
+            self._clear_visible(mem)
+
+    def _clear_visible(self, mem: OpponentBelief) -> None:
+        mem.visible_units.fill(0.0)
+        mem.visible_cities.fill(0.0)
 
     def update_territory(
         self,
@@ -91,6 +98,15 @@ class BeliefTracker:
                 continue
             mem.visible_cities[y, x] = 1.0
             mem.last_seen_age[y, x] = 0.0
+
+    def mask_visible_tiles(self, slot_id: int, coords: Iterable[Coord]) -> None:
+        mem = self.ensure_slot(slot_id)
+        for x, y in coords:
+            if not self._in_bounds(x, y):
+                continue
+            if mem.visible_units[y, x] > 0.0 or mem.visible_cities[y, x] > 0.0:
+                continue
+            mem.belief_units[y, x] = 0.0
 
     def _diffuse_once(self, belief: np.ndarray) -> np.ndarray:
         assert self.movement is not None

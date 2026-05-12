@@ -255,6 +255,21 @@ def main() -> None:
     ap.add_argument("--num-simulations", type=int, default=50)
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--render", action="store_true")
+    ap.add_argument(
+        "--belief-tensorboard",
+        action="store_true",
+        help="Log belief heatmaps to TensorBoard once per turn.",
+    )
+    ap.add_argument(
+        "--belief-tensorboard-dir",
+        help="TensorBoard log directory for belief heatmaps.",
+    )
+    ap.add_argument(
+        "--belief-tensorboard-interval",
+        type=int,
+        default=1,
+        help="Log belief heatmaps every N turns.",
+    )
     ap.add_argument("--episodes", type=int, default=1)
     ap.add_argument("--score-log", help="Write civ scores to JSONL every N turns.")
     ap.add_argument("--score-log-interval", type=int, default=25)
@@ -399,6 +414,9 @@ def main() -> None:
     _set_env("FREECIV_TAKE_COMMAND", args.take_command)
     _set_env("FREECIV_DIR_IDS", args.dir_ids)
     _set_env("FREECIV_SLEEP", args.sleep)
+    _set_env("FREECIV_BELIEF_TENSORBOARD", "1" if args.belief_tensorboard else None)
+    _set_env("FREECIV_BELIEF_TENSORBOARD_DIR", args.belief_tensorboard_dir)
+    _set_env("FREECIV_BELIEF_TENSORBOARD_INTERVAL", args.belief_tensorboard_interval)
 
     device = torch.device(args.device)
     weights = load_weights(checkpoint_path, map_location=device)
@@ -459,6 +477,10 @@ def main() -> None:
     score_log_interval = int(args.score_log_interval or 0)
     for episode in range(args.episodes):
         observation = game.reset()
+        if args.belief_tensorboard and getattr(game, "belief_tb_enabled", False):
+            log_dir = getattr(game, "belief_tb_dir", None)
+            if log_dir:
+                print(f"Belief TensorBoard log dir: {log_dir}", file=sys.stderr)
         if obs_adapter is not None:
             observation = obs_adapter(observation)
         done = False

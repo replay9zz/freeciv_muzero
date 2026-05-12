@@ -13,6 +13,7 @@ from typing import Optional
 
 import numpy
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from .abstract_game import AbstractGame
 
@@ -21,6 +22,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from freeciv_sim import live_agent as alpha_live
+from freeciv_sim.belief import BeliefTracker
 from freeciv_sim.config import MapConfig
 from freeciv_sim.multihead_state import (
     City,
@@ -312,6 +314,17 @@ class Game(AbstractGame):
         self.max_actions_per_turn = _env_int(
             "FREECIV_MAX_ACTIONS_PER_TURN", max(1, self.max_units * 2)
         )
+        self.belief_tracker = BeliefTracker(self.config.map_w, self.config.map_h)
+        self.belief_slot_id = 0
+        self._belief_initialized = False
+        self._belief_turn = None
+        self._belief_planes: dict[str, numpy.ndarray] = {}
+        self.belief_tb_enabled = _env_bool("FREECIV_BELIEF_TENSORBOARD", False)
+        self.belief_tb_interval = max(1, _env_int("FREECIV_BELIEF_TENSORBOARD_INTERVAL", 1))
+        self.belief_tb_dir = os.getenv("FREECIV_BELIEF_TENSORBOARD_DIR")
+        self._belief_writer: SummaryWriter | None = None
+        self._belief_last_logged_turn = None
+        self.episode_index = 0
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
         self._last_snapshot = None
@@ -457,6 +470,11 @@ class Game(AbstractGame):
     def _reset_episode_state(self) -> None:
         self.turns = 0
         self.actions_this_turn = 0
+        self.belief_tracker = BeliefTracker(self.config.map_w, self.config.map_h)
+        self._belief_initialized = False
+        self._belief_turn = None
+        self._belief_planes = {}
+        self._belief_last_logged_turn = None
         self.acted_unit_slots.clear()
         self.acted_production_cities.clear()
         self.production_queue.clear()
@@ -692,6 +710,211 @@ class Game(AbstractGame):
             "population": population,
             "settler_count": settler_count,
         }
+
+    def _ensure_belief_writer(self) -> Optional[SummaryWriter]:
+        if not self.belief_tb_enabled:
+            return None
+        if self._belief_writer is not None:
+            return self._belief_writer
+        if self.belief_tb_dir:
+            log_dir = pathlib.Path(self.belief_tb_dir).expanduser()
+        else:
+            stamp = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+            log_dir = (
+                pathlib.Path(__file__).resolve().parents[1]
+                / "results"
+                / "belief_tensorboard"
+                / stamp
+            )
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self.belief_tb_dir = str(log_dir)
+        self._belief_writer = SummaryWriter(log_dir)
+        print(f"[belief] tensorboard_logdir={log_dir}", file=sys.stderr)
+        return self._belief_writer
+
+    def _belief_heatmap_rgb(self, plane: numpy.ndarray) -> numpy.ndarray:
+        clipped = numpy.clip(numpy.asarray(plane, dtype=numpy.float32), 0.0, 1.0)
+        rgb = numpy.zeros((3, clipped.shape[0], clipped.shape[1]), dtype=numpy.float32)
+        low = clipped < (1.0 / 3.0)
+        mid = (clipped >= (1.0 / 3.0)) & (clipped < (2.0 / 3.0))
+        high = clipped >= (2.0 / 3.0)
+        if low.any():
+            t = clipped[low] / (1.0 / 3.0)
+            rgb[1, low] = t
+            rgb[2, low] = 1.0
+        if mid.any():
+            t = (clipped[mid] - (1.0 / 3.0)) / (1.0 / 3.0)
+            rgb[0, mid] = t
+            rgb[1, mid] = 1.0
+            rgb[2, mid] = 1.0 - t
+        if high.any():
+            t = (clipped[high] - (2.0 / 3.0)) / (1.0 / 3.0)
+            rgb[0, high] = 1.0
+            rgb[1, high] = 1.0 - t
+        return rgb
+
+    def _belief_top_coords(self, plane: numpy.ndarray, limit: int = 3) -> str:
+        arr = numpy.asarray(plane, dtype=numpy.float32)
+        if arr.size == 0:
+            return ""
+        flat = arr.reshape(-1)
+        order = numpy.argsort(flat)[::-1]
+        parts: list[str] = []
+        for idx in order:
+            value = float(flat[int(idx)])
+            if value <= 0.0:
+                break
+            y, x = numpy.unravel_index(int(idx), arr.shape)
+            parts.append(f"({int(x)},{int(y)})={value:.3f}")
+            if len(parts) >= limit:
+                break
+        return ", ".join(parts)
+
+    def _my_border_plane(self, my_tiles: set[tuple[int, int]]) -> numpy.ndarray:
+        border = numpy.zeros((self.config.map_h, self.config.map_w), dtype=numpy.float32)
+        if not my_tiles:
+            if self._last_state is not None:
+                for city in self._last_state.cities.get(1, []):
+                    my_tiles.add((int(city.x), int(city.y)))
+            for pos in self.unit_positions:
+                if pos is not None:
+                    my_tiles.add((int(pos[0]), int(pos[1])))
+        if not my_tiles:
+            return border
+        for x, y in my_tiles:
+            if not (0 <= x < self.config.map_w and 0 <= y < self.config.map_h):
+                continue
+            edge = False
+            for nx, ny in self.movement.get_native_neighbors(x, y):
+                if nx is None or ny is None:
+                    continue
+                if (int(nx), int(ny)) not in my_tiles:
+                    edge = True
+                    break
+            if edge:
+                border[y, x] = 1.0
+        return border
+
+    def _current_visible_tiles(self, snapshot) -> set[tuple[int, int]]:
+        visible = set(self._visible_tiles_from_player())
+        visible.add((int(snapshot.player_pos[0]), int(snapshot.player_pos[1])))
+        return {
+            (int(x), int(y))
+            for x, y in visible
+            if 0 <= int(x) < self.config.map_w and 0 <= int(y) < self.config.map_h
+        }
+
+    def _update_belief_state(self, snapshot, enemy_cities) -> None:
+        visible_tiles = self._current_visible_tiles(snapshot)
+        if self.tile_owners == {} or self._tile_owner_refresh_pending:
+            self._refresh_tile_owners()
+        enemy_tiles: set[tuple[int, int]] = set()
+        my_tiles: set[tuple[int, int]] = set()
+        owned_tiles: set[tuple[int, int]] = set()
+        for (x, y), owner in self.tile_owners.items():
+            coord = (int(x), int(y))
+            owned_tiles.add(coord)
+            if self.player_id is not None and int(owner) == int(self.player_id):
+                my_tiles.add(coord)
+            else:
+                enemy_tiles.add(coord)
+        neutral_tiles = {
+            (x, y)
+            for x in range(self.config.map_w)
+            for y in range(self.config.map_h)
+            if (x, y) not in owned_tiles
+        }
+
+        advanced_turn = False
+        if not self._belief_initialized:
+            self.belief_tracker.begin_observation()
+            self._belief_initialized = True
+            self._belief_turn = self.turns
+        elif self._belief_turn != self.turns:
+            advanced_turn = True
+            self.belief_tracker.begin_turn()
+            self._belief_turn = self.turns
+        else:
+            self.belief_tracker.begin_observation()
+
+        self.belief_tracker.update_territory(
+            self.belief_slot_id,
+            enemy_tiles=enemy_tiles,
+            neutral_tiles=neutral_tiles,
+            my_tiles=my_tiles,
+        )
+        if advanced_turn:
+            self.belief_tracker.diffuse_belief(self.belief_slot_id, steps=1)
+
+        enemy_units = list(self.visible_enemy_unit_coords or [])
+        if self.visible_enemy_units:
+            enemy_units.extend(self.visible_enemy_units)
+        seen_enemy_units = sorted({(int(x), int(y)) for x, y in enemy_units})
+        seen_enemy_cities = sorted({(int(cx), int(cy)) for _cid, cx, cy in enemy_cities})
+        self.belief_tracker.observe_units(self.belief_slot_id, seen_enemy_units)
+        self.belief_tracker.observe_cities(self.belief_slot_id, seen_enemy_cities)
+        self.belief_tracker.mask_visible_tiles(self.belief_slot_id, visible_tiles)
+        self.belief_tracker.rebuild_threat(
+            self.belief_slot_id,
+            self._my_border_plane(set(my_tiles)),
+        )
+        plane_names = (
+            "visible_units",
+            "visible_cities",
+            "belief_units",
+            "threat",
+            "age",
+            "territory",
+        )
+        self._belief_planes = dict(
+            zip(plane_names, self.belief_tracker.export_planes(self.belief_slot_id))
+        )
+
+    def _log_belief_tensorboard(self) -> None:
+        if not self.belief_tb_enabled or not self._belief_planes:
+            return
+        if self.turns < 0:
+            return
+        if self.turns % self.belief_tb_interval != 0:
+            return
+        if self._belief_last_logged_turn == self.turns:
+            return
+        writer = self._ensure_belief_writer()
+        if writer is None:
+            return
+        prefix = f"belief/episode_{self.episode_index:03d}"
+        for name, plane in self._belief_planes.items():
+            writer.add_image(
+                f"{prefix}/{name}",
+                self._belief_heatmap_rgb(plane),
+                global_step=self.turns,
+            )
+        belief_plane = self._belief_planes.get("belief_units")
+        threat_plane = self._belief_planes.get("threat")
+        if belief_plane is not None:
+            writer.add_scalar(
+                f"{prefix}/belief_mass",
+                float(numpy.asarray(belief_plane, dtype=numpy.float32).sum()),
+                self.turns,
+            )
+            writer.add_text(
+                f"{prefix}/belief_top_coords",
+                self._belief_top_coords(belief_plane),
+                self.turns,
+            )
+        if threat_plane is not None:
+            writer.add_scalar(
+                f"{prefix}/threat_peak",
+                float(numpy.asarray(threat_plane, dtype=numpy.float32).max()),
+                self.turns,
+            )
+            writer.add_text(
+                f"{prefix}/threat_top_coords",
+                self._belief_top_coords(threat_plane),
+                self.turns,
+            )
+        writer.flush()
+        self._belief_last_logged_turn = self.turns
 
     def _try_refresh_controlled_units(self):
         try:
@@ -2057,6 +2280,8 @@ class Game(AbstractGame):
         }
         if self.visible_enemy_units:
             self.visible_enemy_unit_coords.update(self.visible_enemy_units)
+        self._update_belief_state(snapshot, enemy_cities)
+        self._log_belief_tensorboard()
         self.autosettler_units.intersection_update(set(self.unit_slots))
         self._maybe_enable_autosettlers()
         self._refresh_production_queues()
@@ -2446,6 +2671,7 @@ class Game(AbstractGame):
     def reset(self):
         if self._needs_restart:
             self._restart_environment()
+        self.episode_index += 1
         self._reset_episode_state()
         state = self._sync_state()
         return state.encode(1)
@@ -2457,6 +2683,9 @@ class Game(AbstractGame):
         except Exception:
             pass
         self.client = None
+        if self._belief_writer is not None:
+            self._belief_writer.close()
+            self._belief_writer = None
         if self.client_cmd:
             self._stop_client_process()
         if self.server_cmd:
