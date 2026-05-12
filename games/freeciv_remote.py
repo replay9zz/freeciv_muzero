@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import pathlib
 import shlex
@@ -213,6 +214,10 @@ class Game(AbstractGame):
         self.restart_on_reset = _env_bool("FREECIV_CLIENT_RESTART", False)
         self.client_start_wait = _env_float("FREECIV_CLIENT_START_WAIT", 1.0)
         self.client_start_timeout = _env_float("FREECIV_CLIENT_START_TIMEOUT", 30.0)
+        self.take_player = os.getenv("FREECIV_TAKE_PLAYER")
+        self.take_command = os.getenv("FREECIV_TAKE_COMMAND")
+        self.take_wait = _env_float("FREECIV_TAKE_WAIT", 0.5)
+        self.take_retries = _env_int("FREECIV_TAKE_RETRIES", 6)
         self._needs_restart = False
         self._client_process = None
 
@@ -256,7 +261,8 @@ class Game(AbstractGame):
             pos_info = alpha_live.parse_position_result(pos_result)
             if pos_info and pos_info[2] is not None and pos_info[2] >= 0:
                 self.player_id = int(pos_info[2])
-        self._refresh_controlled_units()
+        self._maybe_take_player()
+        self._refresh_controlled_units_with_retry()
 
         self.movement = alpha_live.FreecivMovement(
             map_width=self.config.map_w, map_height=self.config.map_h
@@ -333,6 +339,62 @@ class Game(AbstractGame):
         raise RuntimeError(
             f"Failed to connect to LuaRemote at {self.host}:{self.port}"
         ) from last_exc
+
+    def _issue_chat_command(self, command: str) -> bool:
+        if self.client is None:
+            return False
+        cmd = command.strip()
+        if not cmd:
+            return False
+        if not cmd.startswith("/"):
+            cmd = f"/{cmd}"
+        lua = (
+            "return (function() "
+            f"local cmd={json.dumps(cmd)}; "
+            "local ok=false; "
+            "if type(send_chat)=='function' then ok=pcall(send_chat, cmd) end; "
+            "if (not ok) and chat and type(chat.send)=='function' then ok=pcall(chat.send, cmd) end; "
+            "if (not ok) and client and type(client.send_chat)=='function' then ok=pcall(client.send_chat, cmd) end; "
+            "if (not ok) and client and type(client.chat_send)=='function' then ok=pcall(client.chat_send, cmd) end; "
+            "if (not ok) and client and type(client.chat)=='function' then ok=pcall(client.chat, cmd) end; "
+            "if chat and chat.base then "
+            "  if ok then chat.base('__OK__ take_cmd') else chat.base('__ERR__ take_cmd') end "
+            "end; "
+            "return ok and '__OK__' or '__ERR__' "
+            "end)()"
+        )
+        try:
+            result = self.client.eval(lua)
+            payload = result.last_return() if result else None
+            return isinstance(payload, str) and payload.startswith("__OK__")
+        except Exception:
+            return False
+
+    def _maybe_take_player(self) -> None:
+        cmd = self.take_command
+        if not cmd and self.take_player:
+            cmd = f'/take "{self.take_player}"'
+        if not cmd:
+            return
+        ok = self._issue_chat_command(cmd)
+        if not ok:
+            print(
+                f"[warn] failed to send take command: {cmd}",
+                file=sys.stderr,
+            )
+
+    def _refresh_controlled_units_with_retry(self) -> None:
+        attempts = max(1, int(self.take_retries))
+        for idx in range(attempts):
+            try:
+                self._refresh_controlled_units()
+                return
+            except RuntimeError as exc:
+                if "No controllable units found" not in str(exc):
+                    raise
+                if idx >= attempts - 1:
+                    raise
+                time.sleep(self.take_wait)
 
     def _refresh_tile_owners(self) -> None:
         if self.client is None:

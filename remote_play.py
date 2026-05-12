@@ -232,6 +232,14 @@ def main() -> None:
         help="Write per-turn player civ scores to this CSV (episode,turn,p0,p1).",
     )
     ap.add_argument(
+        "--take-player",
+        help='Send /take "<player>" via chat before LuaRemote control (ex: Condor).',
+    )
+    ap.add_argument(
+        "--take-command",
+        help="Send a raw server command via chat before LuaRemote control.",
+    )
+    ap.add_argument(
         "--json",
         action="store_true",
         help="Emit JSONL results (one line per episode plus a summary).",
@@ -335,6 +343,8 @@ def main() -> None:
     _set_env("FREECIV_MAX_TURNS", args.max_turns)
     _set_env("FREECIV_PLAYER_ID", args.player_id)
     _set_env("FREECIV_UNIT_ID", args.unit_id)
+    _set_env("FREECIV_TAKE_PLAYER", args.take_player)
+    _set_env("FREECIV_TAKE_COMMAND", args.take_command)
     _set_env("FREECIV_DIR_IDS", args.dir_ids)
     _set_env("FREECIV_SLEEP", args.sleep)
 
