@@ -42,6 +42,21 @@ source .venv/bin/activate
 
 To force CPU mode, use `USE_GPU=0 ./scripts/train.sh`.
 To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./scripts/train.sh`.
+For multi-GPU headless training, increase the Ray self-play workers and expose
+the GPUs:
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9 \
+MUZERO_MAX_NUM_GPUS=10 \
+NUM_WORKERS=8 \
+TRAINING_STEPS=50000 \
+NUM_SIMULATIONS=16 \
+./scripts/train_headless.sh
+```
+
+Each worker gets its own Freeciv server and LuaRemote port by offsetting
+`SERVER_PORT` and `LUA_PORT`. Override `FREECIV_SERVER_PORT_STRIDE` or
+`FREECIV_LUAREMOTE_PORT_STRIDE` if a host has nearby occupied ports.
 
 The default server rc used by the training scripts is [`start_single.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_single.serv).
 The training scripts now prefer repo-local paths first:
@@ -58,6 +73,19 @@ For scenarios they prefer:
 - `~/.freeciv/scenarios/minimal_v4.sav`
 
 Override either with `BUILD_DIR=...` or `SCENARIO_PATH=...` if needed.
+
+Optional strategic reward shaping:
+
+```bash
+FREECIV_REWARD_POTENTIAL=0.1 ./scripts/train.sh
+```
+
+This adds a potential-based term computed from cities, population, land,
+military strength, research unlocks, production pipeline, exploration, and
+city safety. To log reward components beside belief heatmaps, set
+`FREECIV_REWARD_TENSORBOARD=1` or enable `FREECIV_BELIEF_TENSORBOARD=1`.
+To append the belief tracker planes to the model observation, set
+`FREECIV_OBSERVE_BELIEF=1`.
 
 ## Test
 Example:
