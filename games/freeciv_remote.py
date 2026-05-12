@@ -4,6 +4,7 @@ import os
 import pathlib
 import shlex
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -206,41 +207,63 @@ class MuZeroConfig:
 
 
 class Game(AbstractGame):
-    def __init__(self, seed=None):
-        map_w = _env_int("FREECIV_MAP_W", 4)
-        map_h = _env_int("FREECIV_MAP_H", 16)
-        max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
-        allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
-        self.config = MapConfig(
-            map_w=map_w,
-            map_h=map_h,
-            max_turns=max_turns,
-            allow_sea_units=allow_sea_units,
-        )
-        self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
-        self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+    def __init__(self, seed=None, config=None):
+        if config is not None and hasattr(config, "map_config"):
+            self.config = config.map_config
+            self.max_units = int(getattr(config, "max_units", _env_int("FREECIV_MAX_UNITS", 6)))
+            self.max_cities = int(getattr(config, "max_cities", _env_int("FREECIV_MAX_CITIES", 3)))
+        else:
+            map_w = _env_int("FREECIV_MAP_W", 4)
+            map_h = _env_int("FREECIV_MAP_H", 16)
+            max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
+            allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
+            self.config = MapConfig(
+                map_w=map_w,
+                map_h=map_h,
+                max_turns=max_turns,
+                allow_sea_units=allow_sea_units,
+            )
+            self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
+            self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
         self.dir_ids = alpha_live.parse_dir_ids(
             os.getenv("FREECIV_DIR_IDS", "0,1,4,7,6,3")
         )
         self.sleep = _env_float("FREECIV_SLEEP", 0.1)
+        self.reward_explore = _env_float("FREECIV_REWARD_EXPLORE", 1.0)
+        self.reward_civ_score = _env_float("FREECIV_REWARD_CIV_SCORE", 0.25)
+        self.reward_city = _env_float("FREECIV_REWARD_CITY", 12.0)
+        self.reward_population = _env_float("FREECIV_REWARD_POPULATION", 2.0)
+        self.reward_settler = _env_float("FREECIV_REWARD_SETTLER", 3.0)
 
         self.host = os.getenv("FREECIV_HOST", "127.0.0.1")
+        self.server_host = os.getenv("FREECIV_SERVER_HOST", self.host)
+        self.server_port = _env_int("FREECIV_SERVER_PORT", _env_int("FREECIV_GAME_PORT", 5555))
         self.port = _env_int(
             "FREECIV_LUAREMOTE_PORT",
             _env_int("FREECIV_PORT", 4444),
         )
         self.timeout = _env_float("FREECIV_TIMEOUT", 2.5)
+        self.server_cmd = os.getenv("FREECIV_SERVER_CMD")
         self.client_cmd = os.getenv("FREECIV_CLIENT_CMD")
         self.restart_on_reset = _env_bool("FREECIV_CLIENT_RESTART", False)
+        if self.server_cmd:
+            self.restart_on_reset = True
+        self.server_start_wait = _env_float("FREECIV_SERVER_START_WAIT", 0.5)
+        self.server_start_timeout = _env_float("FREECIV_SERVER_START_TIMEOUT", 20.0)
         self.client_start_wait = _env_float("FREECIV_CLIENT_START_WAIT", 1.0)
         self.client_start_timeout = _env_float("FREECIV_CLIENT_START_TIMEOUT", 30.0)
+        self.take_player_id = _env_int("FREECIV_TAKE_PLAYER_ID", None)
         self.take_player = os.getenv("FREECIV_TAKE_PLAYER")
         self.take_command = os.getenv("FREECIV_TAKE_COMMAND")
         self.take_wait = _env_float("FREECIV_TAKE_WAIT", 0.5)
         self.take_retries = _env_int("FREECIV_TAKE_RETRIES", 6)
         self._needs_restart = False
+        self._server_process = None
         self._client_process = None
 
+        if self.server_cmd:
+            self._start_server_process()
+            self._wait_for_server()
         if self.client_cmd:
             self._start_client_process()
 
@@ -276,13 +299,7 @@ class Game(AbstractGame):
         self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
         self.tile_owners: dict[tuple[int, int], int] = {}
         self.player_scores: dict[int, tuple[Optional[float], Optional[bool], str]] = {}
-        if self.unit_id is not None:
-            pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
-            pos_info = alpha_live.parse_position_result(pos_result)
-            if pos_info and pos_info[2] is not None and pos_info[2] >= 0:
-                self.player_id = int(pos_info[2])
-        self._maybe_take_player()
-        self._refresh_controlled_units_with_retry()
+        self._prepare_control_state()
 
         self.movement = alpha_live.FreecivMovement(
             map_width=self.config.map_w, map_height=self.config.map_h
@@ -302,30 +319,107 @@ class Game(AbstractGame):
         self.previous_pos = None
         self._tile_owner_refresh_pending = True
 
+    @staticmethod
+    def _port_is_listening(host: str, port: int, timeout: float = 0.2) -> bool:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect((host, port))
+            return True
+        except OSError:
+            return False
+        finally:
+            sock.close()
+
+    def _build_freeciv_env(self) -> dict[str, str]:
+        project_root = ROOT_DIR
+        freeciv_data = project_root / "freeciv" / "data"
+        freeciv_scenarios = freeciv_data / "scenarios"
+        env = os.environ.copy()
+        env.setdefault(
+            "FREECIV_DATA_PATH",
+            f"{pathlib.Path.home() / '.freeciv' / '3.2'}:{freeciv_data}",
+        )
+        env.setdefault(
+            "FREECIV_SCENARIO_PATH",
+            f"{pathlib.Path.home() / '.freeciv' / '3.2' / 'scenarios'}:{pathlib.Path.home() / '.freeciv' / 'scenarios'}:{freeciv_scenarios}",
+        )
+        env.setdefault(
+            "FREECIV_SAVE_PATH",
+            f"{pathlib.Path.home() / '.freeciv' / 'saves'}:{pathlib.Path.cwd()}",
+        )
+        return env
+
+    def _start_process(self, command: str) -> subprocess.Popen:
+        cmd = shlex.split(command)
+        if not cmd:
+            raise RuntimeError("Process command is empty.")
+        cwd = None
+        cmd0 = pathlib.Path(cmd[0]).expanduser()
+        if cmd0.is_absolute() and cmd0.exists():
+            cwd = str(cmd0.parent)
+        return subprocess.Popen(
+            cmd,
+            start_new_session=True,
+            cwd=cwd,
+            env=self._build_freeciv_env(),
+        )
+
+    def _stop_process(self, proc: Optional[subprocess.Popen]) -> Optional[subprocess.Popen]:
+        if proc is None:
+            return None
+        if proc.poll() is not None:
+            return None
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=5)
+        return None
+
+    def _wait_for_server(self) -> None:
+        deadline = time.monotonic() + max(0.0, self.server_start_timeout)
+        while time.monotonic() < deadline:
+            if self._port_is_listening(self.server_host, self.server_port):
+                return
+            time.sleep(max(0.0, self.server_start_wait))
+        raise RuntimeError(
+            f"Timed out waiting for Freeciv server at {self.server_host}:{self.server_port}"
+        )
+
+    def _prepare_control_state(self) -> None:
+        if self.unit_id is not None:
+            pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
+            pos_info = alpha_live.parse_position_result(pos_result)
+            if pos_info and pos_info[2] is not None and pos_info[2] >= 0:
+                self.player_id = int(pos_info[2])
+        self._maybe_take_player()
+        self._refresh_controlled_units_with_retry()
+
+    def _start_server_process(self) -> None:
+        if not self.server_cmd:
+            return
+        if self._server_process and self._server_process.poll() is None:
+            return
+        if self._port_is_listening(self.server_host, self.server_port):
+            raise RuntimeError(
+                f"Server port {self.server_port} is already in use. Stop the existing server or choose another FREECIV_SERVER_PORT."
+            )
+        self._server_process = self._start_process(self.server_cmd)
+
     def _start_client_process(self) -> None:
         if not self.client_cmd:
             return
         if self._client_process and self._client_process.poll() is None:
             return
-        cmd = shlex.split(self.client_cmd)
-        if not cmd:
-            raise RuntimeError("FREECIV_CLIENT_CMD is empty.")
-        self._client_process = subprocess.Popen(cmd, start_new_session=True)
+        self._client_process = self._start_process(self.client_cmd)
 
     def _stop_client_process(self) -> None:
-        if not self._client_process:
-            return
-        if self._client_process.poll() is not None:
-            self._client_process = None
-            return
-        try:
-            os.killpg(self._client_process.pid, signal.SIGTERM)
-            self._client_process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            os.killpg(self._client_process.pid, signal.SIGKILL)
-            self._client_process.wait(timeout=5)
-        finally:
-            self._client_process = None
+        self._client_process = self._stop_process(self._client_process)
+
+    def _stop_server_process(self) -> None:
+        self._server_process = self._stop_process(self._server_process)
 
     def _restart_client_process(self) -> None:
         self._stop_client_process()
@@ -340,7 +434,49 @@ class Game(AbstractGame):
         self.client = None
         if self.client_cmd:
             self._stop_client_process()
+        if self.server_cmd:
+            self._stop_server_process()
         self._needs_restart = True
+
+    def _restart_environment(self) -> None:
+        if self.server_cmd:
+            self._start_server_process()
+            self._wait_for_server()
+        if self.client_cmd:
+            self._start_client_process()
+        self._needs_restart = False
+        self._connect_client()
+        self._prepare_control_state()
+
+    def _reset_episode_state(self) -> None:
+        self.turns = 0
+        self.actions_this_turn = 0
+        self.acted_unit_slots.clear()
+        self.acted_production_cities.clear()
+        self.production_queue.clear()
+        self.production_current.clear()
+        self._city_buildings.clear()
+        self._city_unit_counts.clear()
+        self._city_adjacent_water.clear()
+        self.current_research = None
+        self._last_research_flags = {}
+        self._buildable_units = set()
+        self._buildable_buildings = set()
+        self.autosettler_units = set()
+        self.gov_switch_sent = set()
+        self.visible_enemy_units = []
+        self.visible_enemy_cities = []
+        self.visible_enemy_city_ids = {}
+        self.visible_enemy_unit_coords = set()
+        self.tile_owners = {}
+        self.player_scores = {}
+        self.known_tiles = {}
+        self.known_enemy = {}
+        self.visited_tiles = set()
+        self._last_snapshot = None
+        self._last_state = None
+        self.previous_pos = None
+        self._tile_owner_refresh_pending = True
 
     def _connect_client(self) -> None:
         if self.client is None:
@@ -368,9 +504,10 @@ class Game(AbstractGame):
             return False
         if not cmd.startswith("/"):
             cmd = f"/{cmd}"
+        safe_cmd = alpha_live.LuaRemoteClient._quote_lua_string(cmd)
         lua = (
             "return (function() "
-            f"local cmd={json.dumps(cmd)}; "
+            f"local cmd={safe_cmd}; "
             "local ok=false; "
             "if type(send_chat)=='function' then ok=pcall(send_chat, cmd) end; "
             "if (not ok) and chat and type(chat.send)=='function' then ok=pcall(chat.send, cmd) end; "
@@ -390,8 +527,61 @@ class Game(AbstractGame):
         except Exception:
             return False
 
+    def _list_players(self) -> list[tuple[int, str]]:
+        if self.client is None:
+            return []
+        lua = (
+            "return (function() "
+            "local parts = {}; "
+            "for i=0,63 do "
+            "  local pl = find.player and find.player(i); "
+            "  if pl then "
+            "    local pid = -1; "
+            "    if pl.id then pid = pl.id elseif pl.player_num then pid = pl.player_num end; "
+            "    local name = tostring(pl.name or ('player' .. i)); "
+            "    name = name:gsub('[|;]', '/'); "
+            "    parts[#parts + 1] = string.format('%d|%s', pid, name); "
+            "  end "
+            "end; "
+            "return table.concat(parts, ';') "
+            "end)()"
+        )
+        try:
+            result = self.client.eval(lua)
+        except Exception:
+            return []
+        payload = result.last_return() if result else None
+        if not payload:
+            return []
+        players: list[tuple[int, str]] = []
+        for chunk in str(payload).split(";"):
+            if not chunk:
+                continue
+            parts = chunk.split("|", 1)
+            if len(parts) != 2:
+                continue
+            try:
+                players.append((int(parts[0]), parts[1]))
+            except ValueError:
+                continue
+        return players
+
+    def _resolve_player_name_by_id(self, player_id: int) -> Optional[str]:
+        for pid, name in self._list_players():
+            if pid == int(player_id):
+                return name
+        return None
+
     def _maybe_take_player(self) -> None:
         cmd = self.take_command
+        if not cmd and self.take_player_id is not None:
+            resolved = self._resolve_player_name_by_id(self.take_player_id)
+            print(
+                f"[player] target_player_id={self.take_player_id} resolved_name={resolved!r}",
+                file=sys.stderr,
+            )
+            if resolved:
+                self.take_player = resolved
         if not cmd and self.take_player:
             cmd = f'/take "{self.take_player}"'
         if not cmd:
@@ -472,6 +662,30 @@ class Game(AbstractGame):
             )
         self.controlled_units = sorted(controlled)
         self.unit_id = self.controlled_units[0]
+
+    def _reward_metrics(self, board_state):
+        if board_state is None:
+            return {
+                "civ_score": 0.0,
+                "city_count": 0,
+                "population": 0,
+                "settler_count": 0,
+            }
+        player = 1
+        cities = list(board_state.cities[player])
+        units = [u for u in board_state.units[player] if getattr(u, "alive", False)]
+        settler_count = sum(1 for u in units if getattr(u, "can_build_city", False))
+        population = sum(city.size for city in cities)
+        try:
+            civ_score = float(board_state.civilization_score(player))
+        except Exception:
+            civ_score = 0.0
+        return {
+            "civ_score": civ_score,
+            "city_count": len(cities),
+            "population": population,
+            "settler_count": settler_count,
+        }
 
     def _try_refresh_controlled_units(self):
         try:
@@ -1955,6 +2169,7 @@ class Game(AbstractGame):
             if self.restart_on_reset and self.client_cmd:
                 self._shutdown_client_for_restart()
             return self.reset(), 0.0, True
+        prev_metrics = self._reward_metrics(board_state)
 
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         valid_actions = board_state.valid_moves(1)
@@ -2004,7 +2219,21 @@ class Game(AbstractGame):
             self._shutdown_client_for_restart()
 
         new_visited = len(self.visited_tiles)
-        reward = float(new_visited - prev_visited)
+        next_metrics = self._reward_metrics(board_state)
+        reward = 0.0
+        reward += float(new_visited - prev_visited) * self.reward_explore
+        reward += (
+            next_metrics["civ_score"] - prev_metrics["civ_score"]
+        ) * self.reward_civ_score
+        reward += (
+            next_metrics["city_count"] - prev_metrics["city_count"]
+        ) * self.reward_city
+        reward += (
+            next_metrics["population"] - prev_metrics["population"]
+        ) * self.reward_population
+        reward += (
+            next_metrics["settler_count"] - prev_metrics["settler_count"]
+        ) * self.reward_settler
         if board_state is not None:
             observation = board_state.encode(1)
         else:
@@ -2210,18 +2439,8 @@ class Game(AbstractGame):
 
     def reset(self):
         if self._needs_restart:
-            if self.client_cmd:
-                self._start_client_process()
-            self._needs_restart = False
-            self._connect_client()
-        self.turns = 0
-        self.acted_unit_slots.clear()
-        self.acted_production_cities.clear()
-        self.production_queue.clear()
-        self.production_current.clear()
-        self._city_buildings.clear()
-        self._city_unit_counts.clear()
-        self._city_adjacent_water.clear()
+            self._restart_environment()
+        self._reset_episode_state()
         state = self._sync_state()
         return state.encode(1)
 
@@ -2234,6 +2453,8 @@ class Game(AbstractGame):
         self.client = None
         if self.client_cmd:
             self._stop_client_process()
+        if self.server_cmd:
+            self._stop_server_process()
 
     def render(self):
         if self._last_state is None:

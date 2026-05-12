@@ -8,13 +8,11 @@ import pickle
 import sys
 import time
 
-import nevergrad
 import numpy
 import ray
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-import diagnose_model
 import models
 import replay_buffer
 import self_play
@@ -41,6 +39,7 @@ class MuZero:
     """
 
     def __init__(self, game_name, config=None, split_resources_in=1):
+        self.game_name = game_name
         # Load the game and the config from the module with the game name
         try:
             game_module = importlib.import_module("games." + game_name)
@@ -177,6 +176,12 @@ class MuZero:
             "yes",
             "y",
             "on",
+        ):
+            log_in_tensorboard = False
+        if (
+            self.game_name == "freeciv_remote"
+            and os.getenv("MUZERO_ENABLE_LIVE_TEST_WORKER", "").strip().lower()
+            not in ("1", "true", "yes", "y", "on")
         ):
             log_in_tensorboard = False
         if log_in_tensorboard or self.config.save_model:
@@ -566,6 +571,13 @@ class MuZero:
             horizon (int): Number of timesteps for which we collect information.
         """
         try:
+            import diagnose_model
+        except ImportError as exc:
+            raise RuntimeError(
+                "diagnose_model requires optional plotting dependencies. "
+                "Install seaborn/matplotlib to use this command."
+            ) from exc
+        try:
             game = self.Game(self.config.seed, config=self.config)
         except TypeError:
             game = self.Game(self.config.seed)
@@ -607,6 +619,12 @@ def hyperparameter_search(
 
         num_tests (int): Number of games to average for evaluating an experiment.
     """
+    try:
+        import nevergrad
+    except ImportError as exc:
+        raise RuntimeError(
+            "Hyperparameter search requires nevergrad. Install it to use this feature."
+        ) from exc
     optimizer = nevergrad.optimizers.OnePlusOne(
         parametrization=parametrization, budget=budget
     )
@@ -794,6 +812,12 @@ if __name__ == "__main__":
             elif choice == 6:
                 # Define here the parameters to tune
                 # Parametrization documentation: https://facebookresearch.github.io/nevergrad/parametrization.html
+                try:
+                    import nevergrad
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "Hyperparameter search requires nevergrad. Install it to use this feature."
+                    ) from exc
                 muzero.terminate_workers()
                 del muzero
                 budget = 20
