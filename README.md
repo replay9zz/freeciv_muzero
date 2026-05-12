@@ -3,12 +3,12 @@ This repo is Freeciv Learning Environment for MuZero based on [MuZero General](h
 
 ## Layout
 
-`freeciv_muzero` now carries its own Freeciv remote helpers and no longer depends on sibling `freeciv_alpha_zero` or `freeciv_rl` directories.
+`freeciv_muzero` now carries its own Freeciv remote helpers and no longer depends on sibling `freeciv_alpha_zero` or `freeciv_rl` directories for training scripts.
 
 Runtime assumptions that still remain outside this directory:
 
-- `../freeciv_build_v3_2_uv`: Freeciv build with `freeciv-server`, `freeciv-gtk3.22`, and `run.sh`
-- `../freeciv`: data directory used for rulesets and scenarios
+- A Freeciv build containing `freeciv-server`, `freeciv-gtk3.22`, and `run.sh`
+- Freeciv data/scenarios if you have not copied them under this repository yet
 
 ## Setup
 
@@ -37,14 +37,27 @@ Headless live training:
 ```bash
 cd /home/hirokiokabe/freeciv_test/freeciv_muzero
 source .venv/bin/activate
-./train_headless.sh
+./scripts/train.sh
 ```
 
-To force CPU mode, use `USE_GPU=0 ./train_headless.sh`.
-To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./train_headless.sh`.
+To force CPU mode, use `USE_GPU=0 ./scripts/train.sh`.
+To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./scripts/train.sh`.
 
 The default server rc used by the training scripts is [`start_single.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_single.serv).
-The default build directory is `../freeciv_build_v3_2_uv`; override with `BUILD_DIR=...` if needed.
+The training scripts now prefer repo-local paths first:
+
+- `./freeciv_build_v3_2_uv`
+- `./freeciv_build_v3_2`
+- `../freeciv_build_v3_2_uv`
+- `../freeciv_build_v3_2`
+
+For scenarios they prefer:
+
+- `./freeciv/data/scenarios/minimal_v4.sav`
+- `./freeciv/scenarios/minimal_v4.sav`
+- `~/.freeciv/scenarios/minimal_v4.sav`
+
+Override either with `BUILD_DIR=...` or `SCENARIO_PATH=...` if needed.
 
 ## Test
 Example:
@@ -58,6 +71,16 @@ python3 remote_play.py \
     --host 127.0.0.1 --port 4444 \
     --player-id 0
 ```
+
+GUI evaluation wrapper:
+```bash
+cd /home/hirokiokabe/freeciv_test/freeciv_muzero
+source .venv/bin/activate
+./scripts/eval.sh
+```
+
+It picks the latest `results/freeciv_remote/*/model.checkpoint` by default.
+Override it with `CHECKPOINT=... ./scripts/eval.sh` or `./scripts/eval.sh /path/to/model.checkpoint`.
 
 ## Results
 Example:
