@@ -2,30 +2,34 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ROOT_DIR="${SCRIPT_DIR}"
-BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/freeciv_build_v3_2_uv}"
-SCENARIO_PATH="${SCENARIO_PATH:-${HOME}/.freeciv/scenarios/minimal_v4.sav}"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${ROOT_DIR}/scripts/common.sh"
+
 SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
-SERVER_PORT="5566"
-LUA_PORT="4451"
-TRAINING_STEPS="${TRAINING_STEPS:-200}"
-NUM_SIMULATIONS="${NUM_SIMULATIONS:-5}"
-MAX_TURNS="${MAX_TURNS:-30}"
-TRAINING_DELAY="${TRAINING_DELAY:-0.0}"
-FREECIV_SLEEP="${FREECIV_SLEEP:-0.5}"
-FREECIV_REWARD_EXPLORE="${FREECIV_REWARD_EXPLORE:-1.0}"
-FREECIV_REWARD_CIV_SCORE="${FREECIV_REWARD_CIV_SCORE:-0.25}"
-FREECIV_REWARD_CITY="${FREECIV_REWARD_CITY:-12.0}"
-FREECIV_REWARD_POPULATION="${FREECIV_REWARD_POPULATION:-2.0}"
-FREECIV_REWARD_SETTLER="${FREECIV_REWARD_SETTLER:-3.0}"
+SERVER_PORT="${SERVER_PORT:-5566}"
+LUA_PORT="${LUA_PORT:-4451}"
+DISPLAY_NUM="${DISPLAY_NUM:-:101}"
+TRAINING_STEPS="${TRAINING_STEPS:-5000}"
+NUM_SIMULATIONS="${NUM_SIMULATIONS:-2}"
+MAX_TURNS="${MAX_TURNS:-300}"
+TRAINING_DELAY="${TRAINING_DELAY:-0.1}"
+FREECIV_SLEEP="${FREECIV_SLEEP:-0.2}"
+FREECIV_REWARD_EXPLORE="${FREECIV_REWARD_EXPLORE:-0.5}"
+FREECIV_REWARD_CIV_SCORE="${FREECIV_REWARD_CIV_SCORE:-0.5}"
+FREECIV_REWARD_CITY="${FREECIV_REWARD_CITY:-30.0}"
+FREECIV_REWARD_POPULATION="${FREECIV_REWARD_POPULATION:-3.0}"
+FREECIV_REWARD_SETTLER="${FREECIV_REWARD_SETTLER:-10.0}"
 USE_GPU="${USE_GPU:-1}"
 MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-1}"
 MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
 MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
 MUZERO_REANALYSE_ON_GPU="${MUZERO_REANALYSE_ON_GPU:-true}"
-CLIENT_PATTERN="freeciv-gtk3.22 -a -s 127.0.0.1 -p 5566 -n agent0 -P none"
-SERVER_PATTERN="freeciv-server -p 5566 -f ${SCENARIO_PATH} -r ${SERVER_RC}"
+XVFB_PATTERN="Xvfb ${DISPLAY_NUM}"
+CLIENT_PATTERN="freeciv-gtk3.22 -a -s 127.0.0.1 -p ${SERVER_PORT} -n agent0 -P none"
+
+BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
+SCENARIO_PATH="${SCENARIO_PATH:-$(default_scenario_path)}"
+SERVER_PATTERN="freeciv-server -p ${SERVER_PORT} -f ${SCENARIO_PATH} -r ${SERVER_RC}"
 
 if [ "${USE_GPU}" = "0" ]; then
   MUZERO_MAX_NUM_GPUS=0
@@ -35,18 +39,22 @@ if [ "${USE_GPU}" = "0" ]; then
 fi
 
 cleanup() {
-  fuser -k -TERM "${SERVER_PORT}/tcp" >/dev/null 2>&1 || true
-  fuser -k -TERM "${LUA_PORT}/tcp" >/dev/null 2>&1 || true
+  cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
   pkill -f "${CLIENT_PATTERN}" >/dev/null 2>&1 || true
   pkill -f "${SERVER_PATTERN}" >/dev/null 2>&1 || true
+  pkill -f "${XVFB_PATTERN}" >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT INT TERM
 
 cleanup
 
+Xvfb "${DISPLAY_NUM}" -screen 0 1280x800x24 -nolisten tcp >/tmp/freeciv-muzero-xvfb.log 2>&1 &
+sleep 1
+export DISPLAY="${DISPLAY_NUM}"
+
 cd "${ROOT_DIR}"
-source .venv/bin/activate
+init_python_env
 
 python muzero.py freeciv_remote "{
   \"training_steps\": ${TRAINING_STEPS},
@@ -59,11 +67,11 @@ python muzero.py freeciv_remote "{
   \"train_on_gpu\": ${MUZERO_TRAIN_ON_GPU},
   \"reanalyse_on_gpu\": ${MUZERO_REANALYSE_ON_GPU},
   \"env\": {
-    \"FREECIV_SERVER_PORT\": \"5566\",
-    \"FREECIV_SERVER_CMD\": \"${BUILD_DIR}/run.sh freeciv-server -p 5566 -f ${SCENARIO_PATH} -r ${SERVER_RC}\",
+    \"FREECIV_SERVER_PORT\": \"${SERVER_PORT}\",
+    \"FREECIV_SERVER_CMD\": \"${BUILD_DIR}/run.sh freeciv-server -p ${SERVER_PORT} -f ${SCENARIO_PATH} -r ${SERVER_RC}\",
     \"FREECIV_HOST\": \"127.0.0.1\",
-    \"FREECIV_LUAREMOTE_PORT\": \"4451\",
-    \"FREECIV_CLIENT_CMD\": \"${BUILD_DIR}/run.sh freeciv-gtk3.22 -a -s 127.0.0.1 -p 5566 -n agent0 -P none\",
+    \"FREECIV_LUAREMOTE_PORT\": \"${LUA_PORT}\",
+    \"FREECIV_CLIENT_CMD\": \"${BUILD_DIR}/run.sh freeciv-gtk3.22 -a -s 127.0.0.1 -p ${SERVER_PORT} -n agent0 -P none\",
     \"FREECIV_PLAYER_ID\": \"0\",
     \"FREECIV_TAKE_PLAYER_ID\": \"0\",
     \"FREECIV_MAP_W\": \"4\",
