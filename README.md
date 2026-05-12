@@ -24,3 +24,8 @@ python3 remote_play.py \
     --host 127.0.0.1 --port 4444 \
     --player-id 0
 ```
+
+## Results
+Example:
+
+https://github.com/user-attachments/assets/02942ee1-d173-4deb-b7ed-cb7ad01f3233
