@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 import time
+from typing import Optional
 
 import numpy
 import torch
@@ -20,6 +21,7 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     MHUnit,
     MultiheadState,
     PRODUCTION_UNIT_NAMES,
+    UNIT_TECH,
     UNIT_SPECS,
 )
 from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
@@ -175,6 +177,8 @@ class Game(AbstractGame):
         self.controlled_units = []
         self.unit_slots = []
         self.unit_positions = []
+        self.unit_slot_types = []
+        self.unit_type_labels = {}
         self.city_slots = []
         self.production_locked = set()
         self.current_research = None
@@ -373,7 +377,8 @@ class Game(AbstractGame):
         return snapshot
 
     def _build_state(self, snapshot, owned_cities, enemy_cities):
-        unit_entries, _unit_type_labels = self._collect_unit_info()
+        unit_entries, unit_type_labels = self._collect_unit_info()
+        self.unit_type_labels = unit_type_labels
         unit_names = {name.lower(): name for name in UNIT_SPECS.keys()}
         state = MultiheadState.__new__(MultiheadState)  # type: ignore[misc]
         state.cfg = self.config
@@ -420,6 +425,7 @@ class Game(AbstractGame):
 
         self.unit_slots = []
         self.unit_positions = []
+        self.unit_slot_types = []
         can_build_flags = []
         for uid, ux, uy, unit_type in unit_entries[: self.max_units]:
             unit_key = (unit_type or "").strip().lower()
@@ -431,6 +437,7 @@ class Game(AbstractGame):
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
                 unit = MHUnit(ux, uy, 10, 2, 1, 1, unit_name or "Warriors", True, False, None)
+                slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
                 unit = MHUnit(
                     ux,
@@ -444,14 +451,17 @@ class Game(AbstractGame):
                     spec.can_build_city or ("settler" in unit_key or "migrant" in unit_key),
                     None,
                 )
+                slot_label = spec.name
             can_build_flags.append(unit.can_build_city)
             state.units[1].append(unit)
             self.unit_slots.append(uid)
             self.unit_positions.append((ux, uy))
+            self.unit_slot_types.append(slot_label)
         while len(state.units[1]) < self.max_units:
             state.units[1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None))
             self.unit_slots.append(None)
             self.unit_positions.append(None)
+            self.unit_slot_types.append("")
 
         if not owned_cities and state.units[1] and not any(can_build_flags):
             state.units[1][0].can_build_city = True
@@ -480,14 +490,158 @@ class Game(AbstractGame):
         while len(state.units[-1]) < self.max_units:
             state.units[-1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None))
 
+        try:
+            city_walls = alpha_live.list_city_walls(self.client)
+        except Exception:
+            city_walls = {}
+
         self.city_slots = []
         for city_id, cx, cy in owned_cities[: self.max_cities]:
-            state.cities[1].append(City(x=int(cx), y=int(cy), size=1))
+            state.cities[1].append(
+                City(
+                    x=int(cx),
+                    y=int(cy),
+                    size=1,
+                    has_city_walls=bool(city_walls.get(city_id, False)),
+                )
+            )
             self.city_slots.append(city_id)
-        for _city_id, cx, cy in enemy_cities[: self.max_cities]:
-            state.cities[-1].append(City(x=int(cx), y=int(cy), size=1))
+        for city_id, cx, cy in enemy_cities[: self.max_cities]:
+            state.cities[-1].append(
+                City(
+                    x=int(cx),
+                    y=int(cy),
+                    size=1,
+                    has_city_walls=bool(city_walls.get(city_id, False)),
+                )
+            )
 
         return state
+
+    def _unit_slot_label(self, slot_idx: int) -> str:
+        if 0 <= slot_idx < len(self.unit_slot_types):
+            return (self.unit_slot_types[slot_idx] or "").lower()
+        return ""
+
+    def _unit_unlocked(self, unit_name: str) -> bool:
+        if self._last_state is None:
+            return False
+        try:
+            return self._last_state._unit_unlocked(1, unit_name)
+        except Exception:
+            tech = UNIT_TECH.get(unit_name)
+            if tech is None:
+                return True
+            return bool(self._last_state.research_done.get(1, {}).get(tech, False))
+
+    def _select_production_unit(self) -> Optional[str]:
+        if self._last_state is None:
+            return None
+        archer_count = sum(
+            1 for name in self.unit_slot_types if "archer" in (name or "").lower()
+        )
+        phalanx_count = sum(
+            1 for name in self.unit_slot_types if "phalanx" in (name or "").lower()
+        )
+        desired_archers = min(3, self.max_units)
+        desired_phalanx = 1
+        archers_unlocked = self._unit_unlocked("Archers")
+        phalanx_unlocked = self._unit_unlocked("Phalanx")
+        if archers_unlocked and archer_count < desired_archers:
+            return "Archers"
+        if phalanx_unlocked and phalanx_count < desired_phalanx:
+            return "Phalanx"
+        if archers_unlocked:
+            return "Archers"
+        if phalanx_unlocked:
+            return "Phalanx"
+        return None
+
+    def _prefer_production_actions(self, valid):
+        if self._last_state is None or not self.city_slots:
+            return valid
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        if prod_start >= len(valid):
+            return valid
+        desired_unit = self._select_production_unit()
+        if not desired_unit:
+            return valid
+        try:
+            desired_idx = PRODUCTION_UNIT_NAMES.index(desired_unit)
+        except ValueError:
+            return valid
+        for slot_idx in range(len(self.city_slots)):
+            start = prod_start + slot_idx * self._last_state.PRODUCTION_UNIT_COUNT
+            end = start + self._last_state.PRODUCTION_UNIT_COUNT
+            if start >= len(valid):
+                break
+            end = min(end, len(valid), prod_end)
+            if not valid[start:end].any():
+                continue
+            desired_action = start + desired_idx
+            if desired_action < end and valid[desired_action]:
+                for action_idx in range(start, end):
+                    if action_idx != desired_action:
+                        valid[action_idx] = 0
+        return valid
+
+    def _prefer_research_actions(self, valid):
+        if self._last_state is None:
+            return valid
+        if not self.city_slots or self.current_research:
+            return valid
+        try:
+            tech_idx = self._last_state.RESEARCH_TECHS.index("Warrior Code")
+        except ValueError:
+            return valid
+        if self._last_state.research_done.get(1, {}).get("Warrior Code", False):
+            return valid
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
+        if econ_offset >= len(valid):
+            return valid
+        action_idx = econ_offset + tech_idx
+        if 0 <= action_idx < len(valid) and valid[action_idx]:
+            valid[econ_offset:research_end] = 0
+            valid[action_idx] = 1
+        return valid
+
+    def _prefer_attack_actions(self, valid):
+        if self._last_state is None:
+            return valid
+        attack_start = self._last_state.MOVE_SIZE
+        attack_end = attack_start + self._last_state.ATTACK_SIZE
+        if attack_start >= len(valid):
+            return valid
+        attack_indices = [
+            idx
+            for idx in range(attack_start, min(attack_end, len(valid)))
+            if valid[idx]
+        ]
+        if not attack_indices:
+            return valid
+        archer_actions = []
+        other_actions = []
+        phalanx_actions = []
+        for action in attack_indices:
+            rel = action - attack_start
+            unit_idx = rel // self._last_state.ATTACK_PER_UNIT
+            unit_label = self._unit_slot_label(unit_idx)
+            if "archer" in unit_label:
+                archer_actions.append(action)
+            elif "phalanx" in unit_label:
+                phalanx_actions.append(action)
+            else:
+                other_actions.append(action)
+        preferred = archer_actions or other_actions or phalanx_actions
+        if not preferred:
+            return valid
+        forced = numpy.zeros_like(valid)
+        for idx in preferred:
+            forced[idx] = 1
+        return forced
 
     def _sync_state(self):
         if self.unit_id is None:
@@ -715,6 +869,7 @@ class Game(AbstractGame):
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             valid[econ_offset:research_end] = 0
+        valid = self._prefer_research_actions(valid)
         if self.production_locked and self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
@@ -738,6 +893,8 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
+        valid = self._prefer_production_actions(valid)
+        valid = self._prefer_attack_actions(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any() and alive_units:

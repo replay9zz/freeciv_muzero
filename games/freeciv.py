@@ -19,13 +19,23 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
 )
 
 
+def _make_map_config() -> MapConfig:
+    cfg = MapConfig(map_w=4, map_h=16, max_turns=128)
+    cfg.attack_reward = 0.2
+    cfg.city_capture_reward = 8.0
+    cfg.elimination_bonus = 4.5
+    cfg.city_defense_multiplier = 1.5
+    cfg.city_walls_defense_multiplier = 2.0
+    return cfg
+
+
 class MuZeroConfig:
     def __init__(self):
         # fmt: off
         self.seed = 0
-        self.max_num_gpus = None
+        self.max_num_gpus = 1
 
-        self.map_config = MapConfig(map_w=2, map_h=9, max_turns=128)
+        self.map_config = _make_map_config()
         self.max_units = 6
         self.max_cities = 3
 
@@ -47,7 +57,7 @@ class MuZeroConfig:
 
         ### Self-Play
         self.num_workers = 1
-        self.selfplay_on_gpu = torch.cuda.is_available()
+        self.selfplay_on_gpu = True
         self.max_moves = self.map_config.max_turns
         self.num_simulations = 50
         self.discount = 0.997
@@ -96,7 +106,7 @@ class MuZeroConfig:
         self.batch_size = 128
         self.checkpoint_interval = 10
         self.value_loss_weight = 0.25
-        self.train_on_gpu = torch.cuda.is_available()
+        self.train_on_gpu = True
 
         self.optimizer = "Adam"
         self.weight_decay = 1e-4
@@ -116,7 +126,7 @@ class MuZeroConfig:
 
         # Reanalyze
         self.use_last_model_value = True
-        self.reanalyse_on_gpu = False
+        self.reanalyse_on_gpu = True
 
         ### Adjust the self play / training ratio
         self.self_play_delay = 0
@@ -134,7 +144,7 @@ class MuZeroConfig:
 
 class Game(AbstractGame):
     def __init__(self, seed=None):
-        self.config = MapConfig(map_w=2, map_h=9, max_turns=128)
+        self.config = _make_map_config()
         self.max_units = 6
         self.max_cities = 3
         rng = numpy.random.default_rng(seed) if seed is not None else None

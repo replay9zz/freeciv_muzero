@@ -29,7 +29,7 @@ It is the successor to [AlphaZero](https://arxiv.org/abs/1712.01815) but without
 * [x] Easily adaptable for new games
 * [x] [Examples](https://github.com/werner-duvaud/muzero-general/blob/master/games/cartpole.py) of board games, Gym and Atari games (See [list of implemented games](https://github.com/werner-duvaud/muzero-general#games-already-implemented))
 * [x] [Pretrained weights](https://github.com/werner-duvaud/muzero-general/tree/master/results) available
-* [ ] Windows support (Experimental / Workaround: Use the [notebook](https://github.com/werner-duvaud/muzero-general/blob/master/notebook.ipynb) in [Google Colab](https://colab.research.google.com))
+* [ ] Windows support (Experimental)
 
 ### Further improvements
 Here is a list of features which could be interesting to add but which are not in MuZero's paper. We are open to contributions and other ideas.
@@ -90,6 +90,7 @@ pip install -r requirements.lock
 ```bash
 python muzero.py
 ```
+Ray dashboard (if enabled by Ray) is available at http://localhost:8265 while running.
 To visualize the training results, run in a new terminal:
 ```bash
 tensorboard --logdir ./results
