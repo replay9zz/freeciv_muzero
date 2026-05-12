@@ -184,6 +184,8 @@ class Game(AbstractGame):
         self.current_research = None
         self.visible_enemy_units: list[tuple[int, int]] = []
         self.visible_enemy_cities: list[tuple[int, int]] = []
+        self.visible_enemy_city_ids: dict[tuple[int, int], int] = {}
+        self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
         if self.unit_id is not None:
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
             pos_info = alpha_live.parse_position_result(pos_result)
@@ -296,9 +298,6 @@ class Game(AbstractGame):
     def _visible_enemy_cities(self):
         if self.player_id is None:
             return []
-        visible_tiles = set(self._visible_tiles_from_player())
-        if not visible_tiles:
-            return []
         try:
             cities = alpha_live.list_all_cities(self.client)
         except Exception:
@@ -308,8 +307,7 @@ class Game(AbstractGame):
             if owner == self.player_id:
                 continue
             coord = (int(cx), int(cy))
-            if coord in visible_tiles:
-                visible.append((int(city_id), coord[0], coord[1]))
+            visible.append((int(city_id), coord[0], coord[1]))
         return visible
 
     def _snapshot_from_city(self, owned_cities):
@@ -463,9 +461,6 @@ class Game(AbstractGame):
             self.unit_positions.append(None)
             self.unit_slot_types.append("")
 
-        if not owned_cities and state.units[1] and not any(can_build_flags):
-            state.units[1][0].can_build_city = True
-
         enemy_coords = [
             (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
         ]
@@ -556,6 +551,16 @@ class Game(AbstractGame):
         if phalanx_unlocked:
             return "Phalanx"
         return None
+
+    def _city_exists(self, city_id: int) -> bool:
+        try:
+            cities = alpha_live.list_all_cities(self.client)
+        except Exception:
+            return True
+        for cid, _cx, _cy, _owner, _name in cities:
+            if int(cid) == int(city_id):
+                return True
+        return False
 
     def _prefer_production_actions(self, valid):
         if self._last_state is None or not self.city_slots:
@@ -688,6 +693,14 @@ class Game(AbstractGame):
             (int(x), int(y)) for (y, x) in numpy.argwhere(snapshot.enemy_map)
         ]
         self.visible_enemy_cities = [(cx, cy) for _cid, cx, cy in enemy_cities]
+        self.visible_enemy_city_ids = {
+            (int(cx), int(cy)): int(city_id) for city_id, cx, cy in enemy_cities
+        }
+        self.visible_enemy_unit_coords = {
+            (int(x), int(y))
+            for (x, y), status in snapshot.status_lookup.items()
+            if status and len(status) >= 3 and status[2]
+        }
         self.production_locked.intersection_update(set(self.city_slots))
         self.current_research = None
         if isinstance(snapshot.research_name, str):
@@ -732,6 +745,16 @@ class Game(AbstractGame):
             nx, ny = neighbors[dir_idx]
             if nx is None or ny is None:
                 return
+            target = (int(nx), int(ny))
+            city_id = self.visible_enemy_city_ids.get(target)
+            if city_id is not None:
+                self.client.conquer_city(unit_id, city_id)
+                if not self._city_exists(city_id):
+                    return
+            if dir_idx < len(self.dir_ids):
+                dir_id = self.dir_ids[dir_idx]
+                if self.client.attack_dir_id(unit_id, dir_id):
+                    return
             self.client.attack_target(unit_id, int(nx), int(ny))
             return
 

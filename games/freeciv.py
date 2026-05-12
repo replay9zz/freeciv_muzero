@@ -20,7 +20,8 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
 
 
 def _make_map_config() -> MapConfig:
-    cfg = MapConfig(map_w=4, map_h=16, max_turns=128)
+    cfg = MapConfig(map_w=2, map_h=9, max_turns=128)
+    # cfg = MapConfig(map_w=4, map_h=16, max_turns=128)
     cfg.attack_reward = 0.2
     cfg.city_capture_reward = 8.0
     cfg.elimination_bonus = 4.5
