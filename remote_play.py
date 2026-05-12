@@ -217,6 +217,11 @@ def main() -> None:
     ap.add_argument("--map-height", type=int, default=16)
     ap.add_argument("--max-turns", type=int, default=2000)
     ap.add_argument(
+        "--no-sea-units",
+        action="store_true",
+        help="Disable naval unit production for maps without sea.",
+    )
+    ap.add_argument(
         "--max-actions-per-turn",
         type=int,
         help="Cap actions per turn (default: max_units*2).",
@@ -345,6 +350,7 @@ def main() -> None:
     _set_env("FREECIV_LUAREMOTE_PORT", args.port)
     _set_env("FREECIV_MAP_W", args.map_width)
     _set_env("FREECIV_MAP_H", args.map_height)
+    _set_env("FREECIV_NO_SEA_UNITS", "1" if args.no_sea_units else None)
     _set_env("FREECIV_MAX_TURNS", args.max_turns)
     _set_env("FREECIV_MAX_ACTIONS_PER_TURN", args.max_actions_per_turn)
     _set_env("FREECIV_PLAYER_ID", args.player_id)

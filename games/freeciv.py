@@ -34,10 +34,23 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 def _make_map_config(max_turns: int | None = None) -> MapConfig:
     if max_turns is None:
         max_turns = _env_int("FREECIV_MAX_TURNS", 100)
-    cfg = MapConfig(map_w=4, map_h=16, max_turns=max_turns)
+    allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
+    cfg = MapConfig(
+        map_w=4,
+        map_h=16,
+        max_turns=max_turns,
+        allow_sea_units=allow_sea_units,
+    )
     # cfg = MapConfig(map_w=4, map_h=16, max_turns=2000)
     cfg.attack_reward = 0.2
     cfg.city_capture_reward = 8.0

@@ -75,6 +75,9 @@ def _env_bool(name, default=False):
     return raw.strip().lower() in ("1", "true", "yes", "y", "on")
 
 
+SEA_UNIT_CLASSES = {"sea", "trireme"}
+
+
 class MuZeroConfig:
     def __init__(self):
         # fmt: off
@@ -84,7 +87,13 @@ class MuZeroConfig:
         map_w = _env_int("FREECIV_MAP_W", 4)
         map_h = _env_int("FREECIV_MAP_H", 16)
         max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
-        self.map_config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
+        allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
+        self.map_config = MapConfig(
+            map_w=map_w,
+            map_h=map_h,
+            max_turns=max_turns,
+            allow_sea_units=allow_sea_units,
+        )
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
         self.max_actions_per_turn = _env_int(
@@ -201,7 +210,13 @@ class Game(AbstractGame):
         map_w = _env_int("FREECIV_MAP_W", 4)
         map_h = _env_int("FREECIV_MAP_H", 16)
         max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
-        self.config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
+        allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
+        self.config = MapConfig(
+            map_w=map_w,
+            map_h=map_h,
+            max_turns=max_turns,
+            allow_sea_units=allow_sea_units,
+        )
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
         self.dir_ids = alpha_live.parse_dir_ids(
@@ -830,7 +845,15 @@ class Game(AbstractGame):
         label = (name or "").lower()
         return any(tag in label for tag in ("worker", "engineer", "migrant"))
 
+    def _production_is_sea(self, name: str) -> bool:
+        spec = UNIT_SPECS.get(name)
+        if spec is None:
+            return False
+        return (spec.unit_class or "").lower() in SEA_UNIT_CLASSES
+
     def _production_is_excluded(self, name: str) -> bool:
+        if not getattr(self.config, "allow_sea_units", True) and self._production_is_sea(name):
+            return True
         label = (name or "").lower()
         return any(tag in label for tag in ("diplomat", "explorer"))
 
