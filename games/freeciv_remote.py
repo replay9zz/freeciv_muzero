@@ -205,7 +205,10 @@ class Game(AbstractGame):
             self.client, self.player_id
         )
         if not controlled and self.unit_id is not None:
-            controlled = [self.unit_id]
+            pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
+            pos_info = alpha_live.parse_position_result(pos_result)
+            if pos_info is not None:
+                controlled = [self.unit_id]
         if not controlled:
             owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
             if owned_cities:

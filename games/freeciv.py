@@ -92,7 +92,7 @@ class MuZeroConfig:
             / datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
         )
         self.save_model = True
-        self.training_steps = 50000
+        self.training_steps = 10000
         self.batch_size = 128
         self.checkpoint_interval = 10
         self.value_loss_weight = 0.25
@@ -171,7 +171,21 @@ class Game(AbstractGame):
 
     def legal_actions(self):
         valid = self.state.valid_moves(self.player)
-        return [idx for idx, allowed in enumerate(valid) if allowed]
+        legal = [idx for idx, allowed in enumerate(valid) if allowed]
+        if not legal:
+            return []
+        if not self.state.cities[self.player]:
+            econ_offset = self.state.MOVE_SIZE + self.state.ATTACK_SIZE
+            build_start = econ_offset + self.state.ECON_BUILD_CITY_OFFSET
+            build_end = econ_offset + self.state.ECON_PRODUCTION_OFFSET
+            build_candidates = [
+                idx
+                for idx in range(build_start, build_end)
+                if 0 <= idx < len(valid) and valid[idx]
+            ]
+            if build_candidates:
+                return build_candidates
+        return legal
 
     def reset(self):
         self.state = MultiheadState(
