@@ -26,6 +26,7 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     MultiheadState,
     BUILDING_REQ_BUILDINGS,
     BUILDING_TECHS,
+    GREAT_WONDER_NAMES,
     PRODUCTION_ITEM_NAMES,
     PRODUCTION_UNIT_NAMES,
     UnitSpec,
@@ -266,6 +267,7 @@ class Game(AbstractGame):
             "FREECIV_MAX_ACTIONS_PER_TURN", max(1, self.max_units * 2)
         )
         self.acted_unit_slots: set[int] = set()
+        self.acted_production_cities: set[int] = set()
         self._last_snapshot = None
         self._last_state = None
         self.previous_pos = None
@@ -576,6 +578,7 @@ class Game(AbstractGame):
         state.actions_this_turn = 0
         state.max_actions_per_turn = max(1, self.max_units * 2)
         state.acted_unit_slots = {1: set(), -1: set()}
+        state.acted_production_cities = {1: set(), -1: set()}
         state.kills = {1: 0, -1: 0}
         state.scores = {1: 0.0, -1: 0.0}
         state.winner = None
@@ -955,6 +958,13 @@ class Game(AbstractGame):
         lowered = name.lower()
         if "palace" in lowered:
             return False
+        allowlist = getattr(self.config, "wonder_production_allowlist", ())
+        blocklist = getattr(self.config, "wonder_production_blocklist", ())
+        if name in GREAT_WONDER_NAMES:
+            if allowlist:
+                return name in allowlist
+            if name in blocklist:
+                return False
         if self._last_state is None:
             return True
         tech_flags = self._last_state.research_done.get(1, {})
@@ -1093,7 +1103,7 @@ class Game(AbstractGame):
             return
         self._last_research_flags = dict(research_flags)
         for city_id, queue in self.production_queue.items():
-            if not queue:
+            if not queue and self.production_current.get(city_id) is None:
                 continue
             updated: list[tuple[str, str]] = []
             changed = False
@@ -1109,6 +1119,33 @@ class Game(AbstractGame):
                 updated.append((kind, name))
             if changed:
                 self.production_queue[city_id] = updated
+            current = self.production_current.get(city_id)
+            if current is None and self.production_queue.get(city_id):
+                current = self.production_queue[city_id][0]
+            if not current:
+                continue
+            kind, name = current
+            if kind != "unit":
+                continue
+            upgraded = self._upgrade_unit_name(name)
+            if upgraded == name:
+                continue
+            existing_units = {
+                queued_name
+                for queued_kind, queued_name in self.production_queue.get(city_id, [])
+                if queued_kind == "unit"
+            }
+            if upgraded in existing_units:
+                continue
+            if self.max_production_queue > 0:
+                if len(self.production_queue.get(city_id, [])) >= self.max_production_queue:
+                    continue
+            added = self._queue_city_production(city_id, "unit", upgraded, count=1)
+            if added:
+                print(
+                    f"[production] city={city_id} queued unit {upgraded} after research",
+                    file=sys.stderr,
+                )
 
     def _prefer_production_actions(self, valid):
         if self._last_state is None or not self.city_slots:
@@ -1616,6 +1653,7 @@ class Game(AbstractGame):
                     f"[production] city={city_id} append {kind} {name} x{queued}",
                     file=sys.stderr,
                 )
+            self.acted_production_cities.add(city_id)
             return
 
     def step(self, action):
@@ -1661,6 +1699,7 @@ class Game(AbstractGame):
             self.turns += 1
             self.actions_this_turn = 0
             self.acted_unit_slots.clear()
+            self.acted_production_cities.clear()
             if self.sleep:
                 time.sleep(self.sleep)
 
@@ -1721,7 +1760,33 @@ class Game(AbstractGame):
         if self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+            min_units = int(getattr(self.config, "city_unit_min", 0))
+            free_units = int(getattr(self.config, "city_unit_free", 0))
             for city_slot, city_id in enumerate(self.city_slots):
+                if city_id in self.acted_production_cities:
+                    start = (
+                        prod_start
+                        + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                    )
+                    end = start + self._last_state.PRODUCTION_ITEM_COUNT
+                    if start < len(valid):
+                        valid[start:min(end, len(valid))] = 0
+                    continue
+                unit_count = sum(
+                    self._city_unit_counts.get(city_id, {}).values()
+                )
+                if (
+                    self._last_state is not None
+                    and city_slot < len(self._last_state.cities[1])
+                ):
+                    city = self._last_state.cities[1][city_slot]
+                    tile_count = sum(
+                        1
+                        for u in self._last_state.units[1]
+                        if u.alive and u.x == city.x and u.y == city.y
+                    )
+                    if tile_count > unit_count:
+                        unit_count = tile_count
                 for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
                     if kind != "building":
                         continue
@@ -1734,6 +1799,25 @@ class Game(AbstractGame):
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
                     elif not self._building_allowed_by_requirements(city_id, name):
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+                    elif min_units > 0 and unit_count < min_units:
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+                if free_units > 0 and unit_count >= free_units:
+                    for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
+                        if kind != "unit":
+                            continue
                         action_idx = (
                             prod_start
                             + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
@@ -1792,6 +1876,7 @@ class Game(AbstractGame):
             self._connect_client()
         self.turns = 0
         self.acted_unit_slots.clear()
+        self.acted_production_cities.clear()
         self.production_queue.clear()
         self.production_current.clear()
         self._city_buildings.clear()

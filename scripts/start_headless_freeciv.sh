@@ -25,11 +25,51 @@ if [[ -z "${scenario_file}" ]]; then
   exit 1
 fi
 
-export FREECIV_LUAREMOTE_PORT
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | tail -n +2 | awk '{print $4}' | grep -q ":${port}$"
+    return $?
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"${port}" -sTCP:LISTEN -P -n >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
 
+base_luaremote_port="${FREECIV_LUAREMOTE_PORT}"
 if [[ -z "${FREECIV_SERVER_PORT}" ]]; then
-  FREECIV_SERVER_PORT="$((FREECIV_LUAREMOTE_PORT + 1000))"
+  base_server_port="$((base_luaremote_port + 1000))"
+else
+  base_server_port="${FREECIV_SERVER_PORT}"
 fi
+
+offset=0
+luaremote_port="${base_luaremote_port}"
+server_port="${base_server_port}"
+while port_in_use "${luaremote_port}" || port_in_use "${server_port}"; do
+  offset=$((offset + 1))
+  luaremote_port=$((base_luaremote_port + offset))
+  if [[ -z "${FREECIV_SERVER_PORT}" ]]; then
+    server_port=$((luaremote_port + 1000))
+  else
+    server_port=$((base_server_port + offset))
+  fi
+done
+if [[ "${luaremote_port}" != "${FREECIV_LUAREMOTE_PORT}" ]]; then
+  echo "LuaRemote port ${FREECIV_LUAREMOTE_PORT} in use; using ${luaremote_port}" >&2
+fi
+if [[ -z "${FREECIV_SERVER_PORT}" ]]; then
+  FREECIV_SERVER_PORT="${server_port}"
+else
+  if [[ "${server_port}" != "${FREECIV_SERVER_PORT}" ]]; then
+    echo "Freeciv server port ${FREECIV_SERVER_PORT} in use; using ${server_port}" >&2
+  fi
+  FREECIV_SERVER_PORT="${server_port}"
+fi
+FREECIV_LUAREMOTE_PORT="${luaremote_port}"
+export FREECIV_LUAREMOTE_PORT
 
 cat > "${FREECIV_START_SCRIPT}" <<'EOF'
 start

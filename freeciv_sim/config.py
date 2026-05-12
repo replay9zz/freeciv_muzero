@@ -49,6 +49,10 @@ class MapConfig:
     research_rate_multiplier: float = 1.0
     production_rate_multiplier: float = 1.0
     production_queue_max: int = 3
+    production_queue_add: int = 1
+    auto_worker_units: bool = True
+    city_unit_min: int = 2
+    city_unit_free: int = 3
     food_consumption: int = 2
     food_growth: int = 20
     city_unit_cap: int = 6
@@ -64,6 +68,18 @@ class MapConfig:
     unit_upkeep_gold_cost: int = 1
     unit_upkeep_food_start: int = 5
     unit_upkeep_food_cost: int = 1
+    # Wonder production policy: if allowlist is non-empty, only those wonders are allowed.
+    wonder_production_allowlist: tuple[str, ...] = ()
+    wonder_production_blocklist: tuple[str, ...] = (
+        "Colossus",
+        "Great Wall",
+        "Copernicus' Observatory",
+        "Shakespeare's Theatre",
+        "Eiffel Tower",
+        "Women's Suffrage",
+        "Cure for Cancer",
+        "SETI Program",
+    )
 
 
 @dataclass

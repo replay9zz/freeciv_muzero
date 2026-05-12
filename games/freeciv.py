@@ -12,10 +12,10 @@ ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from freeciv_sim.config import MapConfig
-from freeciv_sim.providers import RandomMapProvider
-from freeciv_sim.research_policy import TECH_PREREQS
-from freeciv_sim.multihead_state import (
+from freeciv_alpha_zero.freeciv.config import MapConfig
+from freeciv_alpha_zero.freeciv.providers import RandomMapProvider
+from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS
+from freeciv_alpha_zero.freeciv.multihead_state import (
     MultiheadState,
     PRODUCTION_UNIT_NAMES,
     UNIT_TECHS,
@@ -24,13 +24,14 @@ from .tech_policy import pick_next_priority_tech
 
 
 def _make_map_config() -> MapConfig:
-    cfg = MapConfig(map_w=4, map_h=16, max_num_actions=2000)
-    # cfg = MapConfig(map_w=4, map_h=16, max_num_actions=2000)
+    cfg = MapConfig(map_w=4, map_h=16, max_turns=100)
+    # cfg = MapConfig(map_w=4, map_h=16, max_turns=2000)
     cfg.attack_reward = 0.2
     cfg.city_capture_reward = 8.0
     cfg.elimination_bonus = 4.5
     cfg.city_defense_multiplier = 1.5
     cfg.city_walls_defense_multiplier = 2.0
+    cfg.production_queue_add = 3
     return cfg
 
 
@@ -63,7 +64,7 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 1
         self.selfplay_on_gpu = True
-        self.max_moves = self.map_config.max_num_actions
+        self.max_moves = self.map_config.max_turns
         self.num_simulations = 50
         self.discount = 0.997
         self.temperature_threshold = None
@@ -107,7 +108,7 @@ class MuZeroConfig:
             / datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
         )
         self.save_model = True
-        self.training_steps = 10000
+        self.training_steps = 3000
         self.batch_size = 128
         self.checkpoint_interval = 10
         self.value_loss_weight = 0.25
