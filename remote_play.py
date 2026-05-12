@@ -14,6 +14,10 @@ import torch
 from games import freeciv_remote
 import models
 from self_play import MCTS, SelfPlay
+try:
+    from freeciv_rl.lua_helper import list_player_scores  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    list_player_scores = None
 
 
 def _set_env(name: str, value) -> None:
@@ -198,6 +202,8 @@ def main() -> None:
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--render", action="store_true")
     ap.add_argument("--episodes", type=int, default=1)
+    ap.add_argument("--score-log", help="Write civ scores to JSONL every N turns.")
+    ap.add_argument("--score-log-interval", type=int, default=25)
     ap.add_argument(
         "--json",
         action="store_true",
@@ -254,6 +260,21 @@ def main() -> None:
         json_fp = json_path.open("w", encoding="utf-8")
         json_records = []
         print(f"JSONL output: {json_path}", file=sys.stderr)
+
+    score_log_path = None
+    score_log_fp = None
+    last_score_turn = None
+    if args.score_log:
+        score_log_path = Path(args.score_log).expanduser()
+        score_log_path.parent.mkdir(parents=True, exist_ok=True)
+        score_log_fp = score_log_path.open("a", encoding="utf-8")
+        try:
+            if score_log_path.stat().st_size == 0:
+                score_log_fp.write(f"# checkpoint: {args.checkpoint}\n")
+                score_log_fp.flush()
+        except OSError:
+            pass
+        print(f"Score log output: {score_log_path}", file=sys.stderr)
 
     _set_env("FREECIV_HOST", args.host)
     _set_env("FREECIV_PORT", args.port)
@@ -316,6 +337,7 @@ def main() -> None:
     log_fp = sys.stderr if args.json else sys.stdout
     win_count = 0
     score_values = []
+    score_log_interval = int(args.score_log_interval or 0)
     for episode in range(args.episodes):
         observation = game.reset()
         if obs_adapter is not None:
@@ -361,6 +383,26 @@ def main() -> None:
             if score_parts:
                 line += " " + " ".join(score_parts)
             print(line, file=log_fp)
+            if (
+                score_log_fp is not None
+                and list_player_scores is not None
+                and turn is not None
+                and score_log_interval > 0
+                and turn > 0
+                and turn % score_log_interval == 0
+                and turn != last_score_turn
+            ):
+                scores = list_player_scores(game.client)
+                p0 = scores.get(0, (None, None, ""))[0]
+                p1 = scores.get(1, (None, None, ""))[0]
+                payload = {
+                    "turn": turn,
+                    "player0_score": p0,
+                    "player1_score": p1,
+                }
+                score_log_fp.write(json.dumps(payload) + "\n")
+                score_log_fp.flush()
+                last_score_turn = turn
             if args.render:
                 game.render()
             steps += 1
@@ -416,6 +458,8 @@ def main() -> None:
 
     if json_fp is not None:
         json_fp.close()
+    if score_log_fp is not None:
+        score_log_fp.close()
 
     game.close()
 

@@ -28,6 +28,7 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     BUILDING_TECHS,
     GREAT_WONDER_NAMES,
     PRODUCTION_ITEM_NAMES,
+    PRODUCTION_BUILDING_NAMES,
     PRODUCTION_UNIT_NAMES,
     UnitSpec,
     UNIT_GENERATION_CHAINS,
@@ -240,6 +241,8 @@ class Game(AbstractGame):
         self._city_adjacent_water: dict[int, dict[str, bool]] = {}
         self.current_research = None
         self._last_research_flags: dict[str, bool] = {}
+        self._buildable_units: set[str] = set()
+        self._buildable_buildings: set[str] = set()
         self.autosettler_units: set[int] = set()
         self.gov_switch_sent: set[str] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
@@ -754,6 +757,20 @@ class Game(AbstractGame):
         label = (name or "").lower()
         return any(tag in label for tag in ("worker", "engineer", "migrant"))
 
+    def _production_is_excluded(self, name: str) -> bool:
+        label = (name or "").lower()
+        return any(tag in label for tag in ("diplomat", "explorer"))
+
+    def _worker_unit_count(self) -> int:
+        for label in self.unit_slot_types:
+            if self._production_is_worker_like(label or ""):
+                return 1
+        for city_counts in self._city_unit_counts.values():
+            for name, units in city_counts.items():
+                if self._production_is_worker_like(name):
+                    return max(1, units)
+        return 0
+
     def _unit_is_obsolete_exempt(self, name: str) -> bool:
         label = (name or "").lower()
         return any(tag in label for tag in ("settler", "worker", "engineer", "migrant"))
@@ -832,6 +849,8 @@ class Game(AbstractGame):
         return False
 
     def _unit_unlocked(self, unit_name: str) -> bool:
+        if self._buildable_units:
+            return unit_name in self._buildable_units
         if self._last_state is None:
             return False
         try:
@@ -845,6 +864,140 @@ class Game(AbstractGame):
                 for tech in techs
             )
 
+    def _player_can_build_unit(self, unit_name: str) -> bool:
+        if self.client is None or self.player_id is None:
+            return False
+        safe_name = (unit_name or "").replace("\\", "\\\\").replace("'", "\\'")
+        lua = (
+            "return (function() "
+            f"local pl = find.player and find.player({self.player_id}); "
+            f"local ut = find.unit_type and find.unit_type('{safe_name}'); "
+            "if pl and ut and pl.can_build_direct then "
+            "  local ok,res = pcall(function() return pl:can_build_direct(ut) end); "
+            "  if ok and res then return '__YES__' end "
+            "end "
+            "return '__NO__' "
+            "end)()"
+        )
+        try:
+            res = self.client.eval(lua)
+            ret = res.last_return() if res else None
+            return isinstance(ret, str) and "__YES__" in ret
+        except Exception:
+            return False
+
+    def _refresh_buildable_units(self) -> None:
+        if self.client is None or self.player_id is None:
+            self._buildable_units = set()
+            return
+        buildable = set()
+        for name in PRODUCTION_UNIT_NAMES:
+            if self._production_is_excluded(name):
+                continue
+            if self._player_can_build_unit(name):
+                buildable.add(name)
+        self._buildable_units = buildable
+
+    def _player_can_build_building(self, building_name: str) -> bool:
+        if self.client is None or self.player_id is None:
+            return False
+        safe_name = (building_name or "").replace("\\", "\\\\").replace("'", "\\'")
+        lua = (
+            "return (function() "
+            f"local pl = find.player and find.player({self.player_id}); "
+            f"local bt = find.building_type and find.building_type('{safe_name}'); "
+            "if pl and bt and pl.can_build_direct then "
+            "  local ok,res = pcall(function() return pl:can_build_direct(bt) end); "
+            "  if ok and res then return '__YES__' end "
+            "end "
+            "return '__NO__' "
+            "end)()"
+        )
+        try:
+            res = self.client.eval(lua)
+            ret = res.last_return() if res else None
+            return isinstance(ret, str) and "__YES__" in ret
+        except Exception:
+            return False
+
+    def _refresh_buildable_buildings(self) -> None:
+        if self.client is None or self.player_id is None:
+            self._buildable_buildings = set()
+            return
+        buildable = set()
+        for name in PRODUCTION_BUILDING_NAMES:
+            if self._player_can_build_building(name):
+                buildable.add(name)
+        self._buildable_buildings = buildable
+
+    def _log_production_options(
+        self,
+        *,
+        reason: str,
+        valid: Optional[numpy.ndarray] = None,
+    ) -> None:
+        if self._last_state is None or not self.city_slots:
+            return
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        for city_slot, city_id in enumerate(self.city_slots):
+            if city_slot >= len(self._last_state.cities[1]):
+                continue
+            city = self._last_state.cities[1][city_slot]
+            worker_count = self._worker_unit_count()
+            buildable_units = []
+            for name in PRODUCTION_UNIT_NAMES:
+                if self._production_is_excluded(name):
+                    continue
+                if self._buildable_units:
+                    if name not in self._buildable_units:
+                        continue
+                elif not self._unit_unlocked(name):
+                    continue
+                if worker_count > 0 and self._production_is_worker_like(name):
+                    continue
+                if name == "Settlers" and city.size < 3:
+                    continue
+                buildable_units.append(name)
+            buildable_buildings = []
+            for name in PRODUCTION_BUILDING_NAMES:
+                if self._buildable_buildings:
+                    if name not in self._buildable_buildings:
+                        continue
+                if name in self._city_buildings.get(city_id, set()):
+                    continue
+                if not self._building_allowed_by_water(city_id, name):
+                    continue
+                if not self._building_allowed_by_requirements(city_id, name):
+                    continue
+                buildable_buildings.append(name)
+            legal_units = []
+            legal_buildings = []
+            if valid is not None:
+                start = prod_start + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                end = start + self._last_state.PRODUCTION_ITEM_COUNT
+                for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+                    action_idx = start + item_idx
+                    if action_idx >= len(valid) or not valid[action_idx]:
+                        continue
+                    if kind == "unit":
+                        legal_units.append(name)
+                    else:
+                        legal_buildings.append(name)
+            print(
+                "[production-options] "
+                f"reason={reason} turn={self.turns} city={city_id} size={city.size} "
+                f"units={','.join(buildable_units)} buildings={','.join(buildable_buildings)}",
+                file=sys.stderr,
+            )
+            if valid is not None:
+                print(
+                    "[production-legal] "
+                    f"reason={reason} turn={self.turns} city={city_id} "
+                    f"units={','.join(legal_units)} buildings={','.join(legal_buildings)}",
+                    file=sys.stderr,
+                )
+
     def _select_production_unit(self) -> Optional[str]:
         if self._last_state is None:
             return None
@@ -852,11 +1005,12 @@ class Game(AbstractGame):
             1 for name in self.unit_slot_types if "settler" in (name or "").lower()
         )
         city_sizes = [city.size for city in self._last_state.cities[1]]
-        can_make_settler = any(size >= 2 for size in city_sizes)
+        can_make_settler = any(size >= 3 for size in city_sizes)
+        missing_cities = max(self.max_cities - len(self.city_slots), 0)
         if (
             can_make_settler
-            and len(self.city_slots) < self.max_cities
-            and settler_count < 1
+            and missing_cities > 0
+            and settler_count < missing_cities
             and self._unit_unlocked("Settlers")
         ):
             return "Settlers"
@@ -865,6 +1019,8 @@ class Game(AbstractGame):
             if not self._unit_unlocked(name):
                 continue
             if self._unit_obsolete(name):
+                continue
+            if self._production_is_excluded(name):
                 continue
             if name == "Settlers" or self._production_is_worker_like(name):
                 continue
@@ -982,6 +1138,16 @@ class Game(AbstractGame):
         queue = self.production_queue.setdefault(city_id, [])
         if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
             return 0
+        if kind == "unit":
+            name = self._upgrade_unit_name(name)
+            if self._production_is_excluded(name):
+                return 0
+            if self._production_is_worker_like(name) and self._worker_unit_count() > 0:
+                return 0
+            if name == "Settlers":
+                size = int(self.city_sizes.get(int(city_id), 1))
+                if size < 3:
+                    return 0
         if kind == "building":
             if not self._building_allowed_by_water(city_id, name):
                 return 0
@@ -989,8 +1155,20 @@ class Game(AbstractGame):
                 return 0
             if name in self._city_buildings.get(city_id, set()):
                 return 0
+            queued_buildings = {
+                queued_name
+                for queued_kind, queued_name in queue
+                if queued_kind == "building"
+            }
+            current_prod = self.production_current.get(city_id)
+            if current_prod and current_prod[0] == "building":
+                queued_buildings.add(current_prod[1])
+            if name in queued_buildings:
+                return 0
         added = 0
         to_add = max(1, int(count))
+        if kind == "building":
+            to_add = 1
         while added < to_add:
             if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
                 break
@@ -1099,9 +1277,26 @@ class Game(AbstractGame):
             self._city_adjacent_water = {}
 
     def _refresh_queue_on_research_change(self, research_flags: dict[str, bool]) -> None:
+        if not self._buildable_units and not self._buildable_buildings:
+            self._refresh_buildable_units()
+            self._refresh_buildable_buildings()
         if research_flags == self._last_research_flags:
             return
+        prev_flags = dict(self._last_research_flags)
         self._last_research_flags = dict(research_flags)
+        self._refresh_buildable_units()
+        self._refresh_buildable_buildings()
+        completed = [
+            tech
+            for tech, done in research_flags.items()
+            if done and not prev_flags.get(tech, False)
+        ]
+        if completed:
+            print(
+                f"[research] completed={','.join(completed)}",
+                file=sys.stderr,
+            )
+            self._log_production_options(reason="research")
         for city_id, queue in self.production_queue.items():
             if not queue and self.production_current.get(city_id) is None:
                 continue
@@ -1169,7 +1364,7 @@ class Game(AbstractGame):
             if desired_unit == "Settlers":
                 if slot_idx >= len(self._last_state.cities[1]):
                     continue
-                if self._last_state.cities[1][slot_idx].size < 2:
+                if self._last_state.cities[1][slot_idx].size < 3:
                     continue
             start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
             end = start + self._last_state.PRODUCTION_ITEM_COUNT
@@ -1775,6 +1970,15 @@ class Game(AbstractGame):
                 unit_count = sum(
                     self._city_unit_counts.get(city_id, {}).values()
                 )
+                garrison_count = 0
+                queued_buildings = {
+                    queued_name
+                    for queued_kind, queued_name in self.production_queue.get(city_id, [])
+                    if queued_kind == "building"
+                }
+                current_prod = self.production_current.get(city_id)
+                if current_prod and current_prod[0] == "building":
+                    queued_buildings.add(current_prod[1])
                 if (
                     self._last_state is not None
                     and city_slot < len(self._last_state.cities[1])
@@ -1785,8 +1989,34 @@ class Game(AbstractGame):
                         for u in self._last_state.units[1]
                         if u.alive and u.x == city.x and u.y == city.y
                     )
+                    garrison_count = tile_count
                     if tile_count > unit_count:
                         unit_count = tile_count
+                city_size = None
+                if (
+                    self._last_state is not None
+                    and city_slot < len(self._last_state.cities[1])
+                ):
+                    city_size = self._last_state.cities[1][city_slot].size
+                for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+                    if kind != "unit":
+                        continue
+                    if self._production_is_excluded(name):
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+                    elif name == "Settlers" and city_size is not None and city_size < 3:
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
                 for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
                     if kind != "building":
                         continue
@@ -1806,7 +2036,7 @@ class Game(AbstractGame):
                         )
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
-                    elif min_units > 0 and unit_count < min_units:
+                    elif name in queued_buildings:
                         action_idx = (
                             prod_start
                             + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
@@ -1814,9 +2044,23 @@ class Game(AbstractGame):
                         )
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
-                if free_units > 0 and unit_count >= free_units:
+                    elif min_units > 0 and garrison_count < min_units:
+                        action_idx = (
+                            prod_start
+                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                            + item_idx
+                        )
+                        if 0 <= action_idx < len(valid):
+                            valid[action_idx] = 0
+                if (
+                    free_units > 0
+                    and unit_count >= free_units
+                    and garrison_count >= min_units
+                ):
                     for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
                         if kind != "unit":
+                            continue
+                        if _name == "Settlers" and city_size is not None and city_size >= 3:
                             continue
                         action_idx = (
                             prod_start
