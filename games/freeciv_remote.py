@@ -20,11 +20,16 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     City,
     MHUnit,
     MultiheadState,
+    PRODUCTION_ITEM_NAMES,
     PRODUCTION_UNIT_NAMES,
-    UNIT_TECH,
+    UNIT_TECHS,
     UNIT_SPECS,
 )
+from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS
 from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
+from freeciv_rl.lua_helper import set_government as lua_set_government
+
+from .tech_policy import pick_next_priority_tech
 
 
 def _env_int(name, default):
@@ -57,7 +62,7 @@ class MuZeroConfig:
         ### Game
         tmp_state = MultiheadState(
             self.map_config,
-            RandomMapProvider(self.map_config.map_w, self.map_config.map_h),
+            RandomMapProvider(self.map_config.map_w, self.map_config.map_h, p_open=1.0),
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
@@ -182,6 +187,7 @@ class Game(AbstractGame):
         self.city_slots = []
         self.production_locked = set()
         self.current_research = None
+        self.gov_switch_sent: set[str] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
         self.visible_enemy_cities: list[tuple[int, int]] = []
         self.visible_enemy_city_ids: dict[tuple[int, int], int] = {}
@@ -413,9 +419,10 @@ class Game(AbstractGame):
         state.ECON_RESEARCH_OFFSET = 0
         state.ECON_BUILD_CITY_OFFSET = len(state.RESEARCH_TECHS)
         state.ECON_PRODUCTION_OFFSET = state.ECON_BUILD_CITY_OFFSET + self.max_units
+        state.PRODUCTION_ITEM_COUNT = len(PRODUCTION_ITEM_NAMES)
         state.PRODUCTION_UNIT_COUNT = len(PRODUCTION_UNIT_NAMES)
         state.ECON_PASS_OFFSET = (
-            state.ECON_PRODUCTION_OFFSET + self.max_cities * state.PRODUCTION_UNIT_COUNT
+            state.ECON_PRODUCTION_OFFSET + self.max_cities * state.PRODUCTION_ITEM_COUNT
         )
         state.ECON_SIZE = state.ECON_PASS_OFFSET + 1
         state.ACTION_SIZE = state.MOVE_SIZE + state.ATTACK_SIZE + state.ECON_SIZE
@@ -446,7 +453,7 @@ class Game(AbstractGame):
                     spec.firepower,
                     spec.name,
                     True,
-                    spec.can_build_city or ("settler" in unit_key or "migrant" in unit_key),
+                    spec.can_build_city or ("settler" in unit_key),
                     None,
                 )
                 slot_label = spec.name
@@ -524,10 +531,13 @@ class Game(AbstractGame):
         try:
             return self._last_state._unit_unlocked(1, unit_name)
         except Exception:
-            tech = UNIT_TECH.get(unit_name)
-            if tech is None:
+            techs = UNIT_TECHS.get(unit_name, [])
+            if not techs:
                 return True
-            return bool(self._last_state.research_done.get(1, {}).get(tech, False))
+            return all(
+                self._last_state.research_done.get(1, {}).get(tech, False)
+                for tech in techs
+            )
 
     def _select_production_unit(self) -> Optional[str]:
         if self._last_state is None:
@@ -573,13 +583,16 @@ class Game(AbstractGame):
         desired_unit = self._select_production_unit()
         if not desired_unit:
             return valid
-        try:
-            desired_idx = PRODUCTION_UNIT_NAMES.index(desired_unit)
-        except ValueError:
+        desired_idx = None
+        for idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+            if kind == "unit" and name == desired_unit:
+                desired_idx = idx
+                break
+        if desired_idx is None:
             return valid
         for slot_idx in range(len(self.city_slots)):
-            start = prod_start + slot_idx * self._last_state.PRODUCTION_UNIT_COUNT
-            end = start + self._last_state.PRODUCTION_UNIT_COUNT
+            start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
+            end = start + self._last_state.PRODUCTION_ITEM_COUNT
             if start >= len(valid):
                 break
             end = min(end, len(valid), prod_end)
@@ -597,11 +610,13 @@ class Game(AbstractGame):
             return valid
         if not self.city_slots or self.current_research:
             return valid
-        try:
-            tech_idx = self._last_state.RESEARCH_TECHS.index("Warrior Code")
-        except ValueError:
+        flags = self._last_state.research_done.get(1, {})
+        tech_name = pick_next_priority_tech(flags, TECH_PREREQS, self._last_state.RESEARCH_TECHS)
+        if not tech_name:
             return valid
-        if self._last_state.research_done.get(1, {}).get("Warrior Code", False):
+        try:
+            tech_idx = self._last_state.RESEARCH_TECHS.index(tech_name)
+        except ValueError:
             return valid
         econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
         research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -612,6 +627,23 @@ class Game(AbstractGame):
             valid[econ_offset:research_end] = 0
             valid[action_idx] = 1
         return valid
+
+    def _maybe_switch_government(self, research_flags: dict[str, bool]) -> None:
+        if not research_flags:
+            return
+        target = None
+        if research_flags.get("Democracy", False) and "Democracy" not in self.gov_switch_sent:
+            target = "Democracy"
+        elif research_flags.get("Monarchy", False) and "Monarchy" not in self.gov_switch_sent:
+            target = "Monarchy"
+        if target is None:
+            return
+        try:
+            ok = lua_set_government(self.client, target)
+        except Exception:
+            ok = False
+        if ok:
+            self.gov_switch_sent.add(target)
 
     def _prefer_attack_actions(self, valid):
         if self._last_state is None:
@@ -685,6 +717,7 @@ class Game(AbstractGame):
                     )
         self.visited_tiles.add(snapshot.player_pos)
         self._last_snapshot = snapshot
+        self._maybe_switch_government(snapshot.research_flags)
         self._try_refresh_controlled_units()
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         enemy_cities = self._visible_enemy_cities()
@@ -784,15 +817,16 @@ class Game(AbstractGame):
             return
         if board_state.ECON_PRODUCTION_OFFSET <= econ_idx < board_state.ECON_PASS_OFFSET:
             rel = econ_idx - board_state.ECON_PRODUCTION_OFFSET
-            city_slot = rel // board_state.PRODUCTION_UNIT_COUNT
-            unit_idx = rel % board_state.PRODUCTION_UNIT_COUNT
+            city_slot = rel // board_state.PRODUCTION_ITEM_COUNT
+            item_idx = rel % board_state.PRODUCTION_ITEM_COUNT
             if city_slot >= len(self.city_slots):
                 return
-            if unit_idx >= len(PRODUCTION_UNIT_NAMES):
+            if item_idx >= len(PRODUCTION_ITEM_NAMES):
                 return
             city_id = self.city_slots[city_slot]
-            unit_name = PRODUCTION_UNIT_NAMES[unit_idx]
-            if self.client.set_city_production(city_id, "UnitType", unit_name):
+            kind, name = PRODUCTION_ITEM_NAMES[item_idx]
+            prod_kind = "UnitType" if kind == "unit" else "Building"
+            if self.client.set_city_production(city_id, prod_kind, name):
                 self.production_locked.add(city_id)
             return
 
@@ -899,8 +933,8 @@ class Game(AbstractGame):
             for slot_idx, city_id in enumerate(self.city_slots):
                 if city_id not in self.production_locked:
                     continue
-                start = prod_start + slot_idx * self._last_state.PRODUCTION_UNIT_COUNT
-                end = start + self._last_state.PRODUCTION_UNIT_COUNT
+                start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
+                end = start + self._last_state.PRODUCTION_ITEM_COUNT
                 valid[start:end] = 0
         if self.acted_unit_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
@@ -971,8 +1005,10 @@ class Game(AbstractGame):
             return f"build_city_u{unit_idx}"
         if tmp_state.ECON_PRODUCTION_OFFSET <= econ_idx < tmp_state.ECON_PASS_OFFSET:
             rel = econ_idx - tmp_state.ECON_PRODUCTION_OFFSET
-            city_slot = rel // tmp_state.PRODUCTION_UNIT_COUNT
-            unit_idx = rel % tmp_state.PRODUCTION_UNIT_COUNT
-            unit_name = PRODUCTION_UNIT_NAMES[unit_idx]
-            return f"produce_c{city_slot}_{unit_name}"
+            city_slot = rel // tmp_state.PRODUCTION_ITEM_COUNT
+            item_idx = rel % tmp_state.PRODUCTION_ITEM_COUNT
+            kind, name = PRODUCTION_ITEM_NAMES[item_idx]
+            if kind == "unit":
+                return f"produce_c{city_slot}_{name}"
+            return f"build_c{city_slot}_{name}"
         return str(action_number)

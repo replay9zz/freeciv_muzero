@@ -1,6 +1,7 @@
 import datetime
 import pathlib
 import sys
+from collections import deque
 
 import numpy
 import torch
@@ -13,14 +14,17 @@ if str(ROOT_DIR) not in sys.path:
 
 from freeciv_alpha_zero.freeciv.config import MapConfig
 from freeciv_alpha_zero.freeciv.providers import RandomMapProvider
+from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS
 from freeciv_alpha_zero.freeciv.multihead_state import (
     MultiheadState,
     PRODUCTION_UNIT_NAMES,
+    UNIT_TECHS,
 )
+from .tech_policy import pick_next_priority_tech
 
 
 def _make_map_config() -> MapConfig:
-    cfg = MapConfig(map_w=2, map_h=9, max_turns=128)
+    cfg = MapConfig(map_w=4, map_h=16, max_turns=128)
     # cfg = MapConfig(map_w=4, map_h=16, max_turns=128)
     cfg.attack_reward = 0.2
     cfg.city_capture_reward = 8.0
@@ -43,7 +47,7 @@ class MuZeroConfig:
         ### Game
         tmp_state = MultiheadState(
             self.map_config,
-            RandomMapProvider(self.map_config.map_w, self.map_config.map_h),
+            RandomMapProvider(self.map_config.map_w, self.map_config.map_h, p_open=1.0),
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
@@ -152,6 +156,7 @@ class Game(AbstractGame):
         self.provider = RandomMapProvider(
             self.config.map_w,
             self.config.map_h,
+            p_open=1.0,
             rng=rng,
         )
         self.state = MultiheadState(
@@ -235,12 +240,194 @@ class Game(AbstractGame):
             return f"build_city_u{unit_idx}"
         if self.state.ECON_PRODUCTION_OFFSET <= econ_idx < self.state.ECON_PASS_OFFSET:
             rel = econ_idx - self.state.ECON_PRODUCTION_OFFSET
-            city_slot = rel // self.state.PRODUCTION_UNIT_COUNT
-            unit_idx = rel % self.state.PRODUCTION_UNIT_COUNT
-            unit_name = PRODUCTION_UNIT_NAMES[unit_idx]
-            return f"produce_c{city_slot}_{unit_name}"
+            city_slot = rel // self.state.PRODUCTION_ITEM_COUNT
+            item_idx = rel % self.state.PRODUCTION_ITEM_COUNT
+            kind, name = self.state.PRODUCTION_ITEM_NAMES[item_idx]
+            if kind == "unit":
+                return f"produce_c{city_slot}_{name}"
+            return f"build_c{city_slot}_{name}"
         return str(action_number)
 
     def expert_agent(self):
+        state = self.state
+        player = self.player
+        valid = state.valid_moves(player)
         legal = self.legal_actions()
-        return int(numpy.random.choice(legal)) if legal else 0
+        if not legal:
+            return state.PASS_ACTION
+
+        econ_base = state.MOVE_SIZE + state.ATTACK_SIZE
+        if not state.cities[player]:
+            build_start = econ_base + state.ECON_BUILD_CITY_OFFSET
+            build_end = econ_base + state.ECON_PRODUCTION_OFFSET
+            build_candidates = [
+                idx
+                for idx in range(build_start, build_end)
+                if 0 <= idx < len(valid) and valid[idx]
+            ]
+            if build_candidates:
+                return int(numpy.random.choice(build_candidates))
+        own_cities = {(c.x, c.y) for c in state.cities[player]}
+        enemy_cities = {(c.x, c.y) for c in state.cities[-player]}
+        friend_units = [
+            (idx, u) for idx, u in enumerate(state.units[player]) if u.alive
+        ]
+        friend_positions = {(u.x, u.y) for _, u in friend_units}
+        enemy_positions = {(u.x, u.y) for u in state.units[-player] if u.alive}
+        garrison_units = {
+            idx for idx, u in friend_units if (u.x, u.y) in own_cities
+        }
+        unguarded_cities = [pos for pos in own_cities if pos not in friend_positions]
+
+        def best_bfs_step(start, target):
+            if start == target or state.movement is None or state.gt is None:
+                return None
+            neighbors = state.movement.get_native_neighbors(*start)
+            seen = {start}
+            queue = deque()
+            for dir_idx, (nx, ny) in enumerate(neighbors):
+                if nx is None or ny is None:
+                    continue
+                if state.gt.au_map[ny, nx] != "A":
+                    continue
+                seen.add((nx, ny))
+                queue.append((nx, ny, dir_idx))
+            while queue:
+                cx, cy, first_dir = queue.popleft()
+                if (cx, cy) == target:
+                    return first_dir
+                for nx, ny in state.movement.get_native_neighbors(cx, cy):
+                    if nx is None or ny is None:
+                        continue
+                    if (nx, ny) in seen:
+                        continue
+                    if state.gt.au_map[ny, nx] != "A":
+                        continue
+                    seen.add((nx, ny))
+                    queue.append((nx, ny, first_dir))
+            return None
+
+        def approx_dist(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        def friendly_support(target):
+            count = 0
+            for nx, ny in state.movement.get_native_neighbors(*target):
+                if nx is None or ny is None:
+                    continue
+                if (nx, ny) in friend_positions:
+                    count += 1
+            return count
+
+        # 1) Immediate garrison if a city is empty and reachable in one move.
+        for city_pos in unguarded_cities:
+            for unit_idx, u in friend_units:
+                for dir_idx, (nx, ny) in enumerate(
+                    state.movement.get_native_neighbors(u.x, u.y)
+                ):
+                    if (nx, ny) != city_pos:
+                        continue
+                    action = unit_idx * state.MOVE_PER_UNIT + dir_idx
+                    if valid[action]:
+                        return action
+
+        # 2) Only attack when enough friendly units are adjacent to the target.
+        attack_candidates = []
+        for unit_idx, u in friend_units:
+            for dir_idx, (nx, ny) in enumerate(
+                state.movement.get_native_neighbors(u.x, u.y)
+            ):
+                if nx is None or ny is None:
+                    continue
+                action = (
+                    state.MOVE_SIZE + unit_idx * state.ATTACK_PER_UNIT + dir_idx
+                )
+                if action >= len(valid) or not valid[action]:
+                    continue
+                target = (nx, ny)
+                if target not in enemy_cities and target not in enemy_positions:
+                    continue
+                support = friendly_support(target)
+                if target in enemy_cities:
+                    if support >= 3:
+                        attack_candidates.append((support + 10, action))
+                else:
+                    if support >= 2:
+                        attack_candidates.append((support + 3, action))
+        if attack_candidates:
+            attack_candidates.sort(reverse=True)
+            return attack_candidates[0][1]
+
+        # 3) Prefer research along the priority chain when possible.
+        archer_techs = UNIT_TECHS.get("Archers", [])
+        archers_unlocked = (
+            not archer_techs
+            or all(state.research_done[player].get(tech, False) for tech in archer_techs)
+        )
+        next_tech = pick_next_priority_tech(
+            state.research_done[player],
+            TECH_PREREQS,
+            state.RESEARCH_TECHS,
+        )
+        if next_tech and next_tech in state.RESEARCH_TECHS:
+            tech_idx = state.RESEARCH_TECHS.index(next_tech)
+            action = econ_base + tech_idx
+            if action < len(valid) and valid[action]:
+                return action
+
+        # 4) Prefer producing archers once available.
+        if archers_unlocked and "Archers" in state.PRODUCTION_UNIT_NAMES:
+            arch_idx = state.PRODUCTION_UNIT_NAMES.index("Archers")
+            for city_idx, city in enumerate(state.cities[player]):
+                if city.production_target == "Archers":
+                    continue
+                action = (
+                    econ_base
+                    + state.ECON_PRODUCTION_OFFSET
+                    + city_idx * state.PRODUCTION_ITEM_COUNT
+                    + arch_idx
+                )
+                if valid[action]:
+                    return action
+
+        # 5) Move toward unguarded cities if possible.
+        best_move = None
+        for city_pos in unguarded_cities:
+            for unit_idx, u in friend_units:
+                if unit_idx in garrison_units:
+                    continue
+                dir_idx = best_bfs_step((u.x, u.y), city_pos)
+                if dir_idx is None:
+                    continue
+                action = unit_idx * state.MOVE_PER_UNIT + dir_idx
+                if not valid[action]:
+                    continue
+                dist = approx_dist((u.x, u.y), city_pos)
+                if best_move is None or dist < best_move[0]:
+                    best_move = (dist, action)
+        if best_move is not None:
+            return best_move[1]
+
+        # 6) Advance toward the nearest enemy city once we have a small force.
+        combat_units = [
+            (idx, u) for idx, u in friend_units if not u.can_build_city
+        ]
+        if archers_unlocked and enemy_cities and len(combat_units) >= 2:
+            best_attack_move = None
+            for unit_idx, u in combat_units:
+                if unit_idx in garrison_units:
+                    continue
+                for city_pos in enemy_cities:
+                    dir_idx = best_bfs_step((u.x, u.y), city_pos)
+                    if dir_idx is None:
+                        continue
+                    action = unit_idx * state.MOVE_PER_UNIT + dir_idx
+                    if not valid[action]:
+                        continue
+                    dist = approx_dist((u.x, u.y), city_pos)
+                    if best_attack_move is None or dist < best_attack_move[0]:
+                        best_attack_move = (dist, action)
+            if best_attack_move is not None:
+                return best_attack_move[1]
+
+        return int(numpy.random.choice(legal))
