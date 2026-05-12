@@ -26,6 +26,23 @@ def _set_env(name: str, value) -> None:
     os.environ[name] = str(value)
 
 
+def _format_checkpoint_path(checkpoint_path: Path) -> str:
+    try:
+        resolved = checkpoint_path.resolve()
+        home = Path.home().resolve()
+        if resolved == home or home in resolved.parents:
+            return f"~/{resolved.relative_to(home)}"
+        return str(resolved)
+    except OSError:
+        return str(checkpoint_path)
+
+
+def _write_checkpoint_file(output_dir: Path, checkpoint_path: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    display_path = _format_checkpoint_path(checkpoint_path)
+    (output_dir / "CHECKPOINT").write_text(f"{display_path}\n", encoding="utf-8")
+
+
 def load_weights(checkpoint_path: Path, map_location) -> dict:
     try:
         checkpoint = torch.load(
@@ -261,7 +278,7 @@ def main() -> None:
                 / stamp
                 / "remote_play.jsonl"
             )
-        json_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_checkpoint_file(json_path.parent, checkpoint_path)
         json_fp = json_path.open("w", encoding="utf-8")
         json_records = []
         print(f"JSONL output: {json_path}", file=sys.stderr)
