@@ -87,6 +87,10 @@ class MuZeroConfig:
         self.map_config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+        self.max_actions_per_turn = _env_int(
+            "FREECIV_MAX_ACTIONS_PER_TURN",
+            max(1, self.max_units * 2),
+        )
         self.luaremote_port_base = _env_int(
             "FREECIV_LUAREMOTE_PORT",
             _env_int("FREECIV_PORT", 4444),
@@ -111,7 +115,8 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 1
         self.selfplay_on_gpu = True
-        self.max_moves = self.map_config.max_turns
+        self.max_turns = self.map_config.max_turns
+        self.max_moves = self.max_turns * self.max_actions_per_turn
         self.num_simulations = 50
         self.discount = 0.997
         self.temperature_threshold = None

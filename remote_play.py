@@ -216,11 +216,16 @@ def main() -> None:
     ap.add_argument("--map-width", type=int, default=4)
     ap.add_argument("--map-height", type=int, default=16)
     ap.add_argument("--max-turns", type=int, default=2000)
+    ap.add_argument(
+        "--max-actions-per-turn",
+        type=int,
+        help="Cap actions per turn (default: max_units*2).",
+    )
     ap.add_argument("--player-id", type=int)
     ap.add_argument("--unit-id", type=int)
     ap.add_argument("--dir-ids", default="0,1,4,7,6,3")
     ap.add_argument("--sleep", type=float, default=0.1)
-    ap.add_argument("--max-moves", type=int, default=2000)
+    ap.add_argument("--max-moves", type=int)
     ap.add_argument("--num-simulations", type=int, default=50)
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--render", action="store_true")
@@ -341,6 +346,7 @@ def main() -> None:
     _set_env("FREECIV_MAP_W", args.map_width)
     _set_env("FREECIV_MAP_H", args.map_height)
     _set_env("FREECIV_MAX_TURNS", args.max_turns)
+    _set_env("FREECIV_MAX_ACTIONS_PER_TURN", args.max_actions_per_turn)
     _set_env("FREECIV_PLAYER_ID", args.player_id)
     _set_env("FREECIV_UNIT_ID", args.unit_id)
     _set_env("FREECIV_TAKE_PLAYER", args.take_player)
@@ -383,6 +389,12 @@ def main() -> None:
     model.set_weights(weights)
     model.to(device)
     model.eval()
+
+    if args.max_moves is None:
+        if hasattr(config, "max_actions_per_turn"):
+            args.max_moves = args.max_turns * config.max_actions_per_turn
+        else:
+            args.max_moves = args.max_turns
 
     game = freeciv_remote.Game()
     mcts = MCTS(config)

@@ -26,7 +26,10 @@ class SelfPlay:
             port = base + (offset * stride)
             os.environ["FREECIV_LUAREMOTE_PORT"] = str(port)
             os.environ["FREECIV_PORT"] = str(port)
-        self.game = Game(seed)
+        try:
+            self.game = Game(seed, config=self.config)
+        except TypeError:
+            self.game = Game(seed)
 
         # Fix random generator seed
         numpy.random.seed(seed)

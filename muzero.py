@@ -74,6 +74,22 @@ class MuZero:
                         raise AttributeError(
                             f"{game_name} config has no attribute '{param}'. Check the config file for the complete list of parameters."
                         )
+                if hasattr(self.config, "map_config") and "max_turns" in config:
+                    self.config.map_config.max_turns = self.config.max_turns
+                if hasattr(self.config, "max_moves") and hasattr(self.config, "max_turns"):
+                    if "max_turns" in config and "max_moves" not in config:
+                        if hasattr(self.config, "max_actions_per_turn"):
+                            self.config.max_moves = (
+                                self.config.max_turns * self.config.max_actions_per_turn
+                            )
+                        else:
+                            self.config.max_moves = self.config.max_turns
+                    elif "max_moves" in config and "max_turns" not in config:
+                        self.config.max_turns = self.config.max_moves
+                    if "max_actions_per_turn" in config and "max_moves" not in config:
+                        self.config.max_moves = (
+                            self.config.max_turns * self.config.max_actions_per_turn
+                        )
             else:
                 self.config = config
 
@@ -549,7 +565,10 @@ class MuZero:
         Args:
             horizon (int): Number of timesteps for which we collect information.
         """
-        game = self.Game(self.config.seed)
+        try:
+            game = self.Game(self.config.seed, config=self.config)
+        except TypeError:
+            game = self.Game(self.config.seed)
         obs = game.reset()
         dm = diagnose_model.DiagnoseModel(self.checkpoint, self.config)
         dm.compare_virtual_with_real_trajectories(obs, game, horizon)
@@ -759,7 +778,10 @@ if __name__ == "__main__":
             elif choice == 4:
                 muzero.test(render=True, opponent="human", muzero_player=0)
             elif choice == 5:
-                env = muzero.Game()
+                try:
+                    env = muzero.Game(config=muzero.config)
+                except TypeError:
+                    env = muzero.Game()
                 env.reset()
                 env.render()
 

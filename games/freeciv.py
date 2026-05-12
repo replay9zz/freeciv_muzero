@@ -34,8 +34,9 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def _make_map_config() -> MapConfig:
-    max_turns = _env_int("FREECIV_MAX_TURNS", 100)
+def _make_map_config(max_turns: int | None = None) -> MapConfig:
+    if max_turns is None:
+        max_turns = _env_int("FREECIV_MAX_TURNS", 100)
     cfg = MapConfig(map_w=4, map_h=16, max_turns=max_turns)
     # cfg = MapConfig(map_w=4, map_h=16, max_turns=2000)
     cfg.attack_reward = 0.2
@@ -56,6 +57,10 @@ class MuZeroConfig:
         self.map_config = _make_map_config()
         self.max_units = 6
         self.max_cities = 3
+        self.max_actions_per_turn = _env_int(
+            "FREECIV_MAX_ACTIONS_PER_TURN",
+            max(1, self.max_units * 2),
+        )
 
         ### Game
         tmp_state = MultiheadState(
@@ -76,7 +81,8 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 1
         self.selfplay_on_gpu = True
-        self.max_moves = self.map_config.max_turns
+        self.max_turns = self.map_config.max_turns
+        self.max_moves = self.max_turns * self.max_actions_per_turn
         self.num_simulations = 50
         self.discount = 0.997
         self.temperature_threshold = None
@@ -161,10 +167,15 @@ class MuZeroConfig:
 
 
 class Game(AbstractGame):
-    def __init__(self, seed=None):
-        self.config = _make_map_config()
-        self.max_units = 6
-        self.max_cities = 3
+    def __init__(self, seed=None, config: MuZeroConfig | None = None):
+        if config is not None and hasattr(config, "map_config"):
+            self.config = config.map_config
+            self.max_units = getattr(config, "max_units", 6)
+            self.max_cities = getattr(config, "max_cities", 3)
+        else:
+            self.config = _make_map_config()
+            self.max_units = 6
+            self.max_cities = 3
         rng = numpy.random.default_rng(seed) if seed is not None else None
         self.provider = RandomMapProvider(
             self.config.map_w,
