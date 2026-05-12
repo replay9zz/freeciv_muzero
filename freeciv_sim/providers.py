@@ -7,8 +7,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import numpy as np
 
 try:
-    from freeciv_rl.freeciv_luaremote import LuaRemoteClient  # type: ignore
-    from freeciv_rl.lua_helper import (
+    from .luaremote import LuaRemoteClient
+    from .lua_helper import (
         list_visible_tiles_call,
         parse_vision_tiles,
     )
@@ -77,7 +77,7 @@ class LuaRemoteProvider(BaseProvider):
 
     def __init__(self, width: int, height: int, *, host: str = "127.0.0.1", port: int = 4444, timeout: float = 2.5):
         if LuaRemoteClient is None:
-            raise RuntimeError("freeciv_rl LuaRemote helpers are required for LuaRemoteProvider")
+            raise RuntimeError("Local LuaRemote helpers are required for LuaRemoteProvider")
         super().__init__(width, height)
         self.host = host
         self.port = port

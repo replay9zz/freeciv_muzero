@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from freeciv_rl.freeciv_movement import FreecivMovement
+from .movement import FreecivMovement
 
 from .config import MapConfig
 from .providers import BaseProvider, GroundTruth

@@ -4,9 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ROOT_DIR="${SCRIPT_DIR}"
-BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/freeciv_build_v3_2}"
+BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/freeciv_build_v3_2_uv}"
 SCENARIO_PATH="${SCENARIO_PATH:-${HOME}/.freeciv/scenarios/minimal_v4.sav}"
-SERVER_RC="${SERVER_RC:-${REPO_ROOT}/freeciv_rl/start_single.serv}"
+SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
 SERVER_PORT="5566"
 LUA_PORT="4451"
 DISPLAY_NUM="${DISPLAY_NUM:-:101}"
@@ -20,9 +20,21 @@ FREECIV_REWARD_CIV_SCORE="${FREECIV_REWARD_CIV_SCORE:-0.5}"
 FREECIV_REWARD_CITY="${FREECIV_REWARD_CITY:-30.0}"
 FREECIV_REWARD_POPULATION="${FREECIV_REWARD_POPULATION:-3.0}"
 FREECIV_REWARD_SETTLER="${FREECIV_REWARD_SETTLER:-10.0}"
+USE_GPU="${USE_GPU:-1}"
+MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-1}"
+MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
+MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
+MUZERO_REANALYSE_ON_GPU="${MUZERO_REANALYSE_ON_GPU:-true}"
 XVFB_PATTERN="Xvfb ${DISPLAY_NUM}"
 CLIENT_PATTERN="freeciv-gtk3.22 -a -s 127.0.0.1 -p 5566 -n agent0 -P none"
 SERVER_PATTERN="freeciv-server -p 5566 -f ${SCENARIO_PATH} -r ${SERVER_RC}"
+
+if [ "${USE_GPU}" = "0" ]; then
+  MUZERO_MAX_NUM_GPUS=0
+  MUZERO_SELFPLAY_ON_GPU=false
+  MUZERO_TRAIN_ON_GPU=false
+  MUZERO_REANALYSE_ON_GPU=false
+fi
 
 cleanup() {
   fuser -k -TERM "${SERVER_PORT}/tcp" >/dev/null 2>&1 || true
@@ -49,10 +61,10 @@ python muzero.py freeciv_remote "{
   \"num_simulations\": ${NUM_SIMULATIONS},
   \"max_turns\": ${MAX_TURNS},
   \"training_delay\": ${TRAINING_DELAY},
-  \"max_num_gpus\": 0,
-  \"selfplay_on_gpu\": false,
-  \"train_on_gpu\": false,
-  \"reanalyse_on_gpu\": false,
+  \"max_num_gpus\": ${MUZERO_MAX_NUM_GPUS},
+  \"selfplay_on_gpu\": ${MUZERO_SELFPLAY_ON_GPU},
+  \"train_on_gpu\": ${MUZERO_TRAIN_ON_GPU},
+  \"reanalyse_on_gpu\": ${MUZERO_REANALYSE_ON_GPU},
   \"env\": {
     \"FREECIV_SERVER_PORT\": \"5566\",
     \"FREECIV_SERVER_CMD\": \"${BUILD_DIR}/run.sh freeciv-server -p 5566 -f ${SCENARIO_PATH} -r ${SERVER_RC}\",

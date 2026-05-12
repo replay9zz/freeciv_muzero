@@ -10,6 +10,8 @@ class MapConfig:
     map_w: int = 4
     # y-axis, vertical, not GUI number 
     map_h: int = 16
+    max_turns: int = 120
+    max_actions_per_turn: int = 0
     max_num_actions: int = 2000
     fog_radius: int = 2
     frontier_bonus: float = 0.12

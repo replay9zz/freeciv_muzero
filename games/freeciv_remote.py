@@ -20,9 +20,9 @@ ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from freeciv_alpha_zero.freeciv import live_agent as alpha_live
-from freeciv_alpha_zero.freeciv.config import MapConfig
-from freeciv_alpha_zero.freeciv.multihead_state import (
+from freeciv_sim import live_agent as alpha_live
+from freeciv_sim.config import MapConfig
+from freeciv_sim.multihead_state import (
     City,
     MHUnit,
     MultiheadState,
@@ -38,9 +38,9 @@ from freeciv_alpha_zero.freeciv.multihead_state import (
     UNIT_SPECS,
     UNIT_OBSOLETE_BY,
 )
-from freeciv_alpha_zero.freeciv.research_policy import TECH_PREREQS, build_tech_costs
-from freeciv_alpha_zero.freeciv.providers import GroundTruth, RandomMapProvider
-from freeciv_rl.lua_helper import (
+from freeciv_sim.research_policy import TECH_PREREQS, build_tech_costs
+from freeciv_sim.providers import GroundTruth, RandomMapProvider
+from freeciv_sim.lua_helper import (
     auto_settler as lua_auto_settler,
     list_city_adjacent_water,
     list_city_buildings,
@@ -348,6 +348,12 @@ class Game(AbstractGame):
             "FREECIV_SAVE_PATH",
             f"{pathlib.Path.home() / '.freeciv' / 'saves'}:{pathlib.Path.cwd()}",
         )
+        # The GTK client only exposes LuaRemote when enabled in its process env.
+        # Export the port here so child processes started by MuZero consistently
+        # listen on the same socket that the Python side will connect to.
+        env.setdefault("ENABLE_LUAREMOTE", "1")
+        env.setdefault("FREECIV_LUAREMOTE_PORT", str(self.port))
+        env.setdefault("FREECIV_PORT", str(self.port))
         return env
 
     def _start_process(self, command: str) -> subprocess.Popen:

@@ -1,7 +1,11 @@
-gym[classic_control]
+--index-url https://download.pytorch.org/whl/cu121
+--extra-index-url https://pypi.org/simple
+
+gym==0.26.2
 nevergrad
-numpy
-ray
+numpy<2
+ray>=2,<3
 seaborn
-tensorboard
-torch
+tensorboard>=2,<3
+torch==2.5.1
+tqdm

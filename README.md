@@ -1,6 +1,26 @@
 # Freeciv Learning Environment for MuZero
 This repo is Freeciv Learning Environment for MuZero based on [MuZero General](https://github.com/werner-duvaud/muzero-general)
 
+## Layout
+
+`freeciv_muzero` now carries its own Freeciv remote helpers and no longer depends on sibling `freeciv_alpha_zero` or `freeciv_rl` directories.
+
+Runtime assumptions that still remain outside this directory:
+
+- `../freeciv_build_v3_2_uv`: Freeciv build with `freeciv-server`, `freeciv-gtk3.22`, and `run.sh`
+- `../freeciv`: data directory used for rulesets and scenarios
+
+## Setup
+
+```bash
+cd /home/hirokiokabe/freeciv_test/freeciv_muzero
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+This requirements file pins PyTorch to the official CUDA 12.1 wheels so it works with NVIDIA driver stacks that expose CUDA 12.2-class runtimes.
+
 ## Train
 Example:
 ```bash
@@ -11,6 +31,20 @@ FREECIV_NO_SEA_UNITS=1 python3 muzero.py freeciv '{
 "max_actions_per_turn": 50
 }'
 ```
+
+Headless live training:
+
+```bash
+cd /home/hirokiokabe/freeciv_test/freeciv_muzero
+source .venv/bin/activate
+./train_headless.sh
+```
+
+To force CPU mode, use `USE_GPU=0 ./train_headless.sh`.
+To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./train_headless.sh`.
+
+The default server rc used by the training scripts is [`start_single.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_single.serv).
+The default build directory is `../freeciv_build_v3_2_uv`; override with `BUILD_DIR=...` if needed.
 
 ## Test
 Example:
