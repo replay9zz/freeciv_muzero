@@ -1,4 +1,5 @@
 import math
+import os
 import time
 
 import numpy
@@ -16,6 +17,15 @@ class SelfPlay:
 
     def __init__(self, initial_checkpoint, Game, config, seed):
         self.config = config
+        if hasattr(self.config, "luaremote_port_base"):
+            base = int(self.config.luaremote_port_base)
+            stride = int(getattr(self.config, "luaremote_port_stride", 1))
+            offset = seed - self.config.seed
+            if offset < 0:
+                offset = 0
+            port = base + (offset * stride)
+            os.environ["FREECIV_LUAREMOTE_PORT"] = str(port)
+            os.environ["FREECIV_PORT"] = str(port)
         self.game = Game(seed)
 
         # Fix random generator seed

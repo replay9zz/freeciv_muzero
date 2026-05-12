@@ -1,6 +1,9 @@
 import datetime
 import os
 import pathlib
+import shlex
+import signal
+import subprocess
 import sys
 import time
 from collections import deque
@@ -53,11 +56,18 @@ def _env_float(name, default):
     return float(raw)
 
 
+def _env_bool(name, default=False):
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 class MuZeroConfig:
     def __init__(self):
         # fmt: off
         self.seed = 0
-        self.max_num_gpus = 0
+        self.max_num_gpus = 1
 
         map_w = _env_int("FREECIV_MAP_W", 4)
         map_h = _env_int("FREECIV_MAP_H", 16)
@@ -65,6 +75,11 @@ class MuZeroConfig:
         self.map_config = MapConfig(map_w=map_w, map_h=map_h, max_turns=max_turns)
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+        self.luaremote_port_base = _env_int(
+            "FREECIV_LUAREMOTE_PORT",
+            _env_int("FREECIV_PORT", 4444),
+        )
+        self.luaremote_port_stride = _env_int("FREECIV_LUAREMOTE_PORT_STRIDE", 1)
 
         ### Game
         tmp_state = MultiheadState(
@@ -84,7 +99,7 @@ class MuZeroConfig:
 
         ### Self-Play
         self.num_workers = 1
-        self.selfplay_on_gpu = False
+        self.selfplay_on_gpu = True
         self.max_moves = self.map_config.max_turns
         self.num_simulations = 50
         self.discount = 0.997
@@ -133,7 +148,7 @@ class MuZeroConfig:
         self.batch_size = 128
         self.checkpoint_interval = 10
         self.value_loss_weight = 0.25
-        self.train_on_gpu = False
+        self.train_on_gpu = True
 
         self.optimizer = "Adam"
         self.weight_decay = 1e-4
@@ -153,7 +168,7 @@ class MuZeroConfig:
 
         # Reanalyze
         self.use_last_model_value = False
-        self.reanalyse_on_gpu = False
+        self.reanalyse_on_gpu = True
 
         ### Adjust the self play / training ratio
         self.self_play_delay = 0
@@ -178,11 +193,24 @@ class Game(AbstractGame):
         )
         self.sleep = _env_float("FREECIV_SLEEP", 0.1)
 
-        host = os.getenv("FREECIV_HOST", "127.0.0.1")
-        port = _env_int("FREECIV_PORT", 4444)
-        timeout = _env_float("FREECIV_TIMEOUT", 2.5)
-        self.client = alpha_live.LuaRemoteClient(host, port, timeout=timeout)
-        self.client.connect()
+        self.host = os.getenv("FREECIV_HOST", "127.0.0.1")
+        self.port = _env_int(
+            "FREECIV_LUAREMOTE_PORT",
+            _env_int("FREECIV_PORT", 4444),
+        )
+        self.timeout = _env_float("FREECIV_TIMEOUT", 2.5)
+        self.client_cmd = os.getenv("FREECIV_CLIENT_CMD")
+        self.restart_on_reset = _env_bool("FREECIV_CLIENT_RESTART", False)
+        self.client_start_wait = _env_float("FREECIV_CLIENT_START_WAIT", 1.0)
+        self.client_start_timeout = _env_float("FREECIV_CLIENT_START_TIMEOUT", 30.0)
+        self._needs_restart = False
+        self._client_process = None
+
+        if self.client_cmd:
+            self._start_client_process()
+
+        self.client = None
+        self._connect_client()
 
         self.player_id = _env_int("FREECIV_PLAYER_ID", None)
         self.unit_id = _env_int("FREECIV_UNIT_ID", None)
@@ -227,6 +255,64 @@ class Game(AbstractGame):
         self._last_state = None
         self.previous_pos = None
         self._tile_owner_refresh_pending = True
+
+    def _start_client_process(self) -> None:
+        if not self.client_cmd:
+            return
+        if self._client_process and self._client_process.poll() is None:
+            return
+        cmd = shlex.split(self.client_cmd)
+        if not cmd:
+            raise RuntimeError("FREECIV_CLIENT_CMD is empty.")
+        self._client_process = subprocess.Popen(cmd, start_new_session=True)
+
+    def _stop_client_process(self) -> None:
+        if not self._client_process:
+            return
+        if self._client_process.poll() is not None:
+            self._client_process = None
+            return
+        try:
+            os.killpg(self._client_process.pid, signal.SIGTERM)
+            self._client_process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(self._client_process.pid, signal.SIGKILL)
+            self._client_process.wait(timeout=5)
+        finally:
+            self._client_process = None
+
+    def _restart_client_process(self) -> None:
+        self._stop_client_process()
+        self._start_client_process()
+
+    def _shutdown_client_for_restart(self) -> None:
+        try:
+            if self.client is not None:
+                self.client.close()
+        except Exception:
+            pass
+        self.client = None
+        if self.client_cmd:
+            self._stop_client_process()
+        self._needs_restart = True
+
+    def _connect_client(self) -> None:
+        if self.client is None:
+            self.client = alpha_live.LuaRemoteClient(
+                self.host, self.port, timeout=self.timeout
+            )
+        deadline = time.monotonic() + self.client_start_timeout
+        last_exc = None
+        while time.monotonic() < deadline:
+            try:
+                self.client.connect()
+                return
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(self.client_start_wait)
+        raise RuntimeError(
+            f"Failed to connect to LuaRemote at {self.host}:{self.port}"
+        ) from last_exc
 
     def _refresh_tile_owners(self) -> None:
         if self.client is None:
@@ -1066,6 +1152,8 @@ class Game(AbstractGame):
         return forced
 
     def _sync_state(self):
+        if self.client is None:
+            self._connect_client()
         if self.unit_id is None:
             owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
             snapshot = self._snapshot_from_city(owned_cities)
@@ -1246,6 +1334,8 @@ class Game(AbstractGame):
         try:
             board_state = self._sync_state()
         except Exception:
+            if self.restart_on_reset and self.client_cmd:
+                self._shutdown_client_for_restart()
             return self.reset(), 0.0, True
 
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
@@ -1291,6 +1381,8 @@ class Game(AbstractGame):
         except Exception:
             done = True
             board_state = self._last_state
+        if done and self.restart_on_reset and self.client_cmd:
+            self._shutdown_client_for_restart()
 
         new_visited = len(self.visited_tiles)
         reward = float(new_visited - prev_visited)
@@ -1378,6 +1470,11 @@ class Game(AbstractGame):
         return [idx for idx, allowed in enumerate(valid) if allowed]
 
     def reset(self):
+        if self._needs_restart:
+            if self.client_cmd:
+                self._start_client_process()
+            self._needs_restart = False
+            self._connect_client()
         self.turns = 0
         self.acted_unit_slots.clear()
         state = self._sync_state()
@@ -1385,9 +1482,13 @@ class Game(AbstractGame):
 
     def close(self):
         try:
-            self.client.close()
+            if self.client is not None:
+                self.client.close()
         except Exception:
             pass
+        self.client = None
+        if self.client_cmd:
+            self._stop_client_process()
 
     def render(self):
         if self._last_state is None:

@@ -2,6 +2,7 @@ import copy
 import importlib
 import json
 import math
+import os
 import pathlib
 import pickle
 import sys
@@ -43,13 +44,25 @@ class MuZero:
         # Load the game and the config from the module with the game name
         try:
             game_module = importlib.import_module("games." + game_name)
-            self.Game = game_module.Game
-            self.config = game_module.MuZeroConfig()
         except ModuleNotFoundError as err:
             print(
                 f'{game_name} is not a supported game name, try "cartpole" or refer to the documentation for adding a new game.'
             )
             raise err
+
+        if isinstance(config, dict):
+            env_overrides = config.pop("env", None)
+            if env_overrides is not None:
+                if not isinstance(env_overrides, dict):
+                    raise ValueError("config['env'] must be a dict of environment overrides")
+                for key, value in env_overrides.items():
+                    if value is None:
+                        os.environ.pop(str(key), None)
+                    else:
+                        os.environ[str(key)] = str(value)
+
+        self.Game = game_module.Game
+        self.config = game_module.MuZeroConfig()
 
         # Overwrite the config
         if config:
@@ -142,6 +155,14 @@ class MuZero:
         Args:
             log_in_tensorboard (bool): Start a testing worker and log its performance in TensorBoard.
         """
+        if os.getenv("MUZERO_DISABLE_TENSORBOARD", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "y",
+            "on",
+        ):
+            log_in_tensorboard = False
         if log_in_tensorboard or self.config.save_model:
             self.config.results_path.mkdir(parents=True, exist_ok=True)
 
@@ -214,6 +235,9 @@ class MuZero:
                 num_gpus_per_worker if self.config.selfplay_on_gpu else 0,
                 start_time=start_time,
             )
+        else:
+            start_time = time.time()
+            self.wait_for_training_end(start_time=start_time)
 
     def logging_loop(self, num_gpus, start_time=None):
         """
@@ -339,6 +363,32 @@ class MuZero:
         except KeyboardInterrupt:
             pass
 
+        self._finalize_training(start_time=start_time)
+
+    def wait_for_training_end(self, start_time=None):
+        """
+        Block until training completes when TensorBoard logging is disabled.
+        """
+        if start_time is None:
+            start_time = time.time()
+        print("\nTraining (no TensorBoard)...\n")
+        keys = ["training_step", "num_played_games", "total_loss"]
+        try:
+            while True:
+                info = ray.get(self.shared_storage_worker.get_info.remote(keys))
+                print(
+                    f'Training step: {info["training_step"]}/{self.config.training_steps}. '
+                    f'Played games: {info["num_played_games"]}. Loss: {info["total_loss"]:.2f}',
+                    end="\r",
+                )
+                if info["training_step"] >= self.config.training_steps:
+                    break
+                time.sleep(1.0)
+        except KeyboardInterrupt:
+            pass
+        self._finalize_training(start_time=start_time)
+
+    def _finalize_training(self, start_time):
         self.terminate_workers()
 
         if self.config.save_model:
@@ -371,6 +421,19 @@ class MuZero:
             )
         if self.replay_buffer_worker:
             self.replay_buffer = ray.get(self.replay_buffer_worker.get_buffer.remote())
+
+        # Ask self-play workers to close their game clients promptly.
+        if self.self_play_workers:
+            for worker in self.self_play_workers:
+                try:
+                    worker.close_game.remote()
+                except Exception:
+                    pass
+        if self.test_worker:
+            try:
+                self.test_worker.close_game.remote()
+            except Exception:
+                pass
 
         print("\nShutting down workers...")
 
