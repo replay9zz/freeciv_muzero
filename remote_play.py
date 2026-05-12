@@ -15,6 +15,8 @@ import torch
 from games import freeciv_remote
 import models
 from self_play import MCTS, SelfPlay
+
+REPO_ROOT = Path(__file__).resolve().parent
 try:
     from freeciv_rl.lua_helper import list_player_scores  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -29,7 +31,13 @@ def _set_env(name: str, value) -> None:
 
 def _format_checkpoint_path(checkpoint_path: Path) -> str:
     try:
+        if not checkpoint_path.is_absolute():
+            return str(checkpoint_path)
         resolved = checkpoint_path.resolve()
+        if REPO_ROOT == resolved or REPO_ROOT in resolved.parents:
+            rel = resolved.relative_to(REPO_ROOT)
+            if str(rel) == "results" or str(rel).startswith(f"results{os.sep}"):
+                return str(rel)
         home = Path.home().resolve()
         if resolved == home or home in resolved.parents:
             return f"~/{resolved.relative_to(home)}"
@@ -42,6 +50,19 @@ def _write_checkpoint_file(output_dir: Path, checkpoint_path: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     display_path = _format_checkpoint_path(checkpoint_path)
     (output_dir / "CHECKPOINT").write_text(f"{display_path}\n", encoding="utf-8")
+
+
+def _resolve_checkpoint_dir_from_env() -> Path | None:
+    for root_key, run_key in (("LOG_ROOT", "RUN_ID"), ("MZ_LOG_ROOT", "MZ_RUN_ID")):
+        root = os.getenv(root_key)
+        run_id = os.getenv(run_key)
+        if root and run_id:
+            return Path(root).expanduser() / run_id
+    for root_key in ("SERVER_LOG_ROOT", "MZ_SERVER_LOG_ROOT"):
+        root = os.getenv(root_key)
+        if root:
+            return Path(root).expanduser()
+    return None
 
 
 def load_weights(checkpoint_path: Path, map_location) -> dict:
@@ -278,6 +299,11 @@ def main() -> None:
     checkpoint_path = Path(args.checkpoint).expanduser()
     if not checkpoint_path.exists():
         raise SystemExit(f"Checkpoint file {checkpoint_path} not found.")
+    checkpoint_written = False
+    default_checkpoint_dir = _resolve_checkpoint_dir_from_env()
+    if default_checkpoint_dir is not None:
+        _write_checkpoint_file(default_checkpoint_dir, checkpoint_path)
+        checkpoint_written = True
 
     if args.no_client:
         os.environ.pop("FREECIV_CLIENT_CMD", None)
@@ -302,6 +328,7 @@ def main() -> None:
                 / "remote_play.jsonl"
             )
         _write_checkpoint_file(json_path.parent, checkpoint_path)
+        checkpoint_written = True
         json_fp = json_path.open("w", encoding="utf-8")
         json_records = []
         print(f"JSONL output: {json_path}", file=sys.stderr)
@@ -318,6 +345,7 @@ def main() -> None:
         else:
             turn_score_path = Path(args.turn_score_csv).expanduser()
             _write_checkpoint_file(turn_score_path.parent, checkpoint_path)
+            checkpoint_written = True
             file_exists = turn_score_path.exists()
             turn_score_fp = turn_score_path.open("a", newline="", encoding="utf-8")
             turn_score_writer = csv.writer(turn_score_fp)
@@ -335,6 +363,8 @@ def main() -> None:
     last_score_turn = None
     if args.score_log:
         score_log_path = Path(args.score_log).expanduser()
+        _write_checkpoint_file(score_log_path.parent, checkpoint_path)
+        checkpoint_written = True
         score_log_path.parent.mkdir(parents=True, exist_ok=True)
         score_log_fp = score_log_path.open("a", encoding="utf-8")
         try:
@@ -344,6 +374,16 @@ def main() -> None:
         except OSError:
             pass
         print(f"Score log output: {score_log_path}", file=sys.stderr)
+
+    if not checkpoint_written:
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+        default_dir = (
+            Path(__file__).resolve().parent
+            / "results"
+            / "remote_play"
+            / stamp
+        )
+        _write_checkpoint_file(default_dir, checkpoint_path)
 
     _set_env("FREECIV_HOST", args.host)
     _set_env("FREECIV_PORT", args.port)
