@@ -7,7 +7,8 @@ source "${SCRIPT_DIR}/common.sh"
 
 SERVER_PORT="${SERVER_PORT:-5566}"
 LUA_PORT="${LUA_PORT:-4451}"
+DISPLAY_NUM="${DISPLAY_NUM:-:102}"
 
-cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}"
+cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 
-exec "${SCRIPT_DIR}/eval_gui.sh" "$@"
+exec "${SCRIPT_DIR}/eval_headless.sh" "$@"

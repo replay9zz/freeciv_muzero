@@ -222,6 +222,69 @@ def _current_civ_score(game):
         return None
 
 
+def _pick_unit_move_action(game, legal_actions, step: int):
+    state = getattr(game, "_last_state", None)
+    if state is None:
+        return None
+    move_actions = []
+    for action in legal_actions:
+        action = int(action)
+        if action < 0 or action >= state.MOVE_SIZE:
+            continue
+        if action % state.MOVE_PER_UNIT == state.HOLD_DIR:
+            continue
+        move_actions.append(action)
+    if not move_actions:
+        return None
+    move_actions.sort()
+    return move_actions[step % len(move_actions)]
+
+
+def _run_direct_unit_move_demo(game, args) -> None:
+    dir_ids = freeciv_remote.alpha_live.parse_dir_ids(args.dir_ids)
+    max_actions = max(1, int(args.max_actions_per_turn or 6))
+    for episode in range(args.episodes):
+        game.reset()
+        for turn in range(args.max_turns):
+            try:
+                game._sync_state()
+            except Exception:
+                break
+            moved = 0
+            units = [uid for uid in getattr(game, "unit_slots", []) if uid is not None]
+            for unit_idx, unit_id in enumerate(units):
+                if moved >= max_actions:
+                    break
+                for offset in range(len(dir_ids)):
+                    dir_id = dir_ids[(turn + unit_idx + offset) % len(dir_ids)]
+                    before = game.client.get_unit_pos(unit_id)
+                    ok = game.client.move_dir_id(unit_id, dir_id)
+                    if args.sleep:
+                        time.sleep(args.sleep)
+                    after = game.client.get_unit_pos(unit_id)
+                    changed = before != after and after is not None
+                    print(
+                        f"[turn {turn} direct] unit_id={unit_id} dir_id={dir_id} "
+                        f"success={ok} before={before} after={after}",
+                        file=sys.stdout,
+                    )
+                    if ok and changed:
+                        moved += 1
+                        break
+            try:
+                success = game.client.end_turn()
+                print(
+                    f"[turn {turn} direct] end_turn success={success} moved={moved}",
+                    file=sys.stdout,
+                )
+            except Exception:
+                print(f"[turn {turn} direct] end_turn exception moved={moved}", file=sys.stdout)
+                break
+            game.turns += 1
+            if args.sleep:
+                time.sleep(args.sleep)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Run a MuZero Freeciv model against a LuaRemote Freeciv client."
@@ -254,6 +317,16 @@ def main() -> None:
     ap.add_argument("--max-moves", type=int)
     ap.add_argument("--num-simulations", type=int, default=50)
     ap.add_argument("--temperature", type=float, default=0.0)
+    ap.add_argument(
+        "--prefer-unit-move",
+        action="store_true",
+        help="Prefer legal non-hold unit movement actions; useful for short movement recordings.",
+    )
+    ap.add_argument(
+        "--direct-unit-move-demo",
+        action="store_true",
+        help="Bypass MCTS and directly issue unit move commands for recording demos.",
+    )
     ap.add_argument("--render", action="store_true")
     ap.add_argument(
         "--belief-tensorboard",
@@ -461,6 +534,10 @@ def main() -> None:
             args.max_moves = args.max_turns
 
     game = freeciv_remote.Game()
+    if args.direct_unit_move_demo:
+        _run_direct_unit_move_demo(game, args)
+        game.close()
+        return
     mcts = MCTS(config)
 
     if args.episodes > 1 and not game.restart_on_reset:
@@ -500,6 +577,10 @@ def main() -> None:
                     add_exploration_noise=False,
                 )
                 action = SelfPlay.select_action(root, args.temperature)
+            if args.prefer_unit_move:
+                move_action = _pick_unit_move_action(game, legal_actions, steps)
+                if move_action is not None:
+                    action = move_action
             observation, _reward, done = game.step(action)
             if obs_adapter is not None:
                 observation = obs_adapter(observation)
