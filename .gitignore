@@ -1,5 +1,7 @@
 # Recordings
-recordings/
+recordings/*
+!recordings/
+!recordings/*.mp4
 
 # Codex
 .codex
