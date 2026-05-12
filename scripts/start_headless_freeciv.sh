@@ -11,7 +11,7 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-: "${FREECIV_BUILD_DIR:=/home/ubuntu/freeciv_test/freeciv_build_v3_2}"
+: "${FREECIV_BUILD_DIR:=/workspace/freeciv_build_v3_2_docker}"
 : "${FREECIV_CLIENT_BIN:=freeciv-gtk3.22}"
 : "${FREECIV_LUAREMOTE_PORT:=4444}"
 : "${FREECIV_SERVER_PORT:=}"

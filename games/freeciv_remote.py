@@ -582,6 +582,12 @@ class Game(AbstractGame):
         state.max_actions_per_turn = max(1, self.max_units * 2)
         state.acted_unit_slots = {1: set(), -1: set()}
         state.acted_production_cities = {1: set(), -1: set()}
+        state.visited = {
+            1: snapshot.visited.copy(),
+            -1: snapshot.visited.copy(),
+        }
+        state.units_built = {1: 0, -1: 0}
+        state.future_techs = {1: 0, -1: 0}
         state.kills = {1: 0, -1: 0}
         state.scores = {1: 0.0, -1: 0.0}
         state.winner = None

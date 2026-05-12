@@ -27,7 +27,12 @@ def _set_env(name: str, value) -> None:
 
 
 def load_weights(checkpoint_path: Path, map_location) -> dict:
-    checkpoint = torch.load(checkpoint_path, map_location=map_location)
+    try:
+        checkpoint = torch.load(
+            checkpoint_path, map_location=map_location, weights_only=False
+        )
+    except TypeError:
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
     if isinstance(checkpoint, dict) and "weights" in checkpoint:
         return checkpoint["weights"]
     if isinstance(checkpoint, dict):
