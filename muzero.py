@@ -203,14 +203,18 @@ class MuZero:
             )
 
         if log_in_tensorboard:
+            start_time = time.time()
             self.logging_loop(
                 num_gpus_per_worker if self.config.selfplay_on_gpu else 0,
+                start_time=start_time,
             )
 
-    def logging_loop(self, num_gpus):
+    def logging_loop(self, num_gpus, start_time=None):
         """
         Keep track of the training performance.
         """
+        if start_time is None:
+            start_time = time.time()
         # Launch the test worker to get performance metrics
         self.test_worker = self_play.SelfPlay.options(
             num_cpus=0,
@@ -344,6 +348,11 @@ class MuZero:
                 },
                 open(path, "wb"),
             )
+        elapsed = time.time() - start_time
+        hours = int(elapsed // 3600)
+        minutes = int((elapsed % 3600) // 60)
+        seconds = int(elapsed % 60)
+        print(f"\nTraining duration: {hours}h {minutes}m {seconds}s")
 
     def terminate_workers(self):
         """

@@ -13,13 +13,10 @@ if str(ROOT_DIR) not in sys.path:
 
 from freeciv_alpha_zero.freeciv.config import MapConfig
 from freeciv_alpha_zero.freeciv.providers import RandomMapProvider
-from freeciv_alpha_zero.freeciv.research_policy import RESEARCH_TECHS
-from freeciv_alpha_zero.freeciv.state import FreecivBoardState
-
-
-def _observation_channels() -> int:
-    base_channels = 11
-    return base_channels + 2 * len(RESEARCH_TECHS)
+from freeciv_alpha_zero.freeciv.multihead_state import (
+    MultiheadState,
+    PRODUCTION_UNIT_NAMES,
+)
 
 
 class MuZeroConfig:
@@ -29,14 +26,18 @@ class MuZeroConfig:
         self.max_num_gpus = None
 
         self.map_config = MapConfig(map_w=4, map_h=16, max_turns=128)
+        self.max_units = 6
+        self.max_cities = 3
 
         ### Game
-        self.observation_shape = (
-            _observation_channels(),
-            self.map_config.map_h,
-            self.map_config.map_w,
+        tmp_state = MultiheadState(
+            self.map_config,
+            RandomMapProvider(self.map_config.map_w, self.map_config.map_h),
+            max_units=self.max_units,
+            max_cities=self.max_cities,
         )
-        self.action_space = list(range(FreecivBoardState.ACTION_SIZE + 1))
+        self.observation_shape = tmp_state.encode(1).shape
+        self.action_space = list(range(tmp_state.ACTION_SIZE))
         self.players = list(range(2))
         self.stacked_observations = 0
 
@@ -46,7 +47,7 @@ class MuZeroConfig:
 
         ### Self-Play
         self.num_workers = 1
-        self.selfplay_on_gpu = False
+        self.selfplay_on_gpu = torch.cuda.is_available()
         self.max_moves = self.map_config.max_turns
         self.num_simulations = 50
         self.discount = 0.997
@@ -91,7 +92,7 @@ class MuZeroConfig:
             / datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
         )
         self.save_model = True
-        self.training_steps = 5000
+        self.training_steps = 50000
         self.batch_size = 128
         self.checkpoint_interval = 10
         self.value_loss_weight = 0.25
@@ -134,13 +135,20 @@ class MuZeroConfig:
 class Game(AbstractGame):
     def __init__(self, seed=None):
         self.config = MapConfig(map_w=4, map_h=16, max_turns=128)
+        self.max_units = 6
+        self.max_cities = 3
         rng = numpy.random.default_rng(seed) if seed is not None else None
         self.provider = RandomMapProvider(
             self.config.map_w,
             self.config.map_h,
             rng=rng,
         )
-        self.state = FreecivBoardState(self.config, self.provider)
+        self.state = MultiheadState(
+            self.config,
+            self.provider,
+            max_units=self.max_units,
+            max_cities=self.max_cities,
+        )
         self.player = 1
 
     def _score_diff(self) -> float:
@@ -150,12 +158,11 @@ class Game(AbstractGame):
         return self.state.encode(self.player)
 
     def step(self, action):
-        prev_diff = self._score_diff()
+        prev_score = float(self.state.scores[self.player])
         current_player = self.player
         self.state.step(current_player, action)
         done = self.state.terminal_reason is not None
-        new_diff = self._score_diff()
-        reward = new_diff - prev_diff
+        reward = float(self.state.scores[current_player]) - prev_score
         self.player = -current_player
         return self._observation(), reward, done
 
@@ -167,7 +174,12 @@ class Game(AbstractGame):
         return [idx for idx, allowed in enumerate(valid) if allowed]
 
     def reset(self):
-        self.state = FreecivBoardState(self.config, self.provider)
+        self.state = MultiheadState(
+            self.config,
+            self.provider,
+            max_units=self.max_units,
+            max_cities=self.max_cities,
+        )
         self.player = 1
         return self._observation()
 
@@ -176,20 +188,30 @@ class Game(AbstractGame):
         input("Press enter to take a step ")
 
     def action_to_string(self, action_number):
-        if action_number == FreecivBoardState.PASS_ACTION:
+        if action_number == self.state.PASS_ACTION:
             return "pass"
-        if action_number == FreecivBoardState.BUILD_CITY_ACTION:
-            return "build_city"
-        if action_number < FreecivBoardState.SETTLER_MOVE_COUNT:
-            return f"move_{action_number}"
-        if (
-            FreecivBoardState.RESEARCH_ACTION_BASE
-            <= action_number
-            < FreecivBoardState.RESEARCH_ACTION_BASE
-            + FreecivBoardState.RESEARCH_ACTION_COUNT
-        ):
-            tech_idx = action_number - FreecivBoardState.RESEARCH_ACTION_BASE
-            return f"research_{RESEARCH_TECHS[tech_idx]}"
+        if action_number < self.state.MOVE_SIZE:
+            unit_idx = action_number // self.state.MOVE_PER_UNIT
+            dir_idx = action_number % self.state.MOVE_PER_UNIT
+            return f"move_u{unit_idx}_d{dir_idx}"
+        if action_number < self.state.MOVE_SIZE + self.state.ATTACK_SIZE:
+            rel = action_number - self.state.MOVE_SIZE
+            unit_idx = rel // self.state.ATTACK_PER_UNIT
+            dir_idx = rel % self.state.ATTACK_PER_UNIT
+            return f"attack_u{unit_idx}_d{dir_idx}"
+        econ_idx = action_number - (self.state.MOVE_SIZE + self.state.ATTACK_SIZE)
+        if 0 <= econ_idx < len(self.state.RESEARCH_TECHS):
+            tech = self.state.RESEARCH_TECHS[econ_idx]
+            return f"research_{tech}"
+        if self.state.ECON_BUILD_CITY_OFFSET <= econ_idx < self.state.ECON_PRODUCTION_OFFSET:
+            unit_idx = econ_idx - self.state.ECON_BUILD_CITY_OFFSET
+            return f"build_city_u{unit_idx}"
+        if self.state.ECON_PRODUCTION_OFFSET <= econ_idx < self.state.ECON_PASS_OFFSET:
+            rel = econ_idx - self.state.ECON_PRODUCTION_OFFSET
+            city_slot = rel // self.state.PRODUCTION_UNIT_COUNT
+            unit_idx = rel % self.state.PRODUCTION_UNIT_COUNT
+            unit_name = PRODUCTION_UNIT_NAMES[unit_idx]
+            return f"produce_c{city_slot}_{unit_name}"
         return str(action_number)
 
     def expert_agent(self):
