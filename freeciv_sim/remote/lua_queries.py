@@ -1,8 +1,8 @@
 import re
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-from .luaremote import EvalResult, LuaRemoteClient
-from .movement import FreecivMovement
+from .lua_client import EvalResult, LuaRemoteClient
+from ..state.movement import FreecivMovement
 
 
 def simple_find_unit_pos(uid: int) -> str:

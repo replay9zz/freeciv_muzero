@@ -50,7 +50,7 @@ _QUOTED_RE = re.compile(r"\"([^\"]+)\"")
 
 
 def _ruleset_dir() -> Path:
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     return root / "freeciv" / "data" / "minimal"
 
 

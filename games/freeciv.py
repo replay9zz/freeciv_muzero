@@ -13,10 +13,10 @@ ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from freeciv_sim.config import MapConfig
-from freeciv_sim.providers import RandomMapProvider
-from freeciv_sim.research_policy import TECH_PREREQS
-from freeciv_sim.multihead_state import (
+from freeciv_sim.state.config import MapConfig
+from freeciv_sim.state.providers import RandomMapProvider
+from freeciv_sim.rules.research import TECH_PREREQS
+from freeciv_sim.state.multihead_state import (
     MultiheadState,
     PRODUCTION_UNIT_NAMES,
     UNIT_TECHS,
@@ -399,6 +399,8 @@ class Game(AbstractGame):
         if action_number < self.state.MOVE_SIZE:
             unit_idx = action_number // self.state.MOVE_PER_UNIT
             dir_idx = action_number % self.state.MOVE_PER_UNIT
+            if dir_idx == self.state.HOLD_DIR:
+                return f"hold_u{unit_idx}"
             return f"move_u{unit_idx}_d{dir_idx}"
         if action_number < self.state.MOVE_SIZE + self.state.ATTACK_SIZE:
             rel = action_number - self.state.MOVE_SIZE

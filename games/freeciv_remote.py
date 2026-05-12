@@ -21,10 +21,17 @@ ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from freeciv_sim import live_agent as alpha_live
-from freeciv_sim.belief import BeliefTracker
-from freeciv_sim.config import MapConfig
-from freeciv_sim.multihead_state import (
+from freeciv_sim.remote import session as alpha_live
+from freeciv_sim.agents import (
+    CombatAgent,
+    ExploreAgent,
+    ProductionAgent,
+    ResearchAgent,
+    build_default_role_agents,
+)
+from freeciv_sim.belief.tracker import BeliefTracker
+from freeciv_sim.state.config import MapConfig
+from freeciv_sim.state.multihead_state import (
     City,
     MHUnit,
     MultiheadState,
@@ -40,10 +47,13 @@ from freeciv_sim.multihead_state import (
     UNIT_SPECS,
     UNIT_OBSOLETE_BY,
 )
-from freeciv_sim.research_policy import TECH_PREREQS, build_tech_costs
-from freeciv_sim.providers import GroundTruth, RandomMapProvider
-from freeciv_sim.lua_helper import (
+from freeciv_sim.rules.research import TECH_PREREQS, build_tech_costs
+from freeciv_sim.state.providers import GroundTruth, RandomMapProvider
+from freeciv_sim.remote.lua_actions import (
     auto_settler as lua_auto_settler,
+    set_government as lua_set_government,
+)
+from freeciv_sim.remote.lua_queries import (
     list_city_adjacent_water,
     list_city_buildings,
     list_all_unit_status,
@@ -51,7 +61,6 @@ from freeciv_sim.lua_helper import (
     list_city_sizes,
     list_tile_owners,
     list_units_by_homecity,
-    set_government as lua_set_government,
 )
 
 from .tech_policy import pick_next_priority_tech
@@ -331,6 +340,14 @@ class Game(AbstractGame):
         self._last_state = None
         self.previous_pos = None
         self._tile_owner_refresh_pending = True
+        self.role_agents = build_default_role_agents(
+            (
+                ProductionAgent(),
+                ResearchAgent(),
+                ExploreAgent(),
+                CombatAgent(),
+            )
+        )
 
     @staticmethod
     def _port_is_listening(host: str, port: int, timeout: float = 0.2) -> bool:
@@ -934,13 +951,15 @@ class Game(AbstractGame):
         unit_type_labels = {}
         for uid in self.controlled_units:
             unit_hp = None
+            unit_moves = None
             status = status_by_id.get(uid)
             if status is not None:
-                ux, uy, _owner, unit_type, hp, _moves = status
+                ux, uy, _owner, unit_type, hp, moves = status
                 unit_type = unit_type or ""
                 unit_hp = hp
+                unit_moves = moves
                 unit_type_labels[uid] = unit_type
-                unit_entries.append((uid, int(ux), int(uy), unit_type, unit_hp))
+                unit_entries.append((uid, int(ux), int(uy), unit_type, unit_hp, unit_moves))
                 continue
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(uid))
             pos_info = alpha_live.parse_position_result(pos_result)
@@ -948,7 +967,7 @@ class Game(AbstractGame):
                 continue
             unit_type = alpha_live.get_unit_rule_name(self.client, uid) or ""
             unit_type_labels[uid] = unit_type
-            unit_entries.append((uid, int(pos_info[0]), int(pos_info[1]), unit_type, unit_hp))
+            unit_entries.append((uid, int(pos_info[0]), int(pos_info[1]), unit_type, unit_hp, unit_moves))
         unit_entries.sort(key=lambda entry: entry[0])
         return unit_entries, unit_type_labels
 
@@ -1138,7 +1157,7 @@ class Game(AbstractGame):
         self.unit_positions = []
         self.unit_slot_types = []
         can_build_flags = []
-        for uid, ux, uy, unit_type, unit_hp in unit_entries[: self.max_units]:
+        for uid, ux, uy, unit_type, unit_hp, unit_moves in unit_entries[: self.max_units]:
             unit_key = (unit_type or "").strip().lower()
             unit_name = unit_names.get(unit_key)
             if unit_name is None and unit_key.endswith("s"):
@@ -1148,12 +1167,14 @@ class Game(AbstractGame):
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
+                moves_val = int(unit_moves) if unit_moves is not None else 1
                 unit = MHUnit(
-                    ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None
+                    ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                 )
                 slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
+                moves_val = int(unit_moves) if unit_moves is not None else int(spec.moves)
                 unit = MHUnit(
                     ux,
                     uy,
@@ -1165,6 +1186,7 @@ class Game(AbstractGame):
                     True,
                     spec.can_build_city or ("settler" in unit_key),
                     None,
+                    moves_val,
                 )
                 slot_label = spec.name
             can_build_flags.append(unit.can_build_city)
@@ -1173,22 +1195,22 @@ class Game(AbstractGame):
             self.unit_positions.append((ux, uy))
             self.unit_slot_types.append(slot_label)
         while len(state.units[1]) < self.max_units:
-            state.units[1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None))
+            state.units[1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None, 0))
             self.unit_slots.append(None)
             self.unit_positions.append(None)
             self.unit_slot_types.append("")
 
         enemy_units = []
         if status_by_id:
-            for uid, (ux, uy, owner, unit_type, hp, _moves) in status_by_id.items():
+            for uid, (ux, uy, owner, unit_type, hp, moves) in status_by_id.items():
                 if owner < 0:
                     continue
                 if self.player_id is not None and owner == self.player_id:
                     continue
-                enemy_units.append((uid, ux, uy, unit_type, hp))
+                enemy_units.append((uid, ux, uy, unit_type, hp, moves))
             enemy_units.sort(key=lambda entry: entry[0])
         if enemy_units:
-            for _uid, ex, ey, unit_type, unit_hp in enemy_units[: self.max_units]:
+            for _uid, ex, ey, unit_type, unit_hp, unit_moves in enemy_units[: self.max_units]:
                 unit_key = (unit_type or "").strip().lower()
                 unit_name = unit_names.get(unit_key)
                 if unit_name is None and unit_key.endswith("s"):
@@ -1198,11 +1220,13 @@ class Game(AbstractGame):
                 spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
                 if spec is None:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
+                    moves_val = int(unit_moves) if unit_moves is not None else 1
                     enemy = MHUnit(
-                        ex, ey, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None
+                        ex, ey, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                     )
                 else:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
+                    moves_val = int(unit_moves) if unit_moves is not None else int(spec.moves)
                     enemy = MHUnit(
                         ex,
                         ey,
@@ -1214,6 +1238,7 @@ class Game(AbstractGame):
                         True,
                         False,
                         None,
+                        moves_val,
                     )
                 state.units[-1].append(enemy)
         else:
@@ -1223,7 +1248,7 @@ class Game(AbstractGame):
             for ex, ey in enemy_coords[: self.max_units]:
                 spec = UNIT_SPECS.get("Warriors")
                 if spec is None:
-                    enemy = MHUnit(ex, ey, 10, 2, 1, 1, "Warriors", True, False, None)
+                    enemy = MHUnit(ex, ey, 10, 2, 1, 1, "Warriors", True, False, None, 1)
                 else:
                     enemy = MHUnit(
                         ex,
@@ -1236,10 +1261,11 @@ class Game(AbstractGame):
                         True,
                         False,
                         None,
+                        int(spec.moves),
                     )
                 state.units[-1].append(enemy)
         while len(state.units[-1]) < self.max_units:
-            state.units[-1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None))
+            state.units[-1].append(MHUnit(0, 0, 0, 0, 0, 1, "None", False, False, None, 0))
 
         try:
             city_walls = alpha_live.list_city_walls(self.client)
@@ -2304,6 +2330,8 @@ class Game(AbstractGame):
             unit_pos = self.unit_positions[unit_idx]
             if unit_id is None or unit_pos is None:
                 return
+            if dir_idx == board_state.HOLD_DIR:
+                return
             if dir_idx >= len(self.dir_ids):
                 return
             dir_id = self.dir_ids[dir_idx]
@@ -2477,12 +2505,12 @@ class Game(AbstractGame):
     def to_play(self):
         return 0
 
-    def legal_actions(self):
+    def _legal_action_mask(self):
         if self._last_state is None:
             try:
                 self._sync_state()
             except Exception:
-                return []
+                return None
         valid = self._last_state.valid_moves(1)
         alive_units = any(u.alive for u in self._last_state.units[1])
         if not self.city_slots:
@@ -2660,13 +2688,56 @@ class Game(AbstractGame):
         valid = self._mask_autosettler_actions(valid)
         forced = self._force_settler_city_actions(valid)
         if forced:
-            return forced
+            forced_mask = numpy.zeros_like(valid)
+            for idx in forced:
+                if 0 <= idx < len(forced_mask):
+                    forced_mask[idx] = 1
+            return forced_mask
         valid = self._prefer_attack_actions(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any() and alive_units:
             valid[self._last_state.PASS_ACTION] = 0
+        return valid
+
+    def legal_actions(self):
+        valid = self._legal_action_mask()
+        if valid is None:
+            return []
         return [idx for idx, allowed in enumerate(valid) if allowed]
+
+    def legal_actions_by_agent(self):
+        valid = self._legal_action_mask()
+        if valid is None or self._last_state is None:
+            return {
+                role: [] for role in MultiheadState.AGENT_ROLES
+            }
+        return self._last_state.agent_legal_actions(1, valid_mask=valid)
+
+    def unit_agent_roles(self):
+        if self._last_state is None:
+            try:
+                self._sync_state()
+            except Exception:
+                return {}
+        if self._last_state is None:
+            return {}
+        roles = {}
+        for slot_idx in range(self.max_units):
+            roles[slot_idx] = self._last_state.slot_agent_role(1, slot_idx)
+        return roles
+
+    def preferred_actions_by_agent(self):
+        return self.role_agents.preferred_actions(self)
+
+    def agent_assignment_snapshot(self):
+        return {
+            "active_roles": self.role_agents.active_roles(self),
+            "unit_roles": self.role_agents.unit_roles(self),
+            "city_roles": self.role_agents.city_roles(self),
+            "legal_actions": self.role_agents.legal_actions(self),
+            "preferred_actions": self.role_agents.preferred_actions(self),
+        }
 
     def reset(self):
         if self._needs_restart:
@@ -2711,6 +2782,8 @@ class Game(AbstractGame):
         if action_number < tmp_state.MOVE_SIZE:
             unit_idx = action_number // tmp_state.MOVE_PER_UNIT
             dir_idx = action_number % tmp_state.MOVE_PER_UNIT
+            if dir_idx == tmp_state.HOLD_DIR:
+                return f"hold_u{unit_idx}"
             return f"move_u{unit_idx}_d{dir_idx}"
         if action_number < tmp_state.MOVE_SIZE + tmp_state.ATTACK_SIZE:
             rel = action_number - tmp_state.MOVE_SIZE

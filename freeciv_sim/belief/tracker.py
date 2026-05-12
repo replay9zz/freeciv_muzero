@@ -5,7 +5,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 
-from .movement import FreecivMovement
+from ..state.movement import FreecivMovement
 
 Coord = Tuple[int, int]
 

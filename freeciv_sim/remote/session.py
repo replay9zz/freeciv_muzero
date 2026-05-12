@@ -5,10 +5,10 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 
-from .luaremote import LuaRemoteClient
-from .movement import FreecivMovement
-from .lua_helper import (
-    auto_settler,
+from .lua_client import LuaRemoteClient
+from .lua_actions import auto_settler, set_player_research
+from ..state.movement import FreecivMovement
+from .lua_queries import (
     list_all_cities,
     list_all_units,
     list_city_walls,
@@ -16,12 +16,11 @@ from .lua_helper import (
     parse_position_result,
     parse_vision_tiles,
     player_knows_tech,
-    set_player_research,
     simple_find_unit_pos,
 )
-from .config import MapConfig
-from .multihead_state import MultiheadState
-from .research_policy import TARGET_TECH_NAME, TECH_PREREQS, pick_next_goal_tech, pick_next_priority_tech
+from ..state.config import MapConfig
+from ..state.multihead_state import MultiheadState
+from ..rules.research import TARGET_TECH_NAME, TECH_PREREQS, pick_next_goal_tech, pick_next_priority_tech
 
 
 def get_unit_rule_name(client: LuaRemoteClient, unit_id: int) -> Optional[str]:

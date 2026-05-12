@@ -7,8 +7,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import numpy as np
 
 try:
-    from .luaremote import LuaRemoteClient
-    from .lua_helper import (
+    from ..remote.lua_client import LuaRemoteClient
+    from ..remote.lua_queries import (
         list_visible_tiles_call,
         parse_vision_tiles,
     )

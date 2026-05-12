@@ -7,10 +7,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from .movement import FreecivMovement
-
 from .config import MapConfig
 from .providers import BaseProvider, GroundTruth
-from .research_policy import (
+from ..rules.research import (
     RESEARCH_TECHS,
     TARGET_TECH_NAME,
     TECH_COSTS,
@@ -21,7 +20,7 @@ from .research_policy import (
     MIN_TECH_COST,
     build_tech_costs,
 )
-from .ruleset_loader import load_civ2civ3_ruleset
+from ..rules.ruleset_loader import load_civ2civ3_ruleset
 
 Player = int  # 1 or -1
 Coord = Tuple[int, int]
@@ -77,6 +76,7 @@ class MHUnit:
     alive: bool = True
     can_build_city: bool = False
     home_city: Optional[int] = None
+    moves_left: int = 0
     last_move_turn: int = -1
 
 
@@ -207,13 +207,16 @@ class MultiheadState:
     tech_costs: Dict[str, float] = field(default_factory=lambda: dict(TECH_COSTS))
 
     # Action layout:
-    # For each unit slot: 6 move + 6 attack = 12 actions
+    # For each unit slot: 6 directional moves + hold + 6 attacks = 13 actions
     # After unit actions: research actions | pass
     RESEARCH_TECHS: Tuple[str, ...] = RESEARCH_TECHS
     PRODUCTION_UNIT_NAMES: Tuple[str, ...] = PRODUCTION_UNIT_NAMES
     PRODUCTION_BUILDING_NAMES: Tuple[str, ...] = PRODUCTION_BUILDING_NAMES
     PRODUCTION_ITEM_NAMES: Tuple[Tuple[str, str], ...] = PRODUCTION_ITEM_NAMES
-    MOVE_PER_UNIT = 6
+    AGENT_ROLES: Tuple[str, ...] = ("explore", "combat", "research", "production")
+    MOVE_DIRECTIONS = 6
+    HOLD_DIR = 6
+    MOVE_PER_UNIT = MOVE_DIRECTIONS + 1
     ATTACK_PER_UNIT = 6
 
     def __post_init__(self) -> None:
@@ -311,6 +314,8 @@ class MultiheadState:
                     spec.name,
                     True,
                     spec.can_build_city,
+                    None,
+                    spec.moves,
                 )
             )
             vx, vy = self._find_spawn_near(ox - dx, oy - dy)
@@ -325,6 +330,8 @@ class MultiheadState:
                     spec.name,
                     True,
                     spec.can_build_city,
+                    None,
+                    spec.moves,
                 )
             )
         self._ensure_unit_slots()
@@ -348,6 +355,7 @@ class MultiheadState:
                         False,
                         False,
                         None,
+                        0,
                     )
                 )
 
@@ -431,6 +439,7 @@ class MultiheadState:
                     u.alive,
                     u.can_build_city,
                     u.home_city,
+                    u.moves_left,
                     u.last_move_turn,
                 )
                 for u in lst
@@ -504,6 +513,14 @@ class MultiheadState:
         new.PASS_ACTION = self.PASS_ACTION
         return new
 
+    def _unit_max_moves(self, unit: Optional[MHUnit]) -> int:
+        if unit is None or not unit.alive:
+            return 0
+        spec = UNIT_SPECS.get(unit.unit_type)
+        if spec is not None:
+            return max(0, int(spec.moves))
+        return 1
+
     def valid_moves(self, player: Player) -> np.ndarray:
         moves = np.zeros(self.ACTION_SIZE, dtype=np.int8)
         if self.winner is not None:
@@ -520,8 +537,13 @@ class MultiheadState:
                 continue
             if auto_workers and self._unit_is_worker_like(u.unit_type):
                 continue
+            moves[move_base + self.HOLD_DIR] = 1
+            if u.moves_left <= 0:
+                continue
             neighbors = self.movement.get_native_neighbors(u.x, u.y)
             for dir_idx, (nx, ny) in enumerate(neighbors):
+                if dir_idx >= self.MOVE_DIRECTIONS:
+                    break
                 if nx is None or ny is None:
                     continue
                 if self.gt and 0 <= ny < self.cfg.map_h and 0 <= nx < self.cfg.map_w and self.gt.au_map[ny, nx] == 'A':
@@ -554,7 +576,13 @@ class MultiheadState:
         if len(self.cities[player]) < self.max_cities:
             for idx in range(self.max_units):
                 u = self.units[player][idx] if idx < len(self.units[player]) else None
-                if u is None or not u.alive or not u.can_build_city or idx in acted_slots:
+                if (
+                    u is None
+                    or not u.alive
+                    or not u.can_build_city
+                    or u.moves_left <= 0
+                    or idx in acted_slots
+                ):
                     continue
                 if self._city_at(u.x, u.y, player) is not None:
                     continue
@@ -641,6 +669,75 @@ class MultiheadState:
         moves[self.PASS_ACTION] = 1
         return moves
 
+    def _unit_is_explorer_like(self, unit_name: str) -> bool:
+        label = (unit_name or "").lower()
+        return any(tag in label for tag in ("explorer", "diplomat", "caravan"))
+
+    def unit_agent_role(self, unit: Optional[MHUnit]) -> str:
+        if unit is None:
+            return "combat"
+        if (
+            unit.can_build_city
+            or self._unit_is_worker_like(unit.unit_type)
+            or self._unit_is_explorer_like(unit.unit_type)
+        ):
+            return "explore"
+        return "combat"
+
+    def slot_agent_role(self, player: Player, slot_idx: int) -> str:
+        if slot_idx < 0 or slot_idx >= len(self.units[player]):
+            return "combat"
+        return self.unit_agent_role(self.units[player][slot_idx])
+
+    def action_agent_role(self, player: Player, action: int) -> Optional[str]:
+        if action < 0 or action >= self.ACTION_SIZE or action == self.PASS_ACTION:
+            return None
+        if action < self.MOVE_SIZE:
+            unit_idx = action // self.MOVE_PER_UNIT
+            return self.slot_agent_role(player, unit_idx)
+        if action < self.MOVE_SIZE + self.ATTACK_SIZE:
+            return "combat"
+
+        econ_idx = action - (self.MOVE_SIZE + self.ATTACK_SIZE)
+        if 0 <= econ_idx < len(self.RESEARCH_TECHS):
+            return "research"
+        if self.ECON_BUILD_CITY_OFFSET <= econ_idx < self.ECON_PRODUCTION_OFFSET:
+            return "explore"
+        if self.ECON_PRODUCTION_OFFSET <= econ_idx < self.ECON_PASS_OFFSET:
+            return "production"
+        return None
+
+    def agent_action_masks(
+        self,
+        player: Player,
+        valid_mask: Optional[np.ndarray] = None,
+    ) -> Dict[str, np.ndarray]:
+        base_mask = (
+            self.valid_moves(player)
+            if valid_mask is None
+            else np.asarray(valid_mask, dtype=np.int8).copy()
+        )
+        masks = {
+            role: np.zeros(self.ACTION_SIZE, dtype=np.int8) for role in self.AGENT_ROLES
+        }
+        for action in np.flatnonzero(base_mask):
+            role = self.action_agent_role(player, int(action))
+            if role is None:
+                continue
+            masks[role][int(action)] = 1
+        return masks
+
+    def agent_legal_actions(
+        self,
+        player: Player,
+        valid_mask: Optional[np.ndarray] = None,
+    ) -> Dict[str, List[int]]:
+        masks = self.agent_action_masks(player, valid_mask=valid_mask)
+        return {
+            role: [idx for idx, allowed in enumerate(mask) if allowed]
+            for role, mask in masks.items()
+        }
+
     def step(self, player: Player, action: int) -> None:
         if self.winner is not None:
             return
@@ -653,14 +750,19 @@ class MultiheadState:
         if action < self.MOVE_SIZE:
             unit_idx = action // self.MOVE_PER_UNIT
             dir_idx = action % self.MOVE_PER_UNIT
-            self._handle_unit_action(player, unit_idx, dir_idx, is_attack=False)
-            self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
+            if unit_idx < len(self.units[player]) and self.units[player][unit_idx].alive:
+                if dir_idx != self.HOLD_DIR:
+                    self._handle_unit_action(player, unit_idx, dir_idx, is_attack=False)
+                self.units[player][unit_idx].moves_left = 0
+                self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
         elif action < self.MOVE_SIZE + self.ATTACK_SIZE:
             rel = action - self.MOVE_SIZE
             unit_idx = rel // self.ATTACK_PER_UNIT
             dir_idx = rel % self.ATTACK_PER_UNIT
-            self._handle_unit_action(player, unit_idx, dir_idx, is_attack=True)
-            self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
+            if unit_idx < len(self.units[player]) and self.units[player][unit_idx].alive:
+                self._handle_unit_action(player, unit_idx, dir_idx, is_attack=True)
+                self.units[player][unit_idx].moves_left = 0
+                self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
         else:
             econ_idx = action - (self.MOVE_SIZE + self.ATTACK_SIZE)
             # research
@@ -684,9 +786,11 @@ class MultiheadState:
                     if (
                         u.alive
                         and u.can_build_city
+                        and u.moves_left > 0
                         and self._city_at(u.x, u.y, player) is None
                         and self._city_spacing_ok(player, u.x, u.y)
                     ):
+                        u.moves_left = 0
                         u.alive = False
                         self._add_city(player, u.x, u.y)
                         self.scores[player] += self.cfg.build_city_reward
@@ -1097,6 +1201,7 @@ class MultiheadState:
                 slot.alive = True
                 slot.can_build_city = unit.can_build_city
                 slot.home_city = city_idx
+                slot.moves_left = unit.moves_left
                 slot.last_move_turn = unit.last_move_turn
                 return True
         if len(self.units[player]) < self.max_units:
@@ -1138,6 +1243,7 @@ class MultiheadState:
                     True,
                     spec.can_build_city,
                     city_idx,
+                    spec.moves,
                 )
                 if self._place_unit(player, unit, city_idx):
                     self.units_built[player] = self.units_built.get(player, 0) + 1
@@ -1305,6 +1411,10 @@ class MultiheadState:
         self.acted_unit_slots = {1: set(), -1: set()}
         self.acted_production_cities = {1: set(), -1: set()}
         self.acted_production_cities = {1: set(), -1: set()}
+        for units in self.units.values():
+            for unit in units:
+                if unit.alive:
+                    unit.moves_left = self._unit_max_moves(unit)
 
     def _alive_count(self, player: Player) -> int:
         return sum(1 for u in self.units[player] if u.alive)
@@ -1417,6 +1527,8 @@ class MultiheadState:
         unit_opp = np.zeros_like(channels[0])
         hp_me = np.zeros_like(channels[0])
         hp_opp = np.zeros_like(channels[0])
+        moves_left_me = np.zeros_like(channels[0])
+        moves_left_opp = np.zeros_like(channels[0])
         fatigue_me = np.zeros_like(channels[0])
         fatigue_opp = np.zeros_like(channels[0])
         city_me = np.zeros_like(channels[0])
@@ -1431,6 +1543,8 @@ class MultiheadState:
                 continue
             unit_me[u.y, u.x] = 1.0
             hp_me[u.y, u.x] = u.hp / 20.0
+            max_moves = max(1, self._unit_max_moves(u))
+            moves_left_me[u.y, u.x] = min(1.0, float(u.moves_left) / float(max_moves))
             if self.turn > 0 and u.last_move_turn == fatigue_turn:
                 fatigue_me[u.y, u.x] = 1.0
         for u in self.units[opp]:
@@ -1438,6 +1552,8 @@ class MultiheadState:
                 continue
             unit_opp[u.y, u.x] = 1.0
             hp_opp[u.y, u.x] = u.hp / 20.0
+            max_moves = max(1, self._unit_max_moves(u))
+            moves_left_opp[u.y, u.x] = min(1.0, float(u.moves_left) / float(max_moves))
             if self.turn > 0 and u.last_move_turn == fatigue_turn:
                 fatigue_opp[u.y, u.x] = 1.0
         for c in self.cities[me]:
@@ -1458,6 +1574,8 @@ class MultiheadState:
         channels.append(unit_opp)
         channels.append(hp_me)
         channels.append(hp_opp)
+        channels.append(moves_left_me)
+        channels.append(moves_left_opp)
         channels.append(fatigue_me)
         channels.append(fatigue_opp)
         channels.append(city_me)

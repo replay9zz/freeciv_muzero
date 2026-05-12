@@ -18,7 +18,7 @@ from self_play import MCTS, SelfPlay
 
 REPO_ROOT = Path(__file__).resolve().parent
 try:
-    from freeciv_sim.lua_helper import list_player_scores
+    from freeciv_sim.remote.lua_queries import list_player_scores
 except Exception:  # pragma: no cover - optional dependency
     list_player_scores = None
 
