@@ -17,6 +17,7 @@ WIDTH="${WIDTH:-1920}"
 HEIGHT="${HEIGHT:-1080}"
 OPACITY="${OPACITY:-0.70}"
 ALPHA_FLOOR="${ALPHA_FLOOR:-32}"
+HEATMAP_START_DELAY="${HEATMAP_START_DELAY:-0}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
 
 THREAT_ONLY_MP4="${THREAT_ONLY_MP4:-${OUT_PREFIX}-only.mp4}"
@@ -48,7 +49,7 @@ mkdir -p "${FRAME_DIR}" "$(dirname "${OUT_PREFIX}")"
 
 frame_count="$(find "${FRAME_DIR}" -maxdepth 1 -type f -name 'threat_rgb_*.png' | wc -l)"
 duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${GAMEPLAY_FILE}")"
-heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" 'BEGIN { if (duration > 0) print frames / duration; else print 1 }')"
+heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" -v delay="${HEATMAP_START_DELAY}" 'BEGIN { active = duration - delay; if (active > 0) print frames / active; else print 1 }')"
 
 ffmpeg \
   -hide_banner \
@@ -56,6 +57,7 @@ ffmpeg \
   -y \
   -framerate "${heatmap_fps}" \
   -i "${FRAME_DIR}/threat_rgb_%06d.png" \
+  -vf "tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=add:color=black" \
   -r 30 \
   -c:v libx264 \
   -preset veryfast \
@@ -70,7 +72,7 @@ if [ "${RENDER_PREVIEW}" = "1" ]; then
     -i "${GAMEPLAY_FILE}" \
     -framerate "${heatmap_fps}" \
     -i "${FRAME_DIR}/threat_overlay_%06d.png" \
-    -filter_complex "[1:v]format=rgba[heat];[0:v][heat]overlay=0:0:eof_action=repeat[v]" \
+    -filter_complex "[1:v]format=rgba,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=add:color=black@0[heat];[0:v][heat]overlay=0:0:eof_action=repeat[v]" \
     -map "[v]" \
     -an \
     -c:v libx264 \
@@ -85,6 +87,7 @@ ffmpeg \
   -y \
   -framerate "${heatmap_fps}" \
   -i "${FRAME_DIR}/threat_overlay_%06d.png" \
+  -vf "format=rgba,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=add:color=black@0" \
   -r 30 \
   -c:v prores_ks \
   -profile:v 4444 \
