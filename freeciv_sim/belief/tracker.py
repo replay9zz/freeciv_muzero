@@ -137,10 +137,10 @@ class BeliefTracker:
             cur = self._diffuse_once(cur)
         mem.belief_units = np.clip(cur * np.maximum(mem.territory, 0.1), 0.0, 1.0)
 
-    def rebuild_threat(self, slot_id: int, my_border: np.ndarray) -> None:
+    def rebuild_threat(self, slot_id: int, my_border: np.ndarray | None = None) -> None:
         mem = self.ensure_slot(slot_id)
         mem.threat = np.clip(
-            0.7 * mem.belief_units + 0.3 * my_border + 0.2 * mem.visible_cities,
+            0.85 * mem.belief_units + 0.35 * mem.visible_cities,
             0.0,
             1.0,
         )

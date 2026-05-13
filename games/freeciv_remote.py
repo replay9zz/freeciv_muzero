@@ -386,6 +386,7 @@ class Game(AbstractGame):
             "FREECIV_REWARD_TENSORBOARD",
             self.belief_tb_enabled,
         )
+        self._gameplay_started = False
         self._belief_writer: SummaryWriter | None = None
         self._belief_last_logged_turn = None
         self._reward_last_logged_step = None
@@ -561,6 +562,7 @@ class Game(AbstractGame):
         self._belief_initialized = False
         self._belief_turn = None
         self._belief_planes = {}
+        self._gameplay_started = False
         self._belief_last_logged_turn = None
         self._reward_last_logged_step = None
         self.acted_unit_slots.clear()
@@ -824,13 +826,14 @@ class Game(AbstractGame):
     def _belief_heatmap_rgb(self, plane: numpy.ndarray) -> numpy.ndarray:
         clipped = numpy.clip(numpy.asarray(plane, dtype=numpy.float32), 0.0, 1.0)
         rgb = numpy.zeros((3, clipped.shape[0], clipped.shape[1]), dtype=numpy.float32)
-        low = clipped < (1.0 / 3.0)
+        active = clipped > 1.0e-6
+        low = active & (clipped < (1.0 / 3.0))
         mid = (clipped >= (1.0 / 3.0)) & (clipped < (2.0 / 3.0))
         high = clipped >= (2.0 / 3.0)
         if low.any():
             t = clipped[low] / (1.0 / 3.0)
-            rgb[1, low] = t
-            rgb[2, low] = 1.0
+            rgb[1, low] = 0.05 + 0.70 * t
+            rgb[2, low] = 0.20 + 0.55 * t
         if mid.any():
             t = (clipped[mid] - (1.0 / 3.0)) / (1.0 / 3.0)
             rgb[0, mid] = t
@@ -961,6 +964,8 @@ class Game(AbstractGame):
 
     def _log_belief_tensorboard(self) -> None:
         if not self.belief_tb_enabled or not self._belief_planes:
+            return
+        if not self._gameplay_started:
             return
         if self.turns < 0:
             return
@@ -2704,6 +2709,7 @@ class Game(AbstractGame):
                     action = action_idx
                     break
         self._apply_action(action, board_state, owned_cities)
+        self._gameplay_started = True
         if action < board_state.MOVE_SIZE:
             self.acted_unit_slots.add(action // board_state.MOVE_PER_UNIT)
         elif action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
