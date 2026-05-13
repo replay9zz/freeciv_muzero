@@ -50,7 +50,20 @@ def _latest_by_step(events: list) -> dict[int, object]:
 
 
 def _event_to_image(event) -> Image.Image:
-    return Image.open(io.BytesIO(event.encoded_image_string)).convert("RGB")
+    return _mute_empty_heatmap_blue(
+        Image.open(io.BytesIO(event.encoded_image_string)).convert("RGB")
+    )
+
+
+def _mute_empty_heatmap_blue(img: Image.Image) -> Image.Image:
+    pixels = img.load()
+    width, height = img.size
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            if r <= 2 and g <= 2 and b >= 250:
+                pixels[x, y] = (0, 0, 0)
+    return img
 
 
 def _draw_label(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str) -> None:
@@ -65,9 +78,7 @@ def _draw_label(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str) -> No
 
 
 def _fit_image(img: Image.Image, max_w: int, max_h: int) -> Image.Image:
-    fitted = img.copy()
-    fitted.thumbnail((max_w, max_h), Image.Resampling.NEAREST)
-    return fitted
+    return img.resize((max(1, max_w), max(1, max_h)), Image.Resampling.NEAREST)
 
 
 def _render_panel(

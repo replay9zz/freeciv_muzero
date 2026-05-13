@@ -52,6 +52,9 @@ def _with_alpha(img: Image.Image, opacity: float, alpha_floor: int) -> Image.Ima
     for y in range(height):
         for x in range(width):
             r, g, b, _a = pixels[x, y]
+            if r <= 2 and g <= 2 and b >= 250:
+                pixels[x, y] = (0, 0, 0, 0)
+                continue
             brightness = max(r, g, b)
             alpha = int(max(alpha_floor, brightness) * opacity)
             if brightness <= 0:
