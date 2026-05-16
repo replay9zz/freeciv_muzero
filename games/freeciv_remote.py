@@ -94,6 +94,7 @@ def _env_bool(name, default=False):
 
 
 SEA_UNIT_CLASSES = {"sea", "trireme"}
+FREECIV_NATIVE_DIR_IDS = "1,2,7,6,5,0"  # [N, NE, SE, S, SW, NW]
 BELIEF_OBSERVATION_PLANES = (
     "visible_units",
     "visible_cities",
@@ -119,6 +120,7 @@ class MuZeroConfig:
             map_h=map_h,
             max_turns=max_turns,
             allow_sea_units=allow_sea_units,
+            auto_worker_units=_env_bool("FREECIV_AUTO_WORKERS", False),
         )
         self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
@@ -184,6 +186,7 @@ class MuZeroConfig:
 
         # Residual Network
         self.downsample = False
+        self.use_freeciv_hex_conv = _env_bool("FREECIV_HEX_CONV", False)
         self.blocks = 2
         self.channels = 32
         self.reduced_channels_reward = 2
@@ -277,12 +280,14 @@ class Game(AbstractGame):
                 map_h=map_h,
                 max_turns=max_turns,
                 allow_sea_units=allow_sea_units,
+                auto_worker_units=_env_bool("FREECIV_AUTO_WORKERS", False),
             )
             self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
             self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
         self.dir_ids = alpha_live.parse_dir_ids(
-            os.getenv("FREECIV_DIR_IDS", "0,1,4,7,6,3")
+            os.getenv("FREECIV_DIR_IDS", FREECIV_NATIVE_DIR_IDS)
         )
+        self.auto_settlers = _env_bool("FREECIV_AUTO_SETTLERS", False)
         self.sleep = _env_float("FREECIV_SLEEP", 0.1)
         self.reward_explore = _env_float("FREECIV_REWARD_EXPLORE", 1.0)
         self.reward_civ_score = _env_float("FREECIV_REWARD_CIV_SCORE", 0.25)
@@ -495,6 +500,13 @@ class Game(AbstractGame):
             f"Timed out waiting for Freeciv server at {self.server_host}:{self.server_port}"
         )
 
+    def _wait_for_server_stop(self) -> None:
+        deadline = time.monotonic() + max(1.0, self.server_start_timeout)
+        while time.monotonic() < deadline:
+            if not self._port_is_listening(self.server_host, self.server_port):
+                return
+            time.sleep(max(0.05, self.server_start_wait))
+
     def _prepare_control_state(self) -> None:
         if self.unit_id is not None:
             pos_result = self.client.eval(alpha_live.simple_find_unit_pos(self.unit_id))
@@ -527,6 +539,8 @@ class Game(AbstractGame):
 
     def _stop_server_process(self) -> None:
         self._server_process = self._stop_process(self._server_process)
+        if self.server_cmd:
+            self._wait_for_server_stop()
 
     def _restart_client_process(self) -> None:
         self._stop_client_process()
@@ -690,7 +704,13 @@ class Game(AbstractGame):
     def _maybe_take_player(self) -> None:
         cmd = self.take_command
         if not cmd and self.take_player_id is not None:
-            resolved = self._resolve_player_name_by_id(self.take_player_id)
+            resolved = None
+            for attempt in range(max(1, int(self.take_retries))):
+                resolved = self._resolve_player_name_by_id(self.take_player_id)
+                if resolved:
+                    break
+                if attempt < self.take_retries - 1:
+                    time.sleep(self.take_wait)
             print(
                 f"[player] target_player_id={self.take_player_id} resolved_name={resolved!r}",
                 file=sys.stderr,
@@ -1357,14 +1377,14 @@ class Game(AbstractGame):
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
-                moves_val = int(unit_moves) if unit_moves is not None else 1
+                moves_val = max(1, int(unit_moves)) if unit_moves is not None else 1
                 unit = MHUnit(
                     ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                 )
                 slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
-                moves_val = int(unit_moves) if unit_moves is not None else int(spec.moves)
+                moves_val = max(1, int(unit_moves)) if unit_moves is not None else int(spec.moves)
                 unit = MHUnit(
                     ux,
                     uy,
@@ -1410,13 +1430,13 @@ class Game(AbstractGame):
                 spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
                 if spec is None:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
-                    moves_val = int(unit_moves) if unit_moves is not None else 1
+                    moves_val = max(1, int(unit_moves)) if unit_moves is not None else 1
                     enemy = MHUnit(
                         ex, ey, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                     )
                 else:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
-                    moves_val = int(unit_moves) if unit_moves is not None else int(spec.moves)
+                    moves_val = max(1, int(unit_moves)) if unit_moves is not None else int(spec.moves)
                     enemy = MHUnit(
                         ex,
                         ey,
@@ -2267,6 +2287,8 @@ class Game(AbstractGame):
             self.gov_switch_sent.add(target)
 
     def _maybe_enable_autosettlers(self) -> None:
+        if not self.auto_settlers:
+            return
         if not self.unit_slots:
             return
         threats = self._enemy_threats()
@@ -2574,15 +2596,32 @@ class Game(AbstractGame):
                 return
             if dir_idx >= len(self.dir_ids):
                 return
-            dir_id = self.dir_ids[dir_idx]
-            before_pos = self.client.get_unit_pos(unit_id) if self.debug_actions else None
-            success = self.client.move_dir_id(unit_id, dir_id)
-            after_pos = self.client.get_unit_pos(unit_id) if self.debug_actions else None
+            neighbors = self.movement.get_native_neighbors(unit_pos[0], unit_pos[1])
+            target_pos = None
+            if dir_idx < len(neighbors):
+                nx, ny = neighbors[dir_idx]
+                if nx is not None and ny is not None:
+                    target_pos = (int(nx), int(ny))
+            before_pos = self.client.get_unit_pos(unit_id)
+            tried_dir_ids = []
+            success = False
+            after_pos = before_pos
+            candidate_dir_ids = [self.dir_ids[dir_idx]]
+            candidate_dir_ids.extend(
+                dir_id for dir_id in range(8) if dir_id not in candidate_dir_ids
+            )
+            for dir_id in candidate_dir_ids:
+                tried_dir_ids.append(dir_id)
+                self.client.move_dir_id(unit_id, dir_id)
+                after_pos = self.client.get_unit_pos(unit_id)
+                success = after_pos != before_pos
+                if success:
+                    break
             self._debug_action(
                 "move "
                 f"action={action} unit_slot={unit_idx} unit_id={unit_id} "
-                f"dir_idx={dir_idx} dir_id={dir_id} success={success} "
-                f"before={before_pos or unit_pos} after={after_pos}"
+                f"dir_idx={dir_idx} dir_ids={tried_dir_ids} target={target_pos} "
+                f"success={success} before={before_pos or unit_pos} after={after_pos}"
             )
             if success and self._last_snapshot is not None:
                 self.previous_pos = self._last_snapshot.player_pos
@@ -2688,7 +2727,7 @@ class Game(AbstractGame):
             return
 
     def step(self, action):
-        prev_visited = len(self.visited_tiles)
+        prev_visited = len(self.known_tiles)
         try:
             board_state = self._sync_state()
         except Exception:
@@ -2748,7 +2787,7 @@ class Game(AbstractGame):
         if done and self.restart_on_reset and self.client_cmd:
             self._shutdown_client_for_restart()
 
-        new_visited = len(self.visited_tiles)
+        new_visited = len(self.known_tiles)
         next_metrics = self._reward_metrics(board_state)
         reward_components = self._reward_components(
             prev_visited,
@@ -2773,7 +2812,10 @@ class Game(AbstractGame):
             except Exception:
                 return None
         valid = self._last_state.valid_moves(1)
-        alive_units = any(u.alive for u in self._last_state.units[1])
+        for slot_idx in range(self.max_units):
+            hold_idx = slot_idx * self._last_state.MOVE_PER_UNIT + self._last_state.HOLD_DIR
+            if 0 <= hold_idx < len(valid):
+                valid[hold_idx] = 0
         if not self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -2957,7 +2999,7 @@ class Game(AbstractGame):
         valid = self._prefer_attack_actions(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
-        if non_pass.any() and alive_units:
+        if non_pass.any():
             valid[self._last_state.PASS_ACTION] = 0
         return valid
 

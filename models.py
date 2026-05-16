@@ -34,6 +34,7 @@ class MuZeroNetwork:
                 config.resnet_fc_policy_layers,
                 config.support_size,
                 config.downsample,
+                getattr(config, "use_freeciv_hex_conv", False),
             )
         else:
             raise NotImplementedError(
@@ -203,7 +204,65 @@ class MuZeroFullyConnectedNetwork(AbstractNetwork):
 ############# ResNet #############
 
 
-def conv3x3(in_channels, out_channels, stride=1):
+class FreecivHexConv2d(torch.nn.Module):
+    """Convolve over Freeciv native hex neighbors while preserving (H, W)."""
+
+    def __init__(self, in_channels, out_channels, bias=False):
+        super().__init__()
+        self.proj = torch.nn.Conv2d(in_channels * 7, out_channels, 1, bias=bias)
+
+    @staticmethod
+    def _shift(x, dx, dy):
+        batch, channels, height, width = x.shape
+        out = x.new_zeros((batch, channels, height, width))
+
+        if dy >= 0:
+            src_y = slice(dy, height)
+            dst_y = slice(0, height - dy)
+        else:
+            src_y = slice(0, height + dy)
+            dst_y = slice(-dy, height)
+
+        if dx >= 0:
+            src_x = slice(dx, width)
+            dst_x = slice(0, width - dx)
+        else:
+            src_x = slice(0, width + dx)
+            dst_x = slice(-dx, width)
+
+        if height - abs(dy) > 0 and width - abs(dx) > 0:
+            out[:, :, dst_y, dst_x] = x[:, :, src_y, src_x]
+        return out
+
+    def forward(self, x):
+        height = x.shape[-2]
+        even_rows = (
+            (torch.arange(height, device=x.device) % 2 == 0)
+            .view(1, 1, height, 1)
+            .to(dtype=x.dtype)
+        )
+        odd_rows = 1.0 - even_rows
+
+        north = self._shift(x, 0, -2)
+        south = self._shift(x, 0, 2)
+        northeast = self._shift(x, 0, -1) * even_rows + self._shift(x, 1, -1) * odd_rows
+        southeast = self._shift(x, 0, 1) * even_rows + self._shift(x, 1, 1) * odd_rows
+        southwest = self._shift(x, -1, 1) * even_rows + self._shift(x, 0, 1) * odd_rows
+        northwest = self._shift(x, -1, -1) * even_rows + self._shift(x, 0, -1) * odd_rows
+
+        return self.proj(
+            torch.cat(
+                (x, north, northeast, southeast, south, southwest, northwest),
+                dim=1,
+            )
+        )
+
+
+def conv3x3(in_channels, out_channels, stride=1, use_freeciv_hex_conv=False):
+    if use_freeciv_hex_conv:
+        if stride != 1:
+            raise NotImplementedError("FreecivHexConv2d only supports stride=1.")
+        return FreecivHexConv2d(in_channels, out_channels, bias=False)
     return torch.nn.Conv2d(
         in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
     )
@@ -211,11 +270,15 @@ def conv3x3(in_channels, out_channels, stride=1):
 
 # Residual block
 class ResidualBlock(torch.nn.Module):
-    def __init__(self, num_channels, stride=1):
+    def __init__(self, num_channels, stride=1, use_freeciv_hex_conv=False):
         super().__init__()
-        self.conv1 = conv3x3(num_channels, num_channels, stride)
+        self.conv1 = conv3x3(num_channels, num_channels, stride, use_freeciv_hex_conv)
         self.bn1 = torch.nn.BatchNorm2d(num_channels)
-        self.conv2 = conv3x3(num_channels, num_channels)
+        self.conv2 = conv3x3(
+            num_channels,
+            num_channels,
+            use_freeciv_hex_conv=use_freeciv_hex_conv,
+        )
         self.bn2 = torch.nn.BatchNorm2d(num_channels)
 
     def forward(self, x):
@@ -305,6 +368,7 @@ class RepresentationNetwork(torch.nn.Module):
         num_blocks,
         num_channels,
         downsample,
+        use_freeciv_hex_conv=False,
     ):
         super().__init__()
         self.downsample = downsample
@@ -330,10 +394,17 @@ class RepresentationNetwork(torch.nn.Module):
         self.conv = conv3x3(
             observation_shape[0] * (stacked_observations + 1) + stacked_observations,
             num_channels,
+            use_freeciv_hex_conv=use_freeciv_hex_conv,
         )
         self.bn = torch.nn.BatchNorm2d(num_channels)
         self.resblocks = torch.nn.ModuleList(
-            [ResidualBlock(num_channels) for _ in range(num_blocks)]
+            [
+                ResidualBlock(
+                    num_channels,
+                    use_freeciv_hex_conv=use_freeciv_hex_conv,
+                )
+                for _ in range(num_blocks)
+            ]
         )
 
     def forward(self, x):
@@ -358,12 +429,23 @@ class DynamicsNetwork(torch.nn.Module):
         fc_reward_layers,
         full_support_size,
         block_output_size_reward,
+        use_freeciv_hex_conv=False,
     ):
         super().__init__()
-        self.conv = conv3x3(num_channels, num_channels - 1)
+        self.conv = conv3x3(
+            num_channels,
+            num_channels - 1,
+            use_freeciv_hex_conv=use_freeciv_hex_conv,
+        )
         self.bn = torch.nn.BatchNorm2d(num_channels - 1)
         self.resblocks = torch.nn.ModuleList(
-            [ResidualBlock(num_channels - 1) for _ in range(num_blocks)]
+            [
+                ResidualBlock(
+                    num_channels - 1,
+                    use_freeciv_hex_conv=use_freeciv_hex_conv,
+                )
+                for _ in range(num_blocks)
+            ]
         )
 
         self.conv1x1_reward = torch.nn.Conv2d(
@@ -402,10 +484,17 @@ class PredictionNetwork(torch.nn.Module):
         full_support_size,
         block_output_size_value,
         block_output_size_policy,
+        use_freeciv_hex_conv=False,
     ):
         super().__init__()
         self.resblocks = torch.nn.ModuleList(
-            [ResidualBlock(num_channels) for _ in range(num_blocks)]
+            [
+                ResidualBlock(
+                    num_channels,
+                    use_freeciv_hex_conv=use_freeciv_hex_conv,
+                )
+                for _ in range(num_blocks)
+            ]
         )
 
         self.conv1x1_value = torch.nn.Conv2d(num_channels, reduced_channels_value, 1)
@@ -449,6 +538,7 @@ class MuZeroResidualNetwork(AbstractNetwork):
         fc_policy_layers,
         support_size,
         downsample,
+        use_freeciv_hex_conv=False,
     ):
         super().__init__()
         self.action_space_size = action_space_size
@@ -490,6 +580,7 @@ class MuZeroResidualNetwork(AbstractNetwork):
                 num_blocks,
                 num_channels,
                 downsample,
+                use_freeciv_hex_conv,
             )
         )
 
@@ -501,6 +592,7 @@ class MuZeroResidualNetwork(AbstractNetwork):
                 fc_reward_layers,
                 self.full_support_size,
                 block_output_size_reward,
+                use_freeciv_hex_conv,
             )
         )
 
@@ -516,6 +608,7 @@ class MuZeroResidualNetwork(AbstractNetwork):
                 self.full_support_size,
                 block_output_size_value,
                 block_output_size_policy,
+                use_freeciv_hex_conv,
             )
         )
 

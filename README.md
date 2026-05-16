@@ -40,6 +40,10 @@ source .venv/bin/activate
 ./scripts/train.sh
 ```
 
+To switch the Freeciv model trunk from square `3x3` convs to native hex-neighbor
+convs, set `FREECIV_HEX_CONV=1`, for example
+`FREECIV_HEX_CONV=1 ./scripts/train.sh`.
+
 To force CPU mode, use `USE_GPU=0 ./scripts/train.sh`.
 To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./scripts/train.sh`.
 For multi-GPU headless training, increase the Ray self-play workers and expose
@@ -105,6 +109,12 @@ GUI evaluation wrapper:
 cd /home/hirokiokabe/freeciv_test/freeciv_muzero
 source .venv/bin/activate
 ./scripts/eval.sh
+```
+
+Hex-neighbor wiring sanity check:
+
+```bash
+.venv/bin/python scripts/check_hex_conv.py
 ```
 
 It picks the latest `results/freeciv_remote/*/model.checkpoint` by default.

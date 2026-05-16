@@ -312,7 +312,7 @@ def main() -> None:
     )
     ap.add_argument("--player-id", type=int)
     ap.add_argument("--unit-id", type=int)
-    ap.add_argument("--dir-ids", default="0,1,4,7,6,3")
+    ap.add_argument("--dir-ids", default="1,2,7,6,5,0")
     ap.add_argument("--sleep", type=float, default=0.1)
     ap.add_argument("--max-moves", type=int)
     ap.add_argument("--num-simulations", type=int, default=50)

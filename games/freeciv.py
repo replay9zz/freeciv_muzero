@@ -114,6 +114,7 @@ class MuZeroConfig:
 
         # Residual Network
         self.downsample = False
+        self.use_freeciv_hex_conv = _env_bool("FREECIV_HEX_CONV", False)
         self.blocks = 2
         self.channels = 32
         self.reduced_channels_reward = 2

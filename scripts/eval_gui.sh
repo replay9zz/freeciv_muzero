@@ -5,14 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${ROOT_DIR}/scripts/common.sh"
 
-SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
+FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-0}"
+if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
+  SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_generated_16x16.serv}"
+  MAP_WIDTH="${MAP_WIDTH:-16}"
+  MAP_HEIGHT="${MAP_HEIGHT:-16}"
+else
+  SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
+  MAP_WIDTH="${MAP_WIDTH:-4}"
+  MAP_HEIGHT="${MAP_HEIGHT:-16}"
+fi
 HOST="${HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-5566}"
 LUA_PORT="${LUA_PORT:-4451}"
 PLAYER_ID="${PLAYER_ID:-0}"
 TAKE_PLAYER_ID="${TAKE_PLAYER_ID:-${PLAYER_ID}}"
-MAP_WIDTH="${MAP_WIDTH:-4}"
-MAP_HEIGHT="${MAP_HEIGHT:-16}"
 MAX_TURNS="${MAX_TURNS:-300}"
 MAX_ACTIONS_PER_TURN="${MAX_ACTIONS_PER_TURN:-100}"
 NUM_SIMULATIONS="${NUM_SIMULATIONS:-50}"
@@ -24,6 +31,11 @@ JSON="${JSON:-0}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 SCENARIO_PATH="${SCENARIO_PATH:-$(default_scenario_path)}"
+if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
+  FREECIV_SERVER_CMD_VALUE="${BUILD_DIR}/run.sh freeciv-server -p ${SERVER_PORT} -r ${SERVER_RC}"
+else
+  FREECIV_SERVER_CMD_VALUE="${BUILD_DIR}/run.sh freeciv-server -p ${SERVER_PORT} -f ${SCENARIO_PATH} -r ${SERVER_RC}"
+fi
 CHECKPOINT="${1:-${CHECKPOINT:-$(latest_checkpoint)}}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
@@ -45,7 +57,7 @@ init_python_env
 
 export FREECIV_BUILD_DIR="${BUILD_DIR}"
 export FREECIV_SERVER_PORT="${SERVER_PORT}"
-export FREECIV_SERVER_CMD="${BUILD_DIR}/run.sh freeciv-server -p ${SERVER_PORT} -f ${SCENARIO_PATH} -r ${SERVER_RC}"
+export FREECIV_SERVER_CMD="${FREECIV_SERVER_CMD_VALUE}"
 export FREECIV_CLIENT_ARGS="-a -s ${HOST} -p ${SERVER_PORT} -n ${CLIENT_NAME} -P none"
 export FREECIV_TAKE_PLAYER_ID="${TAKE_PLAYER_ID}"
 
