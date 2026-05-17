@@ -1,16 +1,16 @@
-# Recordings
-recordings/*
-!recordings/
-!recordings/*.mp4
-
 # Codex
 .codex
 
-# Checkpoints
+# Results
 results/*
+!results/
+!results/checkpoints/
+results/checkpoints/*
+!results/recordings/
+results/recordings/*
 
 # Remote Play
-!results/remote_play
+!results/remote_play/
 results/remote_play/*
 *.log
 *.serv

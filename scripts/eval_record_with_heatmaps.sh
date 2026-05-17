@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)}"
-RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/recordings}"
+RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/recordings}"
 GAMEPLAY_FILE="${GAMEPLAY_FILE:-${RECORD_DIR}/gameplay-${RUN_STAMP}.mp4}"
 COMBINED_FILE="${COMBINED_FILE:-${RECORD_DIR}/gameplay-heatmaps-${RUN_STAMP}.mp4}"
 HEATMAP_TB_DIR="${HEATMAP_TB_DIR:-${RECORD_DIR}/tb-${RUN_STAMP}}"

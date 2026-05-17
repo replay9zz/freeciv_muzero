@@ -117,8 +117,16 @@ Hex-neighbor wiring sanity check:
 .venv/bin/python scripts/check_hex_conv.py
 ```
 
-It picks the latest `results/freeciv_remote/*/model.checkpoint` by default.
+It picks the latest `model.checkpoint` from `results/checkpoints` or `results/freeciv_remote` by default.
 Override it with `CHECKPOINT=... ./scripts/eval.sh` or `./scripts/eval.sh /path/to/model.checkpoint`.
+
+Recordings are ignored by default. To publish selected MP4 recordings through Git LFS:
+
+```bash
+scripts/stage_recording_lfs.sh results/recordings/eval-agent-YYYYmmdd-HHMMSS.mp4
+git commit -m "Add evaluation recording"
+git push
+```
 
 ## Results
 Example:

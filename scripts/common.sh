@@ -38,7 +38,10 @@ default_scenario_path() {
 }
 
 latest_checkpoint() {
-  find "${ROOT_DIR}/results/freeciv_remote" -mindepth 2 -maxdepth 2 -type f -name 'model.checkpoint' | sort | tail -n 1
+  {
+    find "${ROOT_DIR}/results/checkpoints" -type f -name 'model.checkpoint' -printf '%T@ %p\n' 2>/dev/null
+    find "${ROOT_DIR}/results/freeciv_remote" -type f -name 'model.checkpoint' -printf '%T@ %p\n' 2>/dev/null
+  } | sort -nr | awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
 }
 
 init_python_env() {
