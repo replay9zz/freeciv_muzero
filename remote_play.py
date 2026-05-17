@@ -147,6 +147,54 @@ def _build_obs_adapter(native_channels: int, model_channels: int, num_techs: int
     return adapter
 
 
+def _adapt_checkpoint_weights(weights: dict, model: torch.nn.Module) -> dict:
+    model_weights = model.state_dict()
+    adapted = dict(weights)
+    changed = []
+
+    for key, source in weights.items():
+        target = model_weights.get(key)
+        if target is None or source.shape == target.shape:
+            continue
+        if not hasattr(source, "dim"):
+            continue
+
+        patched = target.detach().clone()
+        if "fc_policy" in key and source.dim() >= 1 and source.shape[1:] == target.shape[1:]:
+            rows = min(int(source.shape[0]), int(target.shape[0]))
+            patched[:rows] = source[:rows].to(device=patched.device, dtype=patched.dtype)
+            adapted[key] = patched
+            changed.append((key, tuple(source.shape), tuple(target.shape)))
+            continue
+
+        if (
+            source.dim() == 2
+            and target.dim() == 2
+            and source.shape[0] == target.shape[0]
+            and (
+                ".fc." in key
+                or ".fc_value." in key
+                or ".fc_policy." in key
+            )
+        ):
+            cols = min(int(source.shape[1]), int(target.shape[1]))
+            patched[:, :cols] = source[:, :cols].to(
+                device=patched.device,
+                dtype=patched.dtype,
+            )
+            adapted[key] = patched
+            changed.append((key, tuple(source.shape), tuple(target.shape)))
+
+    for key, old_shape, new_shape in changed:
+        print(
+            "Using checkpoint compatibility adapter: "
+            f"{key} checkpoint={old_shape}, remote={new_shape}",
+            file=sys.stderr,
+        )
+
+    return adapted
+
+
 def _parse_score_line(text: str):
     marker = "__SCORE__"
     if marker not in text and "**SCORE**" not in text:
@@ -523,6 +571,7 @@ def main() -> None:
         )
 
     model = models.MuZeroNetwork(config)
+    weights = _adapt_checkpoint_weights(weights, model)
     model.set_weights(weights)
     model.to(device)
     model.eval()
