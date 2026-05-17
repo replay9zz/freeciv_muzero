@@ -30,4 +30,4 @@ for path in "$@"; do
   git add -f "${path}"
 done
 
-git lfs ls-files "$@"
+git lfs ls-files | grep -Ff <(printf '%s\n' "$@" | sed 's#^\./##') || true
