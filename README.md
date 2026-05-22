@@ -123,7 +123,7 @@ Override it with `CHECKPOINT=... ./scripts/eval.sh` or `./scripts/eval.sh /path/
 Recordings are ignored by default. To publish selected MP4 recordings through Git LFS:
 
 ```bash
-scripts/stage_recording_lfs.sh results/recordings/eval-agent-YYYYmmdd-HHMMSS.mp4
+scripts/stage_recording_lfs.sh results/evals/YYYYmmdd-HHMMSS/eval-agent.mp4
 git commit -m "Add evaluation recording"
 git push
 ```

@@ -46,10 +46,23 @@ XVFB_PATTERN="Xvfb ${DISPLAY_NUM}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 SCENARIO_PATH="${SCENARIO_PATH:-$(default_scenario_path)}"
+FREECIV_SCORE_RUN_ID="${FREECIV_SCORE_RUN_ID:-$(date +%Y%m%d-%H%M%S)-$$}"
+SERVER_RC_DIR="${SERVER_RC_DIR:-/tmp/freeciv-muzero-rc-${FREECIV_SCORE_RUN_ID}}"
+SERVER_RC_COUNT="${NUM_WORKERS}"
+if [ "${MUZERO_ENABLE_LIVE_TEST_WORKER:-0}" = "1" ]; then
+  SERVER_RC_COUNT=$((SERVER_RC_COUNT + 1))
+fi
+SERVER_RC_TEMPLATE="$(prepare_server_rc_template \
+  "${SERVER_RC}" \
+  "${SERVER_RC_DIR}" \
+  "${SERVER_PORT}" \
+  "${FREECIV_SERVER_PORT_STRIDE}" \
+  "${SERVER_RC_COUNT}" \
+  "${FREECIV_SCORE_RUN_ID}")"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
-  FREECIV_SERVER_CMD_TEMPLATE="${BUILD_DIR}/run.sh freeciv-server -p {server_port} -r ${SERVER_RC}"
+  FREECIV_SERVER_CMD_TEMPLATE="${BUILD_DIR}/run.sh freeciv-server -p {server_port} -r ${SERVER_RC_TEMPLATE}"
 else
-  FREECIV_SERVER_CMD_TEMPLATE="${BUILD_DIR}/run.sh freeciv-server -p {server_port} -f ${SCENARIO_PATH} -r ${SERVER_RC}"
+  FREECIV_SERVER_CMD_TEMPLATE="${BUILD_DIR}/run.sh freeciv-server -p {server_port} -f ${SCENARIO_PATH} -r ${SERVER_RC_TEMPLATE}"
 fi
 
 if [ "${USE_GPU}" = "0" ]; then

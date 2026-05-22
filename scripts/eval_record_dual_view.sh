@@ -11,21 +11,23 @@ SERVER_PORT="${SERVER_PORT:-5566}"
 LUA_PORT="${LUA_PORT:-4451}"
 OBSERVER_LUA_PORT="${OBSERVER_LUA_PORT:-$((LUA_PORT + 1))}"
 HOST="${HOST:-127.0.0.1}"
-RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/recordings}"
+RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/evals/${RUN_STAMP}}"
 RECORD_FPS="${RECORD_FPS:-30}"
 DISPLAY_SIZE="${DISPLAY_SIZE:-1920x1080}"
 OBSERVER_DISPLAY_SIZE="${OBSERVER_DISPLAY_SIZE:-${DISPLAY_SIZE}}"
 DISPLAY_DEPTH="${DISPLAY_DEPTH:-24}"
 CLIENT_RESOLUTION="${CLIENT_RESOLUTION:-1920x1080}"
 RECORD_SIZE="${RECORD_SIZE:-${CLIENT_RESOLUTION}}"
-RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)}"
-RECORD_AGENT_FILE="${RECORD_AGENT_FILE:-${RECORD_DIR}/eval-agent-${RUN_STAMP}.mp4}"
-RECORD_GLOBAL_FILE="${RECORD_GLOBAL_FILE:-${RECORD_DIR}/eval-global-${RUN_STAMP}.mp4}"
+RECORD_AGENT_FILE="${RECORD_AGENT_FILE:-${RECORD_DIR}/eval-agent.mp4}"
+RECORD_GLOBAL_FILE="${RECORD_GLOBAL_FILE:-${RECORD_DIR}/eval-global.mp4}"
 RECORD_START_TIMEOUT="${RECORD_START_TIMEOUT:-30}"
 OBSERVER_NAME="${OBSERVER_NAME:-global0}"
 OBSERVER_START_TIMEOUT="${OBSERVER_START_TIMEOUT:-30}"
 EVAL_LOG="${EVAL_LOG:-}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
+FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
+FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
@@ -53,6 +55,8 @@ export CLIENT_RESOLUTION
 export SERVER_PORT
 export LUA_PORT
 export FREECIV_GENERATED_MAP
+export FREECIV_TAKE_RETRIES
+export FREECIV_TAKE_WAIT
 
 cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 cleanup_freeciv_ports "${SERVER_PORT}" "${OBSERVER_LUA_PORT}"
@@ -183,6 +187,18 @@ wait_display() {
   return 1
 }
 
+wait_x_ready() {
+  local display_num="$1"
+  local timeout="$2"
+  for _ in $(seq 1 "${timeout}"); do
+    if DISPLAY="${display_num}" xdpyinfo >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 start_ffmpeg() {
   local display_num="$1"
   local output_file="$2"
@@ -199,6 +215,26 @@ start_ffmpeg() {
     -preset veryfast \
     -pix_fmt yuv420p \
     "${output_file}" &
+}
+
+start_ffmpeg_with_retry() {
+  local display_num="$1"
+  local output_file="$2"
+  local pid_var="$3"
+  local pid=""
+  for _ in $(seq 1 10); do
+    start_ffmpeg "${display_num}" "${output_file}"
+    pid="$!"
+    sleep 0.5
+    if kill -0 "${pid}" >/dev/null 2>&1; then
+      printf -v "${pid_var}" '%s' "${pid}"
+      return 0
+    fi
+    wait "${pid}" >/dev/null 2>&1 || true
+    sleep 0.5
+  done
+  echo "Failed to start ffmpeg recording for ${display_num}." >&2
+  return 1
 }
 
 if [ -n "${EVAL_LOG}" ]; then
@@ -221,6 +257,12 @@ while ! wait_display "${DISPLAY_NUM}" 1; do
   fi
 done
 
+if ! wait_x_ready "${DISPLAY_NUM}" "${RECORD_START_TIMEOUT}"; then
+  echo "Display ${DISPLAY_NUM} did not become ready for recording." >&2
+  exit 1
+fi
+start_ffmpeg_with_retry "${DISPLAY_NUM}" "${RECORD_AGENT_FILE}" ffmpeg_agent_pid
+
 if wait_tcp "${HOST}" "${SERVER_PORT}" "${RECORD_START_TIMEOUT}"; then
   Xvfb "${OBSERVER_DISPLAY_NUM}" -screen 0 "${OBSERVER_DISPLAY_SIZE}x${DISPLAY_DEPTH}" -nolisten tcp >/tmp/freeciv-muzero-observer-xvfb.log 2>&1 &
   observer_xvfb_pid="$!"
@@ -228,6 +270,13 @@ if wait_tcp "${HOST}" "${SERVER_PORT}" "${RECORD_START_TIMEOUT}"; then
     echo "Warning: observer display ${OBSERVER_DISPLAY_NUM} did not become available." >&2
   else
     observer_display_ready=1
+    if ! wait_x_ready "${OBSERVER_DISPLAY_NUM}" "${OBSERVER_START_TIMEOUT}"; then
+      echo "Warning: observer display ${OBSERVER_DISPLAY_NUM} did not become ready for recording." >&2
+      observer_display_ready=0
+    fi
+  fi
+  if [ "${observer_display_ready}" = "1" ]; then
+    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
   fi
 fi
 
@@ -256,12 +305,7 @@ else
   echo "Warning: Freeciv server/display unavailable; skipping global observer." >&2
 fi
 
-start_ffmpeg "${DISPLAY_NUM}" "${RECORD_AGENT_FILE}"
-ffmpeg_agent_pid="$!"
-if [ "${observer_display_ready}" = "1" ]; then
-  start_ffmpeg "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}"
-  ffmpeg_global_pid="$!"
-else
+if [ "${observer_display_ready}" != "1" ]; then
   echo "Warning: skipping global recording; display ${OBSERVER_DISPLAY_NUM} is unavailable." >&2
 fi
 

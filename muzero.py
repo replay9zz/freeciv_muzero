@@ -124,7 +124,7 @@ class MuZero:
         ray.init(
             num_gpus=total_gpus,
             ignore_reinit_error=True,
-            # include_dashboard=True,
+            include_dashboard=False,
             # dashboard_host="0.0.0.0",
             # dashboard_port=8265,
         )

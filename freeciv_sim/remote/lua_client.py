@@ -336,14 +336,14 @@ class LuaRemoteClient:
         safe_kind = self._quote_lua_string(kind or "UnitType")
         safe_name = self._quote_lua_string(rule_name or "")
         lua = (
-            "do local ok=false; "
+            "do local ok=false; local res=false; "
             f"local cid={int(city_id)}; "
             f"local kind={safe_kind}; "
             f"local uname={safe_name}; "
             "if client and client.set_city_production then "
-            "  ok=pcall(function() client.set_city_production(cid, kind, uname) end) "
+            "  ok,res=pcall(function() return client.set_city_production(cid, kind, uname) end) "
             "end; "
-            "local msg = ok and '__OK__ city_prod' or '__ERR__ city_prod'; "
+            "local msg = (ok and res) and '__OK__ city_prod' or '__ERR__ city_prod'; "
             "log.normal(msg); chat.base(msg) end"
         )
         self._log_action("set_city_production", lua)
@@ -356,15 +356,15 @@ class LuaRemoteClient:
         safe_kind = self._quote_lua_string(kind or "UnitType")
         safe_name = self._quote_lua_string(rule_name or "")
         lua = (
-            "do local ok=false; "
+            "do local ok=false; local res=false; "
             f"local cid={int(city_id)}; "
             f"local kind={safe_kind}; "
             f"local uname={safe_name}; "
             f"local pos={int(position)}; "
             "if client and client.queue_city_production then "
-            "  ok=pcall(function() client.queue_city_production(cid, kind, uname, pos) end) "
+            "  ok,res=pcall(function() return client.queue_city_production(cid, kind, uname, pos) end) "
             "end; "
-            "local msg = ok and '__OK__ city_queue' or '__ERR__ city_queue'; "
+            "local msg = (ok and res) and '__OK__ city_queue' or '__ERR__ city_queue'; "
             "log.normal(msg); chat.base(msg) end"
         )
         self._log_action("queue_city_production", lua)

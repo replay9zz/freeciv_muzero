@@ -6,8 +6,8 @@ results/*
 !results/
 !results/checkpoints/
 results/checkpoints/*
-!results/recordings/
-results/recordings/*
+!results/evals/
+results/evals/*
 
 # Remote Play
 !results/remote_play/

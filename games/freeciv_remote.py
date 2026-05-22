@@ -63,6 +63,7 @@ from freeciv_sim.remote.lua_queries import (
     list_city_adjacent_water,
     list_city_buildings,
     list_all_unit_status,
+    list_player_known_techs,
     list_player_scores,
     list_city_sizes,
     list_tile_owners,
@@ -739,6 +740,7 @@ class Game(AbstractGame):
                     raise
                 if idx >= attempts - 1:
                     raise
+                self._maybe_take_player()
                 time.sleep(self.take_wait)
 
     def _refresh_tile_owners(self) -> None:
@@ -1276,13 +1278,20 @@ class Game(AbstractGame):
                 research_done = alpha_live.is_target_researched(self.client, self.player_id)
             except Exception:
                 research_done = False
-            for tech in MultiheadState.RESEARCH_TECHS:
-                try:
-                    research_flags[tech] = alpha_live.simple_knows_tech(
-                        self.client, self.player_id, tech
+            try:
+                research_flags.update(
+                    list_player_known_techs(
+                        self.client, self.player_id, MultiheadState.RESEARCH_TECHS
                     )
-                except Exception:
-                    continue
+                )
+            except Exception:
+                for tech in MultiheadState.RESEARCH_TECHS:
+                    try:
+                        research_flags[tech] = alpha_live.simple_knows_tech(
+                            self.client, self.player_id, tech
+                        )
+                    except Exception:
+                        continue
 
         snapshot = alpha_live.Snapshot(
             au_map=au_map,
@@ -1917,6 +1926,9 @@ class Game(AbstractGame):
             name = self._upgrade_unit_name(name)
             if self._production_is_excluded(name):
                 return 0
+            if self.client is not None and self.player_id is not None:
+                if not self._player_can_build_unit(name):
+                    return 0
             if self._production_is_worker_like(name) and self._worker_unit_count() > 0:
                 return 0
             if name == "Settlers":
@@ -1928,6 +1940,9 @@ class Game(AbstractGame):
                 return 0
             if not self._building_allowed_by_requirements(city_id, name):
                 return 0
+            if self.client is not None and self.player_id is not None:
+                if not self._player_can_build_building(name):
+                    return 0
             if name in self._city_buildings.get(city_id, set()):
                 return 0
             queued_buildings = {

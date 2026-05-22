@@ -12,6 +12,7 @@ from .lua_queries import (
     list_all_cities,
     list_all_units,
     list_city_walls,
+    list_player_known_techs,
     list_visible_tiles_call,
     parse_position_result,
     parse_vision_tiles,
@@ -240,11 +241,16 @@ def gather_snapshot(
             research_done = is_target_researched(client, player_id)
         except Exception:
             research_done = False
-        for tech in MultiheadState.RESEARCH_TECHS:
-            try:
-                research_flags[tech] = simple_knows_tech(client, player_id, tech)
-            except Exception:
-                continue
+        try:
+            research_flags.update(
+                list_player_known_techs(client, player_id, MultiheadState.RESEARCH_TECHS)
+            )
+        except Exception:
+            for tech in MultiheadState.RESEARCH_TECHS:
+                try:
+                    research_flags[tech] = simple_knows_tech(client, player_id, tech)
+                except Exception:
+                    continue
         research_done = research_flags.get(TARGET_TECH_NAME, research_done)
 
     visible_tiles: Set[Tuple[int, int]] = set()

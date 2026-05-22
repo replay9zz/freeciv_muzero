@@ -575,6 +575,17 @@ def main() -> None:
     model.set_weights(weights)
     model.to(device)
     model.eval()
+    if device.type == "cuda":
+        visible_devices = os.getenv("CUDA_VISIBLE_DEVICES", "<unset>")
+        cuda_index = torch.cuda.current_device()
+        cuda_name = torch.cuda.get_device_name(cuda_index)
+        print(
+            "Inference device: "
+            f"{device} visible={visible_devices} cuda_index={cuda_index} name={cuda_name}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"Inference device: {device}", file=sys.stderr)
 
     if args.max_moves is None:
         if hasattr(config, "max_actions_per_turn"):

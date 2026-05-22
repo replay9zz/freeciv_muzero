@@ -44,9 +44,48 @@ latest_checkpoint() {
   } | sort -nr | awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
 }
 
+prepare_server_rc_template() {
+  local source_rc="$1"
+  local output_dir="$2"
+  local start_port="$3"
+  local port_stride="$4"
+  local count="$5"
+  local run_id="$6"
+  local score_prefix="${FREECIV_SCOREFILE_PREFIX:-freeciv-score}"
+
+  mkdir -p "${output_dir}"
+  local idx port target scorefile
+  for ((idx = 0; idx < count; idx++)); do
+    port=$((start_port + idx * port_stride))
+    target="${output_dir}/start-${port}.serv"
+    scorefile="${score_prefix}-${run_id}-${port}.log"
+    if grep -Eq '^[[:space:]]*set[[:space:]]+scorefile[[:space:]]+"' "${source_rc}"; then
+      sed -E \
+        "s|^([[:space:]]*set[[:space:]]+scorefile[[:space:]]+\").*(\".*)$|\\1${scorefile}\\2|" \
+        "${source_rc}" >"${target}"
+    else
+      awk -v scorefile="${scorefile}" '
+        /^[[:space:]]*start([[:space:]]|$)/ && !inserted {
+          printf "set scorefile \"%s\"\n", scorefile
+          inserted = 1
+        }
+        { print }
+        END {
+          if (!inserted) {
+            printf "set scorefile \"%s\"\n", scorefile
+          }
+        }
+      ' "${source_rc}" >"${target}"
+    fi
+  done
+
+  printf '%s\n' "${output_dir}/start-{server_port}.serv"
+}
+
 init_python_env() {
   cd "${ROOT_DIR}"
   source .venv/bin/activate
+  export RAY_memory_usage_threshold="${RAY_memory_usage_threshold:-${RAY_MEMORY_USAGE_THRESHOLD:-0.99}}"
 }
 
 cleanup_freeciv_ports() {

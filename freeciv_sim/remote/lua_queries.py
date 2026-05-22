@@ -199,6 +199,61 @@ def player_knows_tech(lr: LuaRemoteClient, player_id: int, tech_identifier: Unio
     )
 
 
+def list_player_known_techs(
+    lr: LuaRemoteClient,
+    player_id: int,
+    tech_names: Iterable[str],
+) -> Dict[str, bool]:
+    names = [str(name) for name in tech_names]
+    if not names:
+        return {}
+    lua_names = ",".join(_lua_quote(name) for name in names)
+    lua = (
+        "return (function() "
+        f"local pl = find.player and find.player({int(player_id)}); "
+        f"local names = {{{lua_names}}}; "
+        "if not pl then return '' end; "
+        "local parts = {}; "
+        "for _,name in ipairs(names) do "
+        "  local tech=nil; "
+        "  if find.tech_type then tech = find.tech_type(name) or tech end; "
+        "  if find.tech then tech = tech or find.tech(name) end; "
+        "  if not tech and find.tech_type_iterate then "
+        "    local iter = find.tech_type_iterate(); "
+        "    while true do "
+        "      local t = iter(); "
+        "      if not t then break end; "
+        "      local rn = nil; "
+        "      if t.rule_name then local ok,res=pcall(function() return t:rule_name() end); if ok then rn=res end end; "
+        "      if (t.name and string.lower(t.name) == string.lower(name)) or (rn and string.lower(rn) == string.lower(name)) then tech = t; break end; "
+        "    end "
+        "  end; "
+        "  local known = false; "
+        "  if tech and pl.knows_tech then local ok,res=pcall(function() return pl:knows_tech(tech) end); known = ok and res or false end; "
+        "  local safe = tostring(name):gsub('[|;]', '/'); "
+        "  parts[#parts + 1] = safe .. '|' .. (known and '1' or '0'); "
+        "end; "
+        "return table.concat(parts, ';') "
+        "end)()"
+    )
+    try:
+        res = lr.eval(lua)
+        payload = res.last_return() if res else None
+    except Exception:
+        return {}
+    out: Dict[str, bool] = {}
+    if not payload:
+        return out
+    for entry in payload.split(";"):
+        if not entry:
+            continue
+        name, sep, flag = entry.partition("|")
+        if not sep:
+            continue
+        out[name] = flag == "1"
+    return out
+
+
 def set_player_research(lr: LuaRemoteClient, player_id: int, tech_identifier: Union[str, int]) -> bool:
     lookup = _build_tech_lookup_lua(tech_identifier)
     lua = (
@@ -228,8 +283,7 @@ def set_player_research(lr: LuaRemoteClient, player_id: int, tech_identifier: Un
         "local success2=false; "
         "if ok2 and res2~=nil then success2 = (res2==true) or (res2==1) end; "
         "if success2 then return '__SETRESEARCH__ 1' end; "
-        "pl.researching = tech; "
-        "return '__SETRESEARCH__ 1' "
+        "return '__SETRESEARCH__ 0' "
         "end)()"
     )
     try:

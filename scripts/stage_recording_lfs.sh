@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $(basename "$0") results/recordings/file.mp4 [more.mp4 ...]" >&2
+  echo "Usage: $(basename "$0") results/evals/<run>/file.mp4 [more.mp4 ...]" >&2
   exit 2
 fi
 
@@ -16,10 +16,10 @@ git lfs install --local >/dev/null
 git add .gitattributes
 for path in "$@"; do
   case "${path}" in
-    results/recordings/*.mp4|results/recordings/**/*.mp4) ;;
+    results/evals/*.mp4|results/evals/**/*.mp4) ;;
     *)
       echo "Refusing non-recording mp4 path: ${path}" >&2
-      echo "Expected path under results/recordings/ ending in .mp4" >&2
+      echo "Expected path under results/evals/ ending in .mp4" >&2
       exit 2
       ;;
   esac
