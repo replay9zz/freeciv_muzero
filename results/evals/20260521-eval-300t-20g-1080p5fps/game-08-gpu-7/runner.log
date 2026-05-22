@@ -1,0 +1,24 @@
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
+[x11grab @ 0x55e45a8315c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+[x11grab @ 0x55a377c285c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+Encodings: Data=UTF-8, Local=, Internal=UTF-8
+3: LuaRemote listening on 127.0.0.1:4522
+1: Lost connection to server: server disconnected.
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fccd4cfe32b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fccd4d079ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fccd4d07ab6]
+3:     3: ./freeciv-gtk3.22(+0xb55fb) [0x55966b8855fb]
+3:     4: ./freeciv-gtk3.22(+0x718b4) [0x55966b8418b4]
+3:     5: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_context_dispatch+0x174) [0x7fccd3d93c44]
+3:     6: /lib/x86_64-linux-gnu/libglib-2.0.so.0(+0xab2b8) [0x7fccd3de92b8]
+3:     7: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_loop_run+0x73) [0x7fccd3d932b3]
+3:     8: /lib/x86_64-linux-gnu/libgtk-3.so.0(gtk_main+0x9d) [0x7fccd45d5d2d]
+3:     9: ./freeciv-gtk3.22(+0x74523) [0x55966b844523]
+3:    10: ./freeciv-gtk3.22(+0xb08e6) [0x55966b8808e6]
+3:    11: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fccd3a55d90]
+3:    12: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fccd3a55e40]
+3:    13: ./freeciv-gtk3.22(+0x42bf5) [0x55966b812bf5]
+Recorded agent view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260521-eval-300t-20g-1080p5fps/game-08-gpu-7/eval-agent.mp4
+Recorded global view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260521-eval-300t-20g-1080p5fps/game-08-gpu-7/eval-global.mp4
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
