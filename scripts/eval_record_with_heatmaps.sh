@@ -19,6 +19,9 @@ CLIENT_RESOLUTION="${CLIENT_RESOLUTION:-${DISPLAY_SIZE}}"
 RECORD_SIZE="${RECORD_SIZE:-${DISPLAY_SIZE}}"
 HEATMAP_PANEL_WIDTH="${HEATMAP_PANEL_WIDTH:-640}"
 HEATMAP_PANEL_HEIGHT="${HEATMAP_PANEL_HEIGHT:-${GAMEPLAY_HEIGHT}}"
+HEATMAP_TILE_SHAPE="${HEATMAP_TILE_SHAPE:-hex}"
+HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-4}}"
+HEATMAP_MAP_HEIGHT="${HEATMAP_MAP_HEIGHT:-${MAP_HEIGHT:-16}}"
 HEATMAP_START_DELAY="${HEATMAP_START_DELAY:-0}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
 
@@ -40,6 +43,7 @@ fi
 mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}"
 
 FREECIV_BELIEF_TENSORBOARD=1 \
+FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}" \
 FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}" \
 FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}" \
 DISPLAY_SIZE="${DISPLAY_SIZE}" \
@@ -54,6 +58,9 @@ RECORD_FILE="${GAMEPLAY_FILE}" \
   --tags "${HEATMAP_TAGS}" \
   --width "${HEATMAP_PANEL_WIDTH}" \
   --height "${HEATMAP_PANEL_HEIGHT}" \
+  --tile-shape "${HEATMAP_TILE_SHAPE}" \
+  --map-width "${HEATMAP_MAP_WIDTH}" \
+  --map-height "${HEATMAP_MAP_HEIGHT}" \
   --metadata-out "${HEATMAP_METADATA}"
 
 frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
@@ -72,7 +79,7 @@ ffmpeg \
   -i "${GAMEPLAY_FILE}" \
   -framerate "${heatmap_fps}" \
   -i "${HEATMAP_FRAME_DIR}/frame_%06d.png" \
-  -filter_complex "[0:v]scale=${GAMEPLAY_WIDTH}:${GAMEPLAY_HEIGHT},setpts=PTS-STARTPTS[game];[1:v]scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone[heat];[game][heat]hstack=inputs=2[v]" \
+  -filter_complex "[0:v]scale=${GAMEPLAY_WIDTH}:${GAMEPLAY_HEIGHT},setpts=PTS-STARTPTS[game];[1:v]scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone[heat];[game][heat]hstack=inputs=2,fps=${RECORD_FPS:-30}[v]" \
   -map "[v]" \
   -an \
   -c:v libx264 \

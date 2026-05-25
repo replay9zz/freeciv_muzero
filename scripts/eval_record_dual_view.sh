@@ -21,11 +21,27 @@ CLIENT_RESOLUTION="${CLIENT_RESOLUTION:-1920x1080}"
 RECORD_SIZE="${RECORD_SIZE:-${CLIENT_RESOLUTION}}"
 RECORD_AGENT_FILE="${RECORD_AGENT_FILE:-${RECORD_DIR}/eval-agent.mp4}"
 RECORD_GLOBAL_FILE="${RECORD_GLOBAL_FILE:-${RECORD_DIR}/eval-global.mp4}"
+HEATMAP_VIDEO_FILE="${HEATMAP_VIDEO_FILE:-${RECORD_DIR}/eval-heatmaps.mp4}"
+HEATMAP_TB_DIR="${HEATMAP_TB_DIR:-${RECORD_DIR}/heatmaps/tb}"
+HEATMAP_FRAME_DIR="${HEATMAP_FRAME_DIR:-${RECORD_DIR}/heatmaps/frames}"
+HEATMAP_METADATA="${HEATMAP_METADATA:-${RECORD_DIR}/heatmaps/heatmap.json}"
+HEATMAP_TAGS="${HEATMAP_TAGS:-belief_units,threat,visible_units,territory}"
+HEATMAP_PANEL_WIDTH="${HEATMAP_PANEL_WIDTH:-640}"
+HEATMAP_PANEL_HEIGHT="${HEATMAP_PANEL_HEIGHT:-${CLIENT_RESOLUTION#*x}}"
+HEATMAP_TILE_SHAPE="${HEATMAP_TILE_SHAPE:-hex}"
+HEATMAP_START_DELAY="${HEATMAP_START_DELAY:-0}"
 RECORD_START_TIMEOUT="${RECORD_START_TIMEOUT:-30}"
 OBSERVER_NAME="${OBSERVER_NAME:-global0}"
 OBSERVER_START_TIMEOUT="${OBSERVER_START_TIMEOUT:-30}"
 EVAL_LOG="${EVAL_LOG:-}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
+if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
+  HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-16}}"
+  HEATMAP_MAP_HEIGHT="${HEATMAP_MAP_HEIGHT:-${MAP_HEIGHT:-16}}"
+else
+  HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-4}}"
+  HEATMAP_MAP_HEIGHT="${HEATMAP_MAP_HEIGHT:-${MAP_HEIGHT:-16}}"
+fi
 FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
 FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
 
@@ -38,7 +54,12 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${RECORD_DIR}"
+if ! command -v ffprobe >/dev/null 2>&1; then
+  echo "ffprobe is required to align the heatmap video duration." >&2
+  exit 1
+fi
+
+mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
   echo "Checkpoint not found: ${CHECKPOINT}" >&2
@@ -57,6 +78,10 @@ export LUA_PORT
 export FREECIV_GENERATED_MAP
 export FREECIV_TAKE_RETRIES
 export FREECIV_TAKE_WAIT
+export FREECIV_BELIEF_TENSORBOARD=1
+export FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}"
+export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
+export FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}"
 
 cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 cleanup_freeciv_ports "${SERVER_PORT}" "${OBSERVER_LUA_PORT}"
@@ -327,5 +352,43 @@ echo "Recorded agent view to ${RECORD_AGENT_FILE}"
 if [ -f "${RECORD_GLOBAL_FILE}" ]; then
   echo "Recorded global view to ${RECORD_GLOBAL_FILE}"
 fi
+
+"${PYTHON}" "${SCRIPT_DIR}/render_tb_heatmap_panel.py" \
+  --logdir "${HEATMAP_TB_DIR}" \
+  --out-dir "${HEATMAP_FRAME_DIR}" \
+  --tags "${HEATMAP_TAGS}" \
+  --width "${HEATMAP_PANEL_WIDTH}" \
+  --height "${HEATMAP_PANEL_HEIGHT}" \
+  --tile-shape "${HEATMAP_TILE_SHAPE}" \
+  --map-width "${HEATMAP_MAP_WIDTH}" \
+  --map-height "${HEATMAP_MAP_HEIGHT}" \
+  --metadata-out "${HEATMAP_METADATA}"
+
+frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+if [ "${frame_count}" -lt 1 ]; then
+  echo "No heatmap frames were produced." >&2
+  echo "Checkpoint: ${CHECKPOINT}"
+  exit "${eval_status}"
+fi
+
+duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${RECORD_AGENT_FILE}")"
+heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" -v delay="${HEATMAP_START_DELAY}" 'BEGIN { active = duration - delay; intervals = frames > 1 ? frames - 1 : 1; if (active > 0) print intervals / active; else print 1 }')"
+
+ffmpeg \
+  -hide_banner \
+  -loglevel warning \
+  -y \
+  -framerate "${heatmap_fps}" \
+  -i "${HEATMAP_FRAME_DIR}/frame_%06d.png" \
+  -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
+  -an \
+  -r "${RECORD_FPS}" \
+  -c:v libx264 \
+  -preset veryfast \
+  -pix_fmt yuv420p \
+  "${HEATMAP_VIDEO_FILE}"
+
+echo "Rendered heatmap frames to ${HEATMAP_FRAME_DIR}"
+echo "Rendered heatmap video to ${HEATMAP_VIDEO_FILE}"
 echo "Checkpoint: ${CHECKPOINT}"
 exit "${eval_status}"

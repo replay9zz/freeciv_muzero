@@ -120,6 +120,20 @@ Hex-neighbor wiring sanity check:
 It picks the latest `model.checkpoint` from `results/checkpoints` or `results/freeciv_remote` by default.
 Override it with `CHECKPOINT=... ./scripts/eval.sh` or `./scripts/eval.sh /path/to/model.checkpoint`.
 
+Record gameplay with Freeciv-style hex heatmap panels:
+
+```bash
+./scripts/eval_record_with_heatmaps.sh
+```
+
+Set `HEATMAP_TILE_SHAPE=square` to render the previous square-grid panels.
+The dual-view recorder keeps separate `eval-agent.mp4`, `eval-global.mp4`, and
+`eval-heatmaps.mp4` files:
+
+```bash
+./scripts/eval_record_dual_view.sh
+```
+
 Recordings are ignored by default. To publish selected MP4 recordings through Git LFS:
 
 ```bash

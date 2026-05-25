@@ -13,6 +13,7 @@ from typing import Optional
 
 import numpy
 import torch
+from PIL import Image, ImageDraw
 from torch.utils.tensorboard import SummaryWriter
 
 from .abstract_game import AbstractGame
@@ -388,6 +389,10 @@ class Game(AbstractGame):
         self.belief_tb_enabled = _env_bool("FREECIV_BELIEF_TENSORBOARD", False)
         self.belief_tb_interval = max(1, _env_int("FREECIV_BELIEF_TENSORBOARD_INTERVAL", 1))
         self.belief_tb_dir = os.getenv("FREECIV_BELIEF_TENSORBOARD_DIR")
+        self.belief_tb_hex_enabled = _env_bool(
+            "FREECIV_BELIEF_TENSORBOARD_HEX",
+            self.belief_tb_enabled,
+        )
         self.reward_tb_enabled = _env_bool(
             "FREECIV_REWARD_TENSORBOARD",
             self.belief_tb_enabled,
@@ -867,6 +872,67 @@ class Game(AbstractGame):
             rgb[1, high] = 1.0 - t
         return rgb
 
+    def _belief_hex_points(
+        self,
+        cx: float,
+        cy: float,
+        tile_w: float,
+        tile_h: float,
+    ) -> list[tuple[int, int]]:
+        side = tile_w * 0.23
+        half_w = tile_w / 2.0
+        half_h = tile_h / 2.0
+        return [
+            (round(cx - half_w + side), round(cy - half_h)),
+            (round(cx + half_w - side), round(cy - half_h)),
+            (round(cx + half_w), round(cy)),
+            (round(cx + half_w - side), round(cy + half_h)),
+            (round(cx - half_w + side), round(cy + half_h)),
+            (round(cx - half_w), round(cy)),
+        ]
+
+    def _belief_hex_heatmap_rgb(
+        self,
+        plane: numpy.ndarray,
+        width: int = 320,
+        height: int = 240,
+    ) -> numpy.ndarray:
+        rgb = self._belief_heatmap_rgb(plane).transpose(1, 2, 0)
+        rows, cols = rgb.shape[:2]
+        canvas = Image.new("RGB", (width, height), (9, 12, 14))
+        draw = ImageDraw.Draw(canvas)
+        pad = 8
+        row_step = 0.75
+        avail_w = max(1, width - pad * 2)
+        avail_h = max(1, height - pad * 2)
+        width_units = cols + 0.5
+        height_units = 1.0 + max(0, rows - 1) * row_step
+        tile_w = min(avail_w / width_units, (avail_h / height_units) / 0.72)
+        tile_h = tile_w * 0.72
+        if tile_h * height_units > avail_h:
+            tile_h = avail_h / height_units
+            tile_w = tile_h / 0.72
+        total_w = tile_w * width_units
+        total_h = tile_h * height_units
+        x_origin = (width - total_w) / 2.0
+        y_origin = (height - total_h) / 2.0
+        for y in range(rows):
+            for x in range(cols):
+                fill = tuple(int(v * 255.0) for v in rgb[y, x])
+                outline = tuple(max(0, int(c * 0.55)) for c in fill)
+                if max(fill) <= 2:
+                    fill = (20, 24, 26)
+                    outline = (38, 44, 48)
+                cx = x_origin + (x + 0.5 + (0.5 if y % 2 else 0.0)) * tile_w
+                cy = y_origin + (0.5 + y * row_step) * tile_h
+                draw.polygon(
+                    self._belief_hex_points(cx, cy, tile_w * 0.96, tile_h * 0.90),
+                    fill=fill,
+                    outline=outline,
+                )
+        out = numpy.asarray(canvas, dtype=numpy.float32) / 255.0
+        return out.transpose(2, 0, 1)
+
     def _belief_top_coords(self, plane: numpy.ndarray, limit: int = 3) -> str:
         arr = numpy.asarray(plane, dtype=numpy.float32)
         if arr.size == 0:
@@ -1005,6 +1071,12 @@ class Game(AbstractGame):
                 self._belief_heatmap_rgb(plane),
                 global_step=self.turns,
             )
+            if self.belief_tb_hex_enabled:
+                writer.add_image(
+                    f"{prefix}/{name}_hex",
+                    self._belief_hex_heatmap_rgb(plane),
+                    global_step=self.turns,
+                )
         belief_plane = self._belief_planes.get("belief_units")
         threat_plane = self._belief_planes.get("threat")
         if belief_plane is not None:
