@@ -1,0 +1,527 @@
+Using checkpoint compatibility adapter: dynamics_network.module.fc.0.weight checkpoint=(64, 128), remote=(64, 512)
+Using checkpoint compatibility adapter: prediction_network.module.fc_value.0.weight checkpoint=(64, 128), remote=(64, 512)
+Using checkpoint compatibility adapter: prediction_network.module.fc_policy.0.weight checkpoint=(64, 256), remote=(64, 1024)
+Inference device: cuda visible=3 cuda_index=0 name=NVIDIA GeForce GTX 1080 Ti
+Encodings: Data=UTF-8, Local=, Internal=UTF-8
+This is the server for Freeciv version 3.2.1
+You can learn a lot about Freeciv at https://www.freeciv.org/
+This freeciv-server program has player authentication support, but it's currently not in use.
+3: Loading rulesets.
+Encodings: Data=UTF-8, Local=, Internal=UTF-8
+3: Ruleset: 'aifill' has been set to 6.
+3: Ruleset: 'generator' has been set to "Pseudo-fractal height" (FRACTAL).
+3: Ruleset: 'wrap' has been set to "Wrap East-West" and "Wrap North-South" (WRAPX|WRAPY).
+3: Ruleset: 'mapsize' has been set to "Tiles per player" (PLAYER).
+3: Ruleset: 'tinyisles' has been set to enabled.
+3: Ruleset: 'temperature' has been set to 60.
+3: Ruleset: 'flatpoles' has been set to 0.
+3: Ruleset: 'startunits' has been set to "cwsx".
+3: Ruleset: 'citymindist' has been set to 3.
+3: Ruleset: 'techlevel' has been set to 1.
+3: Ruleset: 'foggedborders' has been set to enabled.
+3: Ruleset: 'restrictinfra' has been set to enabled.
+3: Ruleset: 'unreachableprotects' has been set to disabled.
+3: Ruleset: 'onsetbarbs' has been set to 120.
+3: Ruleset: 'occupychance' has been set to 100.
+3: Ruleset: 'razechance' has been set to 10.
+3: Ruleset: 'techlossforgiveness' has been set to 0.
+3: Ruleset: 'revolentype' has been set to "Random, max always quicker" (RANDQUICK).
+3: Ruleset: 'tradeworldrelpct' has been set to 100.
+3: Ruleset: 'disasters' has been set to 100.
+3: Ruleset: 'animals' has been set to 14.
+3: AI*1 has been added as Easy level AI-controlled player (classic).
+3: AI*2 has been added as Easy level AI-controlled player (classic).
+3: AI*3 has been added as Easy level AI-controlled player (classic).
+3: AI*4 has been added as Easy level AI-controlled player (classic).
+3: AI*5 has been added as Easy level AI-controlled player (classic).
+3: AI*6 has been added as Easy level AI-controlled player (classic).
+3: Loading script file '/tmp/freeciv-muzero-rc-20260524-175028-754543/start-5596.serv'.
+Console: 'scorelog' has been set to enabled.
+Console: 'scoreloglevel' has been set to "All players" (ALL).
+Console: 'scorefile' has been set to "freeciv-score-20260524-175028-754543-5596.log".
+Console: 'autosaves' has been set to empty value.
+Console: 'minplayers' has been set to 0.
+Console: 'aifill' has been set to 2.
+3: Removing player AI*6.
+3: Removing player AI*5.
+3: Removing player AI*4.
+3: Removing player AI*3.
+Console: 'mapsize' has been set to "Width and height" (XYSIZE).
+Console: 'xsize' has been set to 16.
+Console: 'ysize' has been set to 16.
+Console: 'wrap' has been set to empty value.
+Console: 'generator' has been set to "Pseudo-fractal height" (FRACTAL).
+Console: 'startpos' has been set to "Generator's choice" (DEFAULT).
+Starting game.
+------------------------------------------------------------------------------
+All options with non-default values
+------------------------------------------------------------------------------
+In the column '##' the status of the option is shown:
+ - a '!' means the option is locked by the ruleset.
+ - a '+' means you may change the option.
+ - a '~' means that option follows default value.
+ - a '=' means the value is same as default.
+------------------------------------------------------------------------------
+Option                    ## value (min, max)
+------------------------------------------------------------------------------
+aifill                    +  2 (0, 500)
+animals                   +  14 (0, 500)
+autosaves                 +  empty value
+citymindist               +  3 (1, 11)
+disasters                 +  100 (0, 1000)
+flatpoles                 +  0 (0, 100)
+foggedborders             +  enabled
+generator                 +  "Pseudo-fractal height" (FRACTAL)
+mapsize                   +  "Width and height" (XYSIZE)
+minplayers                +  0 (0, 500)
+occupychance              +  100 (0, 100)
+onsetbarbs                +  120 (1, 32767)
+razechance                +  10 (0, 100)
+restrictinfra             +  enabled
+revolentype               +  "Random, max always quicker" (RANDQUICK)
+scorefile                 +  "freeciv-score-20260524-175028-754543-5596.log"
+scorelog                  +  enabled
+startunits                +  "cwsx"
+techlevel                 +  1 (0, 100)
+techlossforgiveness       +  0 (-1, 200)
+temperature               +  60 (0, 100)
+tinyisles                 +  enabled
+tradeworldrelpct          +  100 (0, 100)
+unreachableprotects       +  disabled
+wrap                      +  empty value
+xsize                     +  16 (16, 128000)
+ysize                     +  16 (16, 128000)
+------------------------------------------------------------------------------
+You are playing Freeciv with civ2civ3 rules:
+
+Gameplay more similar to civ3, keeping the combat system from civ2.
+
+Adapted for single player, with AI less aggressive at start, but more
+challenging at the end.
+
+The differences from the former default ruleset, 'classic', are listed
+in full in README.civ2civ3.
+------------------------------------------------------------------------------
+3: Now accepting new client connections on port 5596.
+
+For introductory help, type 'help'.
+> 
+3: Ernac rules the Huns.
+3: Romulus rules the Romans.
+3: Creating a map of size 16 x 16 = 256 tiles (map size: 0).
+3: Setting 'startpos' has been adjusted from "Generator's choice" (DEFAULT) to "All players on a single continent" (ALL).
+3: LuaRemote listening on 127.0.0.1:4481
+> 
+3: Server cannot read standard input. Ignoring input.
+> > 
+3: Lost connection: c1 from localhost.localdomain (client disconnected).
+> 
+3: Lost connection: c2 from localhost.localdomain (client disconnected).
+> 
+3: Connection request from agent0 from localhost.localdomain
+3: c3 has client version 3.2.1
+3: agent0 has connected from localhost.localdomain.
+> [player] target_player_id=0 resolved_name='Ernac'
+
+agent0: '/take "Ernac"'
+3: agent0 now controls Ernac (AI, Alive).
+> 
+3: Connection request from global0 from localhost.localdomain
+3: c4 has client version 3.2.1
+3: global0 has connected from localhost.localdomain.
+> 
+global0: '/observe'
+3: global0 now observes
+> [research] completed=Masonry
+Belief TensorBoard log dir: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-04-gpu-3/heatmaps/tb
+[tensorboard] freeciv_logdir=/home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-04-gpu-3/heatmaps/tb
+[production] city=112 append unit Warriors x3
+[research] completed=Bronze Working
+[production-options] reason=research turn=12 city=112 size=2 units=Warriors,Phalanx buildings=Barracks,City Walls
+[research] completed=Horseback Riding
+[production-options] reason=research turn=35 city=112 size=3 units=Settlers,Warriors,Phalanx,Horsemen buildings=Barracks,City Walls
+
+1: Received packet PACKET_UNIT_GET_ACTIONS(87) from non-player connection global0 from localhost.localdomain (observer).
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: ./freeciv-server(+0x39a33) [0x558b07c49a33]
+3:     4: ./freeciv-server(+0xe87ea) [0x558b07cf87ea]
+3:     5: ./freeciv-server(+0x3d75d) [0x558b07c4d75d]
+3:     6: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     7: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:     8: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:     9: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+> 
+1: Received packet PACKET_UNIT_GET_ACTIONS(87) from non-player connection global0 from localhost.localdomain (observer).
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: ./freeciv-server(+0x39a33) [0x558b07c49a33]
+3:     4: ./freeciv-server(+0xe87ea) [0x558b07cf87ea]
+3:     5: ./freeciv-server(+0x3d75d) [0x558b07c4d75d]
+3:     6: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     7: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:     8: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:     9: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+> 
+1: Received packet PACKET_UNIT_GET_ACTIONS(87) from non-player connection global0 from localhost.localdomain (observer).
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: ./freeciv-server(+0x39a33) [0x558b07c49a33]
+3:     4: ./freeciv-server(+0xe87ea) [0x558b07cf87ea]
+3:     5: ./freeciv-server(+0x3d75d) [0x558b07c4d75d]
+3:     6: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     7: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:     8: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:     9: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+> 
+1: in dai_unit_new_task() [../freeciv/ai/default/aitools.c::652]: assertion '!unit_has_orders(punit) || task == AIUNIT_NONE' failed.
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(fc_assert_fail+0xba) [0x7fa06fa92cda]
+3:     4: ./freeciv-server(+0x18d5e2) [0x558b07d9d5e2]
+3:     5: ./freeciv-server(+0x160b73) [0x558b07d70b73]
+3:     6: ./freeciv-server(+0x156ab7) [0x558b07d66ab7]
+3:     7: ./freeciv-server(+0x3e6fe) [0x558b07c4e6fe]
+3:     8: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     9: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:    10: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:    11: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+1: Please report this message at https://redmine.freeciv.org/projects/freeciv
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(fc_assert_fail+0x14b) [0x7fa06fa92d6b]
+3:     4: ./freeciv-server(+0x18d5e2) [0x558b07d9d5e2]
+3:     5: ./freeciv-server(+0x160b73) [0x558b07d70b73]
+3:     6: ./freeciv-server(+0x156ab7) [0x558b07d66ab7]
+3:     7: ./freeciv-server(+0x3e6fe) [0x558b07c4e6fe]
+3:     8: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     9: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:    10: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:    11: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+> 
+1: Received packet PACKET_UNIT_GET_ACTIONS(87) from non-player connection global0 from localhost.localdomain (observer).
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa06fa8932b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa06fa929ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa06fa92ab6]
+3:     3: ./freeciv-server(+0x39a33) [0x558b07c49a33]
+3:     4: ./freeciv-server(+0xe87ea) [0x558b07cf87ea]
+3:     5: ./freeciv-server(+0x3d75d) [0x558b07c4d75d]
+3:     6: ./freeciv-server(+0x32101) [0x558b07c42101]
+3:     7: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa06f606d90]
+3:     8: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa06f606e40]
+3:     9: ./freeciv-server(+0x32ac5) [0x558b07c42ac5]
+> [turn 0 step 0] action=build_city_u0 enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=2 fc_win=False
+[turn 0 step 1] action=move_u2_d1 enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=2 fc_win=False
+[turn 0 step 2] action=move_u1_d2 enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=2 fc_win=False
+[turn 0 step 3] action=produce_c0_Warriors enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=2 fc_win=False
+[turn 1 step 4] action=pass enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 1 step 5] action=move_u1_d0 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 1 step 6] action=move_u0_d0 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 1 step 7] action=move_u2_d1 enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 2 step 8] action=pass enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 2 step 9] action=move_u2_d1 enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 2 step 10] action=move_u0_d5 enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 2 step 11] action=move_u1_d2 enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 3 step 12] action=pass enemy_units=3 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 3 step 13] action=move_u2_d1 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 3 step 14] action=move_u1_d1 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 3 step 15] action=move_u0_d4 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 4 step 16] action=pass enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 4 step 17] action=move_u2_d1 enemy_units=1 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 4 step 18] action=move_u1_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 4 step 19] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 5 step 20] action=pass enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 5 step 21] action=move_u2_d1 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 5 step 22] action=move_u1_d4 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 5 step 23] action=move_u0_d4 enemy_units=2 enemy_cities=0 civ_score=4.90 fc_score=3 fc_win=False
+[turn 6 step 24] action=pass enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 6 step 25] action=move_u2_d1 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 6 step 26] action=move_u0_d4 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 6 step 27] action=move_u1_d2 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 7 step 28] action=pass enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 7 step 29] action=move_u2_d1 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 7 step 30] action=move_u1_d2 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 7 step 31] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 8 step 32] action=pass enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 8 step 33] action=move_u2_d1 enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 8 step 34] action=move_u1_d2 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 8 step 35] action=move_u0_d4 enemy_units=2 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 9 step 36] action=pass enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 9 step 37] action=move_u2_d1 enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 9 step 38] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 9 step 39] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=4.90 fc_score=3 fc_win=False
+[turn 10 step 40] action=pass enemy_units=0 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 10 step 41] action=move_u0_d4 enemy_units=0 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 10 step 42] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 11 step 43] action=pass enemy_units=1 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 11 step 44] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 11 step 45] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=5.90 fc_score=4 fc_win=False
+[turn 12 step 46] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 12 step 47] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 12 step 48] action=move_u0_d1 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 13 step 49] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 13 step 50] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 13 step 51] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 14 step 52] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 14 step 53] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 14 step 54] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 15 step 55] action=pass enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 15 step 56] action=move_u0_d1 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 15 step 57] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 16 step 58] action=pass enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 16 step 59] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 16 step 60] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 16 step 61] action=move_u0_d5 enemy_units=0 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 17 step 62] action=pass enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 17 step 63] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 17 step 64] action=move_u1_d4 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 17 step 65] action=move_u0_d5 enemy_units=2 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 18 step 66] action=pass enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 18 step 67] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 18 step 68] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 18 step 69] action=move_u0_d1 enemy_units=0 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 19 step 70] action=pass enemy_units=0 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 19 step 71] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 19 step 72] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 19 step 73] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=6.90 fc_score=5 fc_win=False
+[turn 20 step 74] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 20 step 75] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 20 step 76] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 20 step 77] action=move_u0_d1 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 21 step 78] action=pass enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 21 step 79] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 21 step 80] action=move_u0_d1 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 21 step 81] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 22 step 82] action=pass enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 22 step 83] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 22 step 84] action=move_u0_d2 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 22 step 85] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 23 step 86] action=pass enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 23 step 87] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 23 step 88] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 23 step 89] action=move_u0_d3 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 24 step 90] action=pass enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 24 step 91] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 24 step 92] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 24 step 93] action=move_u0_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 25 step 94] action=pass enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 25 step 95] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 25 step 96] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 25 step 97] action=move_u0_d4 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 26 step 98] action=pass enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 26 step 99] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 26 step 100] action=move_u0_d4 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 26 step 101] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 27 step 102] action=pass enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 27 step 103] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 27 step 104] action=move_u1_d4 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 27 step 105] action=move_u0_d4 enemy_units=0 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 28 step 106] action=pass enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 28 step 107] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 28 step 108] action=move_u0_d2 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 28 step 109] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 29 step 110] action=pass enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 29 step 111] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 29 step 112] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 29 step 113] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=8.90 fc_score=7 fc_win=False
+[turn 30 step 114] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 30 step 115] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 30 step 116] action=move_u0_d3 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 30 step 117] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 30 step 118] action=move_u3_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 31 step 119] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 31 step 120] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 31 step 121] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 31 step 122] action=move_u1_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 31 step 123] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 32 step 124] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 32 step 125] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 32 step 126] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 32 step 127] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 32 step 128] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 33 step 129] action=pass enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 33 step 130] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 33 step 131] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 33 step 132] action=move_u0_d4 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 33 step 133] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 34 step 134] action=pass enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 34 step 135] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 34 step 136] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 34 step 137] action=move_u0_d4 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 34 step 138] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=7.90 fc_score=6 fc_win=False
+[turn 35 step 139] action=pass enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 35 step 140] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 35 step 141] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 35 step 142] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 35 step 143] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 36 step 144] action=pass enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 36 step 145] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 36 step 146] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 36 step 147] action=move_u0_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 36 step 148] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 37 step 149] action=pass enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 37 step 150] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 37 step 151] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 37 step 152] action=move_u1_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 37 step 153] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 38 step 154] action=pass enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 38 step 155] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 38 step 156] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 38 step 157] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 38 step 158] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 39 step 159] action=pass enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 39 step 160] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 39 step 161] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 39 step 162] action=move_u1_d4 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 39 step 163] action=move_u0_d0 enemy_units=1 enemy_cities=1 civ_score=10.90 fc_score=9 fc_win=False
+[turn 40 step 164] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 40 step 165] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 40 step 166] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 40 step 167] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 40 step 168] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 41 step 169] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 41 step 170] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 41 step 171] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 41 step 172] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 41 step 173] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 42 step 174] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 42 step 175] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 42 step 176] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 42 step 177] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 42 step 178] action=move_u0_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 43 step 179] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 43 step 180] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 43 step 181] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 43 step 182] action=move_u0_d5 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 43 step 183] action=move_u1_d4 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 44 step 184] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 44 step 185] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 44 step 186] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 44 step 187] action=move_u1_d1 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 44 step 188] action=move_u0_d2 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 45 step 189] action=pass enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 45 step 190] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 45 step 191] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 45 step 192] action=move_u1_d2 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 45 step 193] action=move_u0_d2 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 46 step 194] action=pass enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 46 step 195] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 46 step 196] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 46 step 197] action=move_u0_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 46 step 198] action=move_u1_d4 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 47 step 199] action=pass enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 47 step 200] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 47 step 201] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 47 step 202] action=move_u1_d5 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 47 step 203] action=move_u0_d2 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 48 step 204] action=pass enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 48 step 205] action=move_u2_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 48 step 206] action=move_u3_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 48 step 207] action=move_u0_d0 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 48 step 208] action=move_u1_d4 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 49 step 209] action=pass enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 49 step 210] action=move_u2_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 49 step 211] action=move_u3_d0 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 49 step 212] action=move_u1_d2 enemy_units=1 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 49 step 213] action=move_u0_d5 enemy_units=0 enemy_cities=1 civ_score=11.90 fc_score=10 fc_win=False
+[turn 50 step 214] action=pass enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 50 step 215] action=move_u2_d0 enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 50 step 216] action=move_u3_d0 enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 50 step 217] action=move_u1_d0 enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 50 step 218] action=move_u0_d0 enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 50 step 219] action=move_u4_d4 enemy_units=0 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 220] action=pass enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 221] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 222] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 223] action=move_u1_d3 enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 224] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 51 step 225] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=12.90 fc_score=12 fc_win=False
+[turn 52 step 226] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 52 step 227] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 52 step 228] action=move_u3_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 52 step 229] action=move_u0_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 52 step 230] action=move_u1_d2 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 52 step 231] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 232] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 233] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 234] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 235] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 236] action=move_u1_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 53 step 237] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 238] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 239] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 240] action=move_u3_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 241] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 242] action=move_u1_d2 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 54 step 243] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 244] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 245] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 246] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 247] action=move_u1_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 248] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 55 step 249] action=move_u4_d2 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 250] action=pass enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 251] action=move_u2_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 252] action=move_u3_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 253] action=move_u0_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 254] action=move_u1_d4 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 56 step 255] action=move_u4_d4 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=11 fc_win=False
+[turn 57 step 256] action=pass enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 57 step 257] action=move_u2_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 57 step 258] action=move_u3_d0 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 57 step 259] action=move_u0_d2 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 57 step 260] action=move_u1_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 57 step 261] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 262] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 263] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 264] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 265] action=move_u0_d1 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 266] action=move_u1_d2 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 267] action=move_u4_d1 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 58 step 268] action=move_u5_d3 enemy_units=0 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 269] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 270] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 271] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 272] action=move_u4_d5 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 273] action=move_u1_d5 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 274] action=move_u0_d2 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 59 step 275] action=move_u5_d3 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 276] action=pass enemy_units=3 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 277] action=move_u2_d0 enemy_units=3 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 278] action=move_u3_d0 enemy_units=3 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 279] action=move_u1_d4 enemy_units=3 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 280] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 281] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 60 step 282] action=move_u5_d3 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 283] action=pass enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 284] action=move_u2_d0 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 285] action=move_u3_d0 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 286] action=move_u0_d0 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 287] action=move_u1_d2 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 288] action=move_u4_d4 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 61 step 289] action=move_u5_d3 enemy_units=2 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 290] action=pass enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 291] action=move_u2_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 292] action=move_u3_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 293] action=attack_u5_d1 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 294] action=move_u0_d0 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 295] action=move_u1_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 62 step 296] action=move_u4_d4 enemy_units=1 enemy_cities=2 civ_score=11.90 fc_score=13 fc_win=False
+[turn 63 step 297] action=pass enemy_units=0 enemy_cities=3 civ_score=6.00 fc_score=13 fc_win=False
+[turn 63 step 298] action=move_u0_d0 enemy_units=0 enemy_cities=3 civ_score=6.00 fc_score=13 fc_win=False
+[turn 64 step 299] action=pass enemy_units=0 enemy_cities=3 civ_score=6.00 fc_score=8 fc_win=False
+[turn 64 step 300] action=move_u0_d0 enemy_units=1 enemy_cities=3 civ_score=6.00 fc_score=8 fc_win=False
+[turn 65 step 301] action=pass enemy_units=0 enemy_cities=3 civ_score=6.00 fc_score=8 fc_win=False
+[turn 65 step 302] action=move_u0_d0 enemy_units=1 enemy_cities=3 civ_score=6.00 fc_score=8 fc_win=False
+[turn 66 step 303] action=pass enemy_units=1 enemy_cities=3 civ_score=6.00

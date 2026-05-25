@@ -1,0 +1,28 @@
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
+[x11grab @ 0x55a2c597a5c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+[x11grab @ 0x5602ebb125c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+Encodings: Data=UTF-8, Local=, Internal=UTF-8
+3: LuaRemote listening on 127.0.0.1:4602
+1: Lost connection to server: server disconnected.
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7f0f5f17732b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7f0f5f1809ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7f0f5f180ab6]
+3:     3: ./freeciv-gtk3.22(+0xb55fb) [0x55717c5275fb]
+3:     4: ./freeciv-gtk3.22(+0x718b4) [0x55717c4e38b4]
+3:     5: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_context_dispatch+0x174) [0x7f0f5e20cc44]
+3:     6: /lib/x86_64-linux-gnu/libglib-2.0.so.0(+0xab2b8) [0x7f0f5e2622b8]
+3:     7: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_loop_run+0x73) [0x7f0f5e20c2b3]
+3:     8: /lib/x86_64-linux-gnu/libgtk-3.so.0(gtk_main+0x9d) [0x7f0f5ea4ed2d]
+3:     9: ./freeciv-gtk3.22(+0x74523) [0x55717c4e6523]
+3:    10: ./freeciv-gtk3.22(+0xb08e6) [0x55717c5228e6]
+3:    11: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7f0f5deced90]
+3:    12: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7f0f5decee40]
+3:    13: ./freeciv-gtk3.22(+0x42bf5) [0x55717c4b4bf5]
+Recorded agent view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-16-gpu-5/eval-agent.mp4
+Recorded global view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-16-gpu-5/eval-global.mp4
+More than 1000 frames duplicated
+More than 10000 frames duplicated
+Rendered heatmap frames to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-16-gpu-5/heatmaps/frames
+Rendered heatmap video to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-16-gpu-5/eval-heatmaps.mp4
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint

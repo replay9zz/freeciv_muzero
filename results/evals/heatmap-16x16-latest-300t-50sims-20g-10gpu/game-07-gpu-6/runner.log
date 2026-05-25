@@ -1,0 +1,36 @@
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
+[x11grab @ 0x55b7449a85c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+[x11grab @ 0x55bda007a5c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+Encodings: Data=UTF-8, Local=, Internal=UTF-8
+3: LuaRemote listening on 127.0.0.1:4512
+1: Lost connection to server: read error.
+3: Backtrace:
+3:     0: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(backtrace_print+0x3b) [0x7fa4f04ec32b]
+3:     1: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(vdo_log+0xaa) [0x7fa4f04f59ca]
+3:     2: /home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/libfreeciv.so(do_log+0xb6) [0x7fa4f04f5ab6]
+3:     3: ./freeciv-gtk3.22(+0xb55fb) [0x564c3c0305fb]
+3:     4: ./freeciv-gtk3.22(+0x718b4) [0x564c3bfec8b4]
+3:     5: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_context_dispatch+0x174) [0x7fa4ef581c44]
+3:     6: /lib/x86_64-linux-gnu/libglib-2.0.so.0(+0xab2b8) [0x7fa4ef5d72b8]
+3:     7: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_context_iteration+0x33) [0x7fa4ef57f3e3]
+3:     8: /lib/x86_64-linux-gnu/libgtk-3.so.0(gtk_main_iteration+0x19) [0x7fa4efdc3dc9]
+3:     9: ./freeciv-gtk3.22(+0x92dd5) [0x564c3c00ddd5]
+3:    10: ./freeciv-gtk3.22(+0x11c5ed) [0x564c3c0975ed]
+3:    11: ./freeciv-gtk3.22(+0x11ccea) [0x564c3c097cea]
+3:    12: ./freeciv-gtk3.22(+0x712af) [0x564c3bfec2af]
+3:    13: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_context_dispatch+0x174) [0x7fa4ef581c44]
+3:    14: /lib/x86_64-linux-gnu/libglib-2.0.so.0(+0xab2b8) [0x7fa4ef5d72b8]
+3:    15: /lib/x86_64-linux-gnu/libglib-2.0.so.0(g_main_loop_run+0x73) [0x7fa4ef5812b3]
+3:    16: /lib/x86_64-linux-gnu/libgtk-3.so.0(gtk_main+0x9d) [0x7fa4efdc3d2d]
+3:    17: ./freeciv-gtk3.22(+0x74523) [0x564c3bfef523]
+3:    18: ./freeciv-gtk3.22(+0xb08e6) [0x564c3c02b8e6]
+3:    19: /lib/x86_64-linux-gnu/libc.so.6(+0x29d90) [0x7fa4ef243d90]
+3:    20: /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80) [0x7fa4ef243e40]
+3:    21: ./freeciv-gtk3.22(+0x42bf5) [0x564c3bfbdbf5]
+Recorded agent view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-07-gpu-6/eval-agent.mp4
+Recorded global view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-07-gpu-6/eval-global.mp4
+More than 1000 frames duplicated
+More than 10000 frames duplicated
+Rendered heatmap frames to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-07-gpu-6/heatmaps/frames
+Rendered heatmap video to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/heatmap-16x16-latest-300t-50sims-20g-10gpu/game-07-gpu-6/eval-heatmaps.mp4
+Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
