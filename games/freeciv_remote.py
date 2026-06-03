@@ -97,6 +97,9 @@ def _env_bool(name, default=False):
 
 SEA_UNIT_CLASSES = {"sea", "trireme"}
 FREECIV_NATIVE_DIR_IDS = "1,2,7,6,5,0"  # [N, NE, SE, S, SW, NW]
+EMPTY_HEATMAP_COLOR = (224, 224, 224)
+EMPTY_HEATMAP_VALUE = EMPTY_HEATMAP_COLOR[0] / 255.0
+EMPTY_HEATMAP_OUTLINE = (174, 174, 174)
 BELIEF_OBSERVATION_PLANES = (
     "visible_units",
     "visible_cities",
@@ -852,8 +855,13 @@ class Game(AbstractGame):
 
     def _belief_heatmap_rgb(self, plane: numpy.ndarray) -> numpy.ndarray:
         clipped = numpy.clip(numpy.asarray(plane, dtype=numpy.float32), 0.0, 1.0)
-        rgb = numpy.zeros((3, clipped.shape[0], clipped.shape[1]), dtype=numpy.float32)
+        rgb = numpy.full(
+            (3, clipped.shape[0], clipped.shape[1]),
+            EMPTY_HEATMAP_VALUE,
+            dtype=numpy.float32,
+        )
         active = clipped > 1.0e-6
+        rgb[:, active] = 0.0
         low = active & (clipped < (1.0 / 3.0))
         mid = (clipped >= (1.0 / 3.0)) & (clipped < (2.0 / 3.0))
         high = clipped >= (2.0 / 3.0)
@@ -921,8 +929,8 @@ class Game(AbstractGame):
                 fill = tuple(int(v * 255.0) for v in rgb[y, x])
                 outline = tuple(max(0, int(c * 0.55)) for c in fill)
                 if max(fill) <= 2:
-                    fill = (20, 24, 26)
-                    outline = (38, 44, 48)
+                    fill = EMPTY_HEATMAP_COLOR
+                    outline = EMPTY_HEATMAP_OUTLINE
                 cx = x_origin + (x + 0.5 + (0.5 if y % 2 else 0.0)) * tile_w
                 cy = y_origin + (0.5 + y * row_step) * tile_h
                 draw.polygon(

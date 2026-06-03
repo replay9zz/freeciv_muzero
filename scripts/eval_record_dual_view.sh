@@ -22,10 +22,12 @@ RECORD_SIZE="${RECORD_SIZE:-${CLIENT_RESOLUTION}}"
 RECORD_AGENT_FILE="${RECORD_AGENT_FILE:-${RECORD_DIR}/eval-agent.mp4}"
 RECORD_GLOBAL_FILE="${RECORD_GLOBAL_FILE:-${RECORD_DIR}/eval-global.mp4}"
 HEATMAP_VIDEO_FILE="${HEATMAP_VIDEO_FILE:-${RECORD_DIR}/eval-heatmaps.mp4}"
+HEATMAP_VIDEO_DIR="${HEATMAP_VIDEO_DIR:-${RECORD_DIR}/heatmaps/videos}"
 HEATMAP_TB_DIR="${HEATMAP_TB_DIR:-${RECORD_DIR}/heatmaps/tb}"
 HEATMAP_FRAME_DIR="${HEATMAP_FRAME_DIR:-${RECORD_DIR}/heatmaps/frames}"
 HEATMAP_METADATA="${HEATMAP_METADATA:-${RECORD_DIR}/heatmaps/heatmap.json}"
 HEATMAP_TAGS="${HEATMAP_TAGS:-belief_units,threat,visible_units,territory}"
+HEATMAP_SEPARATE="${HEATMAP_SEPARATE:-1}"
 HEATMAP_PANEL_WIDTH="${HEATMAP_PANEL_WIDTH:-640}"
 HEATMAP_PANEL_HEIGHT="${HEATMAP_PANEL_HEIGHT:-${CLIENT_RESOLUTION#*x}}"
 HEATMAP_TILE_SHAPE="${HEATMAP_TILE_SHAPE:-hex}"
@@ -33,6 +35,11 @@ HEATMAP_START_DELAY="${HEATMAP_START_DELAY:-0}"
 RECORD_START_TIMEOUT="${RECORD_START_TIMEOUT:-30}"
 OBSERVER_NAME="${OBSERVER_NAME:-global0}"
 OBSERVER_START_TIMEOUT="${OBSERVER_START_TIMEOUT:-30}"
+OBSERVER_OBSERVE_DELAY="${OBSERVER_OBSERVE_DELAY:-2}"
+OBSERVER_OBSERVE_RETRIES="${OBSERVER_OBSERVE_RETRIES:-5}"
+OBSERVER_CLIENT_HOME="${OBSERVER_CLIENT_HOME:-${RECORD_DIR}/observer-home}"
+OBSERVER_ZOOM_SET="${OBSERVER_ZOOM_SET:-TRUE}"
+OBSERVER_ZOOM_DEFAULT_LEVEL="${OBSERVER_ZOOM_DEFAULT_LEVEL:-0.40}"
 EVAL_LOG="${EVAL_LOG:-}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
@@ -59,7 +66,7 @@ if ! command -v ffprobe >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}"
+mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}" "${HEATMAP_VIDEO_DIR}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
   echo "Checkpoint not found: ${CHECKPOINT}" >&2
@@ -199,6 +206,51 @@ except Exception as exc:
 PY
 }
 
+prepare_observer_client_home() {
+  local freeciv_dir="${OBSERVER_CLIENT_HOME}/.freeciv"
+  local rc_file="${freeciv_dir}/freeciv-client-rc-3.2"
+  local source_rc="${HOME}/.freeciv/freeciv-client-rc-3.2"
+  local tmp_file="${rc_file}.tmp"
+
+  mkdir -p "${freeciv_dir}"
+  if [ ! -f "${rc_file}" ]; then
+    if [ -f "${source_rc}" ]; then
+      cp "${source_rc}" "${rc_file}"
+    else
+      printf '[client]\nversion="3.2.1"\n' >"${rc_file}"
+    fi
+  fi
+
+  awk \
+    -v zoom_set="${OBSERVER_ZOOM_SET}" \
+    -v zoom_default_level="${OBSERVER_ZOOM_DEFAULT_LEVEL}" '
+      BEGIN {
+        seen_zoom_set = 0
+        seen_zoom_default_level = 0
+      }
+      /^zoom_set=/ {
+        print "zoom_set=" zoom_set
+        seen_zoom_set = 1
+        next
+      }
+      /^zoom_default_level=/ {
+        print "zoom_default_level=" zoom_default_level
+        seen_zoom_default_level = 1
+        next
+      }
+      { print }
+      END {
+        if (!seen_zoom_set) {
+          print "zoom_set=" zoom_set
+        }
+        if (!seen_zoom_default_level) {
+          print "zoom_default_level=" zoom_default_level
+        }
+      }
+    ' "${rc_file}" >"${tmp_file}"
+  mv "${tmp_file}" "${rc_file}"
+}
+
 wait_display() {
   local display_num="$1"
   local timeout="$2"
@@ -300,14 +352,13 @@ if wait_tcp "${HOST}" "${SERVER_PORT}" "${RECORD_START_TIMEOUT}"; then
       observer_display_ready=0
     fi
   fi
-  if [ "${observer_display_ready}" = "1" ]; then
-    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
-  fi
 fi
 
 if [ "${observer_display_ready}" = "1" ]; then
+  prepare_observer_client_home
   (
     set -euo pipefail
+    export HOME="${OBSERVER_CLIENT_HOME}"
     export DISPLAY="${OBSERVER_DISPLAY_NUM}"
     export ENABLE_LUAREMOTE=1
     export FREECIV_LUAREMOTE_PORT="${OBSERVER_LUA_PORT}"
@@ -320,11 +371,22 @@ if [ "${observer_display_ready}" = "1" ]; then
   ) &
   observer_pid="$!"
   if wait_tcp "${HOST}" "${OBSERVER_LUA_PORT}" "${OBSERVER_START_TIMEOUT}"; then
-    if ! send_observe_command; then
+    observe_sent=0
+    for _ in $(seq 1 "${OBSERVER_OBSERVE_RETRIES}"); do
+      sleep "${OBSERVER_OBSERVE_DELAY}"
+      if send_observe_command; then
+        observe_sent=1
+        break
+      fi
+    done
+    if [ "${observe_sent}" != "1" ]; then
       echo "Warning: observer client started but /observe command failed." >&2
     fi
   else
     echo "Warning: observer LuaRemote ${OBSERVER_LUA_PORT} did not become available." >&2
+  fi
+  if [ "${observe_sent:-0}" = "1" ]; then
+    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
   fi
 else
   echo "Warning: Freeciv server/display unavailable; skipping global observer." >&2
@@ -332,6 +394,8 @@ fi
 
 if [ "${observer_display_ready}" != "1" ]; then
   echo "Warning: skipping global recording; display ${OBSERVER_DISPLAY_NUM} is unavailable." >&2
+elif [ "${observe_sent:-0}" != "1" ]; then
+  echo "Warning: skipping global recording; observer did not enter observe mode." >&2
 fi
 
 set +e
@@ -353,18 +417,29 @@ if [ -f "${RECORD_GLOBAL_FILE}" ]; then
   echo "Recorded global view to ${RECORD_GLOBAL_FILE}"
 fi
 
-"${PYTHON}" "${SCRIPT_DIR}/render_tb_heatmap_panel.py" \
-  --logdir "${HEATMAP_TB_DIR}" \
-  --out-dir "${HEATMAP_FRAME_DIR}" \
-  --tags "${HEATMAP_TAGS}" \
-  --width "${HEATMAP_PANEL_WIDTH}" \
-  --height "${HEATMAP_PANEL_HEIGHT}" \
-  --tile-shape "${HEATMAP_TILE_SHAPE}" \
-  --map-width "${HEATMAP_MAP_WIDTH}" \
-  --map-height "${HEATMAP_MAP_HEIGHT}" \
+render_args=(
+  "${SCRIPT_DIR}/render_tb_heatmap_panel.py"
+  --logdir "${HEATMAP_TB_DIR}"
+  --out-dir "${HEATMAP_FRAME_DIR}"
+  --tags "${HEATMAP_TAGS}"
+  --width "${HEATMAP_PANEL_WIDTH}"
+  --height "${HEATMAP_PANEL_HEIGHT}"
+  --tile-shape "${HEATMAP_TILE_SHAPE}"
+  --map-width "${HEATMAP_MAP_WIDTH}"
+  --map-height "${HEATMAP_MAP_HEIGHT}"
   --metadata-out "${HEATMAP_METADATA}"
+)
+if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+  render_args+=(--separate)
+fi
+"${PYTHON}" "${render_args[@]}"
 
-frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+  first_tag="${HEATMAP_TAGS%%,*}"
+  frame_count="$(find "${HEATMAP_FRAME_DIR}/${first_tag}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+else
+  frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+fi
 if [ "${frame_count}" -lt 1 ]; then
   echo "No heatmap frames were produced." >&2
   echo "Checkpoint: ${CHECKPOINT}"
@@ -374,21 +449,47 @@ fi
 duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${RECORD_AGENT_FILE}")"
 heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" -v delay="${HEATMAP_START_DELAY}" 'BEGIN { active = duration - delay; intervals = frames > 1 ? frames - 1 : 1; if (active > 0) print intervals / active; else print 1 }')"
 
-ffmpeg \
-  -hide_banner \
-  -loglevel warning \
-  -y \
-  -framerate "${heatmap_fps}" \
-  -i "${HEATMAP_FRAME_DIR}/frame_%06d.png" \
-  -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
-  -an \
-  -r "${RECORD_FPS}" \
-  -c:v libx264 \
-  -preset veryfast \
-  -pix_fmt yuv420p \
-  "${HEATMAP_VIDEO_FILE}"
+render_heatmap_video() {
+  local input_pattern="$1"
+  local output_file="$2"
+  ffmpeg \
+    -hide_banner \
+    -loglevel warning \
+    -y \
+    -framerate "${heatmap_fps}" \
+    -i "${input_pattern}" \
+    -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
+    -an \
+    -r "${RECORD_FPS}" \
+    -c:v libx264 \
+    -preset veryfast \
+    -pix_fmt yuv420p \
+    "${output_file}"
+}
+
+if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+  IFS=',' read -r -a heatmap_tags <<<"${HEATMAP_TAGS}"
+  rendered_any=0
+  for tag in "${heatmap_tags[@]}"; do
+    tag="${tag// /}"
+    tag_dir="${HEATMAP_FRAME_DIR}/${tag}"
+    if [ ! -d "${tag_dir}" ]; then
+      echo "Warning: missing heatmap frame dir ${tag_dir}" >&2
+      continue
+    fi
+    out_file="${HEATMAP_VIDEO_DIR}/eval-heatmap-${tag}.mp4"
+    render_heatmap_video "${tag_dir}/frame_%06d.png" "${out_file}"
+    echo "Rendered heatmap video to ${out_file}"
+    rendered_any=1
+  done
+  if [ "${rendered_any}" != "1" ]; then
+    echo "No heatmap videos were rendered." >&2
+  fi
+else
+  render_heatmap_video "${HEATMAP_FRAME_DIR}/frame_%06d.png" "${HEATMAP_VIDEO_FILE}"
+  echo "Rendered heatmap video to ${HEATMAP_VIDEO_FILE}"
+fi
 
 echo "Rendered heatmap frames to ${HEATMAP_FRAME_DIR}"
-echo "Rendered heatmap video to ${HEATMAP_VIDEO_FILE}"
 echo "Checkpoint: ${CHECKPOINT}"
 exit "${eval_status}"

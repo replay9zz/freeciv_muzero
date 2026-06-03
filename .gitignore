@@ -15,6 +15,7 @@ results/remote_play/*
 *.log
 *.serv
 !start_generated_16x16.serv
+!start_generated_32x32.serv
 
 # Play Results
 !results/remote_play/2026-01-19--16-23-02/

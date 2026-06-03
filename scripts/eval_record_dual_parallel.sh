@@ -11,15 +11,22 @@ if [ "$#" -gt 0 ]; then
 else
   CHECKPOINT="${CHECKPOINT:-$(latest_checkpoint)}"
 fi
-GPU_LIST="${GPU_LIST:-0,1,2,3,4,5,6,7,8,9}"
-GAMES="${GAMES:-}"
+GPU_LIST="${GPU_LIST:-0,1,2,3,4}"
+GAMES="${GAMES:-20}"
 MAX_PARALLEL="${MAX_PARALLEL:-}"
+GAMES_PER_BATCH="${GAMES_PER_BATCH:-5}"
 BASE_SERVER_PORT="${BASE_SERVER_PORT:-5566}"
 BASE_LUA_PORT="${BASE_LUA_PORT:-4451}"
 BASE_DISPLAY="${BASE_DISPLAY:-102}"
 PORT_STRIDE="${PORT_STRIDE:-10}"
 DISPLAY_STRIDE="${DISPLAY_STRIDE:-2}"
-RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)-dual-parallel}"
+MAX_TURNS="${MAX_TURNS:-300}"
+RECORD_FPS="${RECORD_FPS:-5}"
+DISPLAY_SIZE="${DISPLAY_SIZE:-1920x1080}"
+CLIENT_RESOLUTION="${CLIENT_RESOLUTION:-${DISPLAY_SIZE}}"
+RUN_HEIGHT="${RUN_HEIGHT:-${CLIENT_RESOLUTION#*x}}"
+RUN_LABEL="${RUN_LABEL:-eval-${MAX_TURNS}t-${GAMES}g-${RUN_HEIGHT}p${RECORD_FPS}fps}"
+RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)-${RUN_LABEL}}"
 OUT_DIR="${OUT_DIR:-${ROOT_DIR}/results/evals/${RUN_STAMP}}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
@@ -34,11 +41,11 @@ if [ "${#gpus[@]}" -eq 0 ]; then
   exit 1
 fi
 
-if [ -z "${GAMES}" ]; then
-  GAMES="${#gpus[@]}"
-fi
 if [ -z "${MAX_PARALLEL}" ]; then
-  MAX_PARALLEL="${#gpus[@]}"
+  MAX_PARALLEL="${GAMES_PER_BATCH}"
+  if [ "${MAX_PARALLEL}" -gt "${#gpus[@]}" ]; then
+    MAX_PARALLEL="${#gpus[@]}"
+  fi
 fi
 
 mkdir -p "${OUT_DIR}"
@@ -48,6 +55,7 @@ echo "Output: ${OUT_DIR}"
 echo "Games: ${GAMES}"
 echo "GPU_LIST: ${GPU_LIST}"
 echo "MAX_PARALLEL: ${MAX_PARALLEL}"
+echo "Run stamp: ${RUN_STAMP}"
 
 pids=()
 job_dirs=()
@@ -86,14 +94,19 @@ for ((idx = 0; idx < GAMES; idx++)); do
   lua_port=$((BASE_LUA_PORT + idx * PORT_STRIDE))
   display=":$((BASE_DISPLAY + idx * DISPLAY_STRIDE))"
   observer_display=":$((BASE_DISPLAY + idx * DISPLAY_STRIDE + 1))"
-  job_name="$(printf 'game-%02d-gpu-%s' "$((idx + 1))" "${gpu}")"
+  job_name="$(printf 'game-%02d' "$((idx + 1))")"
   job_dir="${OUT_DIR}/${job_name}"
   mkdir -p "${job_dir}"
   job_dirs+=("${job_dir}")
 
-  echo "Start ${job_name}: server=${server_port} lua=${lua_port} display=${display}/${observer_display}"
+  echo "Start ${job_name}: gpu=${gpu} server=${server_port} lua=${lua_port} display=${display}/${observer_display}"
   (
+    echo "GPU: ${gpu}"
     export CUDA_VISIBLE_DEVICES="${gpu}"
+    export MAX_TURNS
+    export RECORD_FPS
+    export DISPLAY_SIZE
+    export CLIENT_RESOLUTION
     export SERVER_PORT="${server_port}"
     export LUA_PORT="${lua_port}"
     export DISPLAY_NUM="${display}"

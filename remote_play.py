@@ -260,6 +260,15 @@ def _query_score(client, player_id):
     return None, None
 
 
+def _query_player_scores(client):
+    if client is None or list_player_scores is None:
+        return {}
+    try:
+        return list_player_scores(client)
+    except Exception:
+        return {}
+
+
 def _current_civ_score(game):
     state = getattr(game, "_last_state", None)
     if state is None:
@@ -673,7 +682,7 @@ def main() -> None:
                 and turn > 0
                 and turn != last_turn_csv
             ):
-                scores = list_player_scores(game.client)
+                scores = _query_player_scores(game.client)
                 p0 = scores.get(0, (None, None, ""))[0]
                 p1 = scores.get(1, (None, None, ""))[0]
                 turn_score_writer.writerow([episode + 1, turn, p0, p1])
@@ -688,7 +697,7 @@ def main() -> None:
                 and turn % score_log_interval == 0
                 and turn != last_score_turn
             ):
-                scores = list_player_scores(game.client)
+                scores = _query_player_scores(game.client)
                 p0 = scores.get(0, (None, None, ""))[0]
                 p1 = scores.get(1, (None, None, ""))[0]
                 payload = {

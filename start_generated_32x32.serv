@@ -1,0 +1,14 @@
+set scorelog enabled
+set scoreloglevel all
+set scorefile "freeciv-score-single.log"
+set autosaves ""
+set minplayers 0
+set aifill 2
+set mapsize XYSIZE
+set xsize 32
+set ysize 32
+set wrap ""
+set generator FRACTAL
+set tinyisles disabled
+set startpos DEFAULT
+start

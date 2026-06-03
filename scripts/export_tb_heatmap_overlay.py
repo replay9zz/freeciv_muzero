@@ -9,6 +9,8 @@ import pathlib
 from PIL import Image
 from tensorboard.backend.event_processing import event_accumulator
 
+EMPTY_HEATMAP_COLOR = (224, 224, 224)
+
 
 def _load_image_events(logdir: pathlib.Path) -> dict[str, list]:
     acc = event_accumulator.EventAccumulator(
@@ -53,6 +55,16 @@ def _with_alpha(img: Image.Image, opacity: float, alpha_floor: int) -> Image.Ima
         for x in range(width):
             r, g, b, _a = pixels[x, y]
             if r <= 2 and g <= 2 and b >= 250:
+                pixels[x, y] = (0, 0, 0, 0)
+                continue
+            if (
+                max(
+                    abs(r - EMPTY_HEATMAP_COLOR[0]),
+                    abs(g - EMPTY_HEATMAP_COLOR[1]),
+                    abs(b - EMPTY_HEATMAP_COLOR[2]),
+                )
+                <= 2
+            ):
                 pixels[x, y] = (0, 0, 0, 0)
                 continue
             brightness = max(r, g, b)

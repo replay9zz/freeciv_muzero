@@ -59,10 +59,12 @@ prepare_server_rc_template() {
     port=$((start_port + idx * port_stride))
     target="${output_dir}/start-${port}.serv"
     scorefile="${score_prefix}-${run_id}-${port}.log"
+    local tmp
+    tmp="${target}.tmp"
     if grep -Eq '^[[:space:]]*set[[:space:]]+scorefile[[:space:]]+"' "${source_rc}"; then
       sed -E \
         "s|^([[:space:]]*set[[:space:]]+scorefile[[:space:]]+\").*(\".*)$|\\1${scorefile}\\2|" \
-        "${source_rc}" >"${target}"
+        "${source_rc}" >"${tmp}"
     else
       awk -v scorefile="${scorefile}" '
         /^[[:space:]]*start([[:space:]]|$)/ && !inserted {
@@ -75,8 +77,22 @@ prepare_server_rc_template() {
             printf "set scorefile \"%s\"\n", scorefile
           }
         }
-      ' "${source_rc}" >"${target}"
+      ' "${source_rc}" >"${tmp}"
     fi
+    awk '
+      /^[[:space:]]*set[[:space:]]+wrap([[:space:]]|$)/ { next }
+      /^[[:space:]]*start([[:space:]]|$)/ && !inserted {
+        print "set wrap \"\""
+        inserted = 1
+      }
+      { print }
+      END {
+        if (!inserted) {
+          print "set wrap \"\""
+        }
+      }
+    ' "${tmp}" >"${target}"
+    rm -f "${tmp}"
   done
 
   printf '%s\n' "${output_dir}/start-{server_port}.serv"

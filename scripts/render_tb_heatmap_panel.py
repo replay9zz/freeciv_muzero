@@ -5,14 +5,22 @@ import argparse
 import io
 import json
 import pathlib
+import re
 from collections import defaultdict
 
 from PIL import Image, ImageDraw
 from tensorboard.backend.event_processing import event_accumulator
 
+EMPTY_HEATMAP_COLOR = (224, 224, 224)
+EMPTY_HEATMAP_OUTLINE = (174, 174, 174)
+
 
 def _parse_tags(raw: str) -> list[str]:
     return [tag.strip() for tag in raw.split(",") if tag.strip()]
+
+
+def _safe_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_") or "heatmap"
 
 
 def _load_images(logdir: pathlib.Path) -> dict[str, list]:
@@ -50,19 +58,19 @@ def _latest_by_step(events: list) -> dict[int, object]:
 
 
 def _event_to_image(event) -> Image.Image:
-    return _mute_empty_heatmap_blue(
+    return _mute_empty_heatmap_default(
         Image.open(io.BytesIO(event.encoded_image_string)).convert("RGB")
     )
 
 
-def _mute_empty_heatmap_blue(img: Image.Image) -> Image.Image:
+def _mute_empty_heatmap_default(img: Image.Image) -> Image.Image:
     pixels = img.load()
     width, height = img.size
     for y in range(height):
         for x in range(width):
             r, g, b = pixels[x, y]
             if r <= 2 and g <= 2 and b >= 250:
-                pixels[x, y] = (0, 0, 0)
+                pixels[x, y] = EMPTY_HEATMAP_COLOR
     return img
 
 
@@ -166,8 +174,8 @@ def _render_hex_heatmap(
             fill = colors[y][x]
             outline = tuple(max(0, int(c * 0.55)) for c in fill)
             if max(fill) <= 2:
-                fill = (20, 24, 26)
-                outline = (38, 44, 48)
+                fill = EMPTY_HEATMAP_COLOR
+                outline = EMPTY_HEATMAP_OUTLINE
             draw.polygon(
                 _hex_points(cx, cy, tile_w * 0.96, tile_h * 0.90),
                 fill=fill,
@@ -227,6 +235,36 @@ def _render_panel(
     return panel
 
 
+def _render_single(
+    name: str,
+    img: Image.Image | None,
+    step: int,
+    width: int,
+    height: int,
+    tile_shape: str,
+    map_w: int | None,
+    map_h: int | None,
+) -> Image.Image:
+    title_h = 34
+    panel = Image.new("RGB", (width, height), (16, 18, 20))
+    draw = ImageDraw.Draw(panel)
+    draw.text((12, 9), f"{name}  turn={step}", fill=(245, 245, 245))
+    draw.rectangle((0, title_h, width - 1, height - 1), outline=(60, 64, 70))
+    if img is None:
+        draw.text((12, title_h + 12), "no frame", fill=(180, 180, 180))
+        return panel
+    max_w = max(1, width - 24)
+    max_h = max(1, height - title_h - 24)
+    if tile_shape == "hex":
+        fitted = _render_hex_heatmap(img, max_w, max_h, map_w, map_h)
+    else:
+        fitted = _fit_image(img, max_w, max_h)
+    px = (width - fitted.width) // 2
+    py = title_h + (height - title_h - fitted.height) // 2
+    panel.paste(fitted, (px, py))
+    return panel
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--logdir", required=True)
@@ -240,6 +278,11 @@ def main() -> int:
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=800)
     parser.add_argument("--cols", type=int, default=2)
+    parser.add_argument(
+        "--separate",
+        action="store_true",
+        help="Write one frame sequence per requested tag under out-dir/<tag>/.",
+    )
     parser.add_argument("--tile-shape", choices=("square", "hex"), default="square")
     parser.add_argument("--map-width", type=int)
     parser.add_argument("--map-height", type=int)
@@ -276,17 +319,33 @@ def main() -> int:
             if event is not None:
                 last_seen[short] = _event_to_image(event)
             current[short] = last_seen[short]
-        panel = _render_panel(
-            current,
-            step,
-            args.width,
-            args.height,
-            args.cols,
-            args.tile_shape,
-            args.map_width,
-            args.map_height,
-        )
-        panel.save(out_dir / f"frame_{frame_idx:06d}.png")
+        if args.separate:
+            for short in requested_tags:
+                tag_dir = out_dir / _safe_name(short)
+                tag_dir.mkdir(parents=True, exist_ok=True)
+                panel = _render_single(
+                    short,
+                    current[short],
+                    step,
+                    args.width,
+                    args.height,
+                    args.tile_shape,
+                    args.map_width,
+                    args.map_height,
+                )
+                panel.save(tag_dir / f"frame_{frame_idx:06d}.png")
+        else:
+            panel = _render_panel(
+                current,
+                step,
+                args.width,
+                args.height,
+                args.cols,
+                args.tile_shape,
+                args.map_width,
+                args.map_height,
+            )
+            panel.save(out_dir / f"frame_{frame_idx:06d}.png")
 
     metadata = {
         "frame_count": len(steps),
@@ -296,6 +355,12 @@ def main() -> int:
         "tile_shape": args.tile_shape,
         "map_width": args.map_width,
         "map_height": args.map_height,
+        "mode": "separate" if args.separate else "panel",
+        "frame_dirs": {
+            short: str(out_dir / _safe_name(short)) for short in requested_tags
+        }
+        if args.separate
+        else {},
     }
     if args.metadata_out:
         pathlib.Path(args.metadata_out).write_text(
