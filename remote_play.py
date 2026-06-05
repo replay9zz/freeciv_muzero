@@ -416,6 +416,15 @@ def main() -> None:
         help="Send a raw server command via chat before LuaRemote control.",
     )
     ap.add_argument(
+        "--start-after-take",
+        action="store_true",
+        help="Send /start after taking a pregame player, before LuaRemote control.",
+    )
+    ap.add_argument(
+        "--start-command",
+        help="Send a raw server command after take, before LuaRemote control.",
+    )
+    ap.add_argument(
         "--json",
         action="store_true",
         help="Emit JSONL results (one line per episode plus a summary).",
@@ -542,6 +551,8 @@ def main() -> None:
     _set_env("FREECIV_UNIT_ID", args.unit_id)
     _set_env("FREECIV_TAKE_PLAYER", args.take_player)
     _set_env("FREECIV_TAKE_COMMAND", args.take_command)
+    _set_env("FREECIV_START_AFTER_TAKE", "1" if args.start_after_take else None)
+    _set_env("FREECIV_START_COMMAND", args.start_command)
     _set_env("FREECIV_DIR_IDS", args.dir_ids)
     _set_env("FREECIV_SLEEP", args.sleep)
     _set_env("FREECIV_BELIEF_TENSORBOARD", "1" if args.belief_tensorboard else None)

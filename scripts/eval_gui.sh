@@ -15,6 +15,14 @@ else
   MAP_WIDTH="${MAP_WIDTH:-4}"
   MAP_HEIGHT="${MAP_HEIGHT:-16}"
 fi
+if server_rc_has_start "${SERVER_RC}"; then
+  TAKE_PLAYER="${TAKE_PLAYER:-}"
+  START_AFTER_TAKE="${START_AFTER_TAKE:-0}"
+else
+  TAKE_PLAYER="${TAKE_PLAYER:--}"
+  START_AFTER_TAKE="${START_AFTER_TAKE:-1}"
+fi
+START_COMMAND="${START_COMMAND:-}"
 HOST="${HOST:-127.0.0.1}"
 SERVER_PORT="${SERVER_PORT:-5566}"
 LUA_PORT="${LUA_PORT:-4451}"
@@ -76,7 +84,6 @@ args=(
   --client-cmd "bash ${ROOT_DIR}/scripts/freeciv_gui.sh"
   --host "${HOST}"
   --port "${LUA_PORT}"
-  --player-id "${PLAYER_ID}"
   --map-width "${MAP_WIDTH}"
   --map-height "${MAP_HEIGHT}"
   --max-turns "${MAX_TURNS}"
@@ -86,8 +93,24 @@ args=(
   --episodes "${EPISODES}"
 )
 
+if [ "${TAKE_PLAYER}" != "-" ]; then
+  args+=(--player-id "${PLAYER_ID}")
+fi
+
 if [ "${NO_SEA_UNITS}" = "1" ]; then
   args+=(--no-sea-units)
+fi
+
+if [ -n "${TAKE_PLAYER}" ]; then
+  args+=(--take-player "${TAKE_PLAYER}")
+fi
+
+if [ "${START_AFTER_TAKE}" = "1" ]; then
+  args+=(--start-after-take)
+fi
+
+if [ -n "${START_COMMAND}" ]; then
+  args+=(--start-command "${START_COMMAND}")
 fi
 
 if [ "${JSON}" = "1" ]; then

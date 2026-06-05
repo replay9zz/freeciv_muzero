@@ -11,4 +11,3 @@ set wrap ""
 set generator FRACTAL
 set tinyisles disabled
 set startpos DEFAULT
-start

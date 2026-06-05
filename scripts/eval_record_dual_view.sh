@@ -51,6 +51,8 @@ else
 fi
 FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
 FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
+START_AFTER_TAKE="${START_AFTER_TAKE:-0}"
+RECORD_START_COMMAND="${RECORD_START_COMMAND:-${START_COMMAND:-start}}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
@@ -85,6 +87,7 @@ export LUA_PORT
 export FREECIV_GENERATED_MAP
 export FREECIV_TAKE_RETRIES
 export FREECIV_TAKE_WAIT
+export START_AFTER_TAKE
 export FREECIV_BELIEF_TENSORBOARD=1
 export FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}"
 export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
@@ -158,14 +161,19 @@ raise SystemExit(1)
 PY
 }
 
-send_observe_command() {
-  "${PYTHON}" - "${HOST}" "${OBSERVER_LUA_PORT}" <<'PY'
+send_chat_command() {
+  local port="$1"
+  local command="$2"
+  local label="$3"
+  "${PYTHON}" - "${HOST}" "${port}" "${command}" "${label}" <<'PY'
 import sys
 import time
 from freeciv_sim.remote.lua_client import LuaRemoteClient
 
 host = sys.argv[1]
 port = int(sys.argv[2])
+cmd = sys.argv[3]
+label = sys.argv[4]
 client = LuaRemoteClient(host, port, timeout=2.5)
 deadline = time.monotonic() + 15.0
 last_exc = None
@@ -177,17 +185,19 @@ while time.monotonic() < deadline:
         last_exc = exc
         time.sleep(0.5)
 else:
-    raise SystemExit(f"observer LuaRemote connect failed: {last_exc}")
+    raise SystemExit(f"{label} LuaRemote connect failed: {last_exc}")
 
-cmd = "/observe"
+if not cmd.startswith("/"):
+    cmd = "/" + cmd
 safe_cmd = LuaRemoteClient._quote_lua_string(cmd)
+safe_label = LuaRemoteClient._quote_lua_string(label)
 lua = (
     "return (function() "
-    f"local cmd={safe_cmd}; local ok=false; "
+    f"local cmd={safe_cmd}; local label={safe_label}; local ok=false; "
     "if type(send_chat)=='function' then ok=pcall(send_chat, cmd) end; "
     "if (not ok) and chat and type(chat.send)=='function' then ok=pcall(chat.send, cmd) end; "
     "if (not ok) and client and type(client.send_chat)=='function' then ok=pcall(client.send_chat, cmd) end; "
-    "if chat and chat.base then if ok then chat.base('__OK__ observe_cmd') else chat.base('__ERR__ observe_cmd') end end; "
+    "if chat and chat.base then if ok then chat.base('__OK__ '..label) else chat.base('__ERR__ '..label) end end; "
     "return ok and '__OK__' or '__ERR__' "
     "end)()"
 )
@@ -196,7 +206,7 @@ try:
     payload = result.last_return() if result else None
     client.close()
     if not (isinstance(payload, str) and payload.startswith("__OK__")):
-        raise SystemExit(f"observer /observe failed: {payload!r}")
+        raise SystemExit(f"{label} {cmd} failed: {payload!r}")
 except Exception as exc:
     try:
         client.close()
@@ -204,6 +214,14 @@ except Exception as exc:
         pass
     raise SystemExit(str(exc))
 PY
+}
+
+send_observe_command() {
+  send_chat_command "${OBSERVER_LUA_PORT}" observe observe_cmd
+}
+
+send_start_command() {
+  send_chat_command "${LUA_PORT}" "${RECORD_START_COMMAND}" start_cmd
 }
 
 prepare_observer_client_home() {
@@ -379,15 +397,20 @@ if [ "${observer_display_ready}" = "1" ]; then
         break
       fi
     done
-    if [ "${observe_sent}" != "1" ]; then
-      echo "Warning: observer client started but /observe command failed." >&2
-    fi
-  else
-    echo "Warning: observer LuaRemote ${OBSERVER_LUA_PORT} did not become available." >&2
-  fi
-  if [ "${observe_sent:-0}" = "1" ]; then
-    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
-  fi
+	    if [ "${observe_sent}" != "1" ]; then
+	      echo "Warning: observer client started but /observe command failed." >&2
+	    fi
+	  else
+	    echo "Warning: observer LuaRemote ${OBSERVER_LUA_PORT} did not become available." >&2
+	  fi
+	  if [ "${observe_sent:-0}" = "1" ]; then
+	    if ! send_start_command; then
+	      echo "Warning: /${RECORD_START_COMMAND} command failed." >&2
+	    fi
+	  fi
+	  if [ "${observe_sent:-0}" = "1" ]; then
+	    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
+	  fi
 else
   echo "Warning: Freeciv server/display unavailable; skipping global observer." >&2
 fi

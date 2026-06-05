@@ -328,6 +328,9 @@ class Game(AbstractGame):
         self.take_command = os.getenv("FREECIV_TAKE_COMMAND")
         self.take_wait = _env_float("FREECIV_TAKE_WAIT", 0.5)
         self.take_retries = _env_int("FREECIV_TAKE_RETRIES", 6)
+        self.start_after_take = _env_bool("FREECIV_START_AFTER_TAKE", False)
+        self.start_command = os.getenv("FREECIV_START_COMMAND")
+        self.start_wait = _env_float("FREECIV_START_WAIT", self.take_wait)
         self.debug_actions = _env_bool("FREECIV_ACTION_DEBUG", False)
         self._needs_restart = False
         self._server_process = None
@@ -523,6 +526,7 @@ class Game(AbstractGame):
             if pos_info and pos_info[2] is not None and pos_info[2] >= 0:
                 self.player_id = int(pos_info[2])
         self._maybe_take_player()
+        self._maybe_start_game()
         self._refresh_controlled_units_with_retry()
 
     def _start_server_process(self) -> None:
@@ -712,7 +716,7 @@ class Game(AbstractGame):
 
     def _maybe_take_player(self) -> None:
         cmd = self.take_command
-        if not cmd and self.take_player_id is not None:
+        if not cmd and self.take_player_id is not None and not self.take_player:
             resolved = None
             for attempt in range(max(1, int(self.take_retries))):
                 resolved = self._resolve_player_name_by_id(self.take_player_id)
@@ -727,7 +731,10 @@ class Game(AbstractGame):
             if resolved:
                 self.take_player = resolved
         if not cmd and self.take_player:
-            cmd = f'/take "{self.take_player}"'
+            if self.take_player.strip() == "-":
+                cmd = "/take -"
+            else:
+                cmd = f'/take "{self.take_player}"'
         if not cmd:
             return
         ok = self._issue_chat_command(cmd)
@@ -736,6 +743,21 @@ class Game(AbstractGame):
                 f"[warn] failed to send take command: {cmd}",
                 file=sys.stderr,
             )
+
+    def _maybe_start_game(self) -> None:
+        cmd = self.start_command
+        if not cmd and self.start_after_take:
+            cmd = "/start"
+        if not cmd:
+            return
+        ok = self._issue_chat_command(cmd)
+        if not ok:
+            print(
+                f"[warn] failed to send start command: {cmd}",
+                file=sys.stderr,
+            )
+        if self.start_wait > 0:
+            time.sleep(self.start_wait)
 
     def _refresh_controlled_units_with_retry(self) -> None:
         attempts = max(1, int(self.take_retries))
@@ -748,7 +770,6 @@ class Game(AbstractGame):
                     raise
                 if idx >= attempts - 1:
                     raise
-                self._maybe_take_player()
                 time.sleep(self.take_wait)
 
     def _refresh_tile_owners(self) -> None:

@@ -44,6 +44,11 @@ latest_checkpoint() {
   } | sort -nr | awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
 }
 
+server_rc_has_start() {
+  local source_rc="$1"
+  [ -f "${source_rc}" ] && grep -Eq '^[[:space:]]*start([[:space:]]|$)' "${source_rc}"
+}
+
 prepare_server_rc_template() {
   local source_rc="$1"
   local output_dir="$2"
