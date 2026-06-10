@@ -626,6 +626,87 @@ def list_player_scores(lr: LuaRemoteClient) -> Dict[int, Tuple[Optional[float], 
     return scores
 
 
+def list_city_scores(lr: LuaRemoteClient) -> List[Dict[str, object]]:
+    lua = (
+        "local parts = {}; "
+        "for i=0,63 do "
+        "  local pl = find.player and find.player(i); "
+        "  if pl then "
+        "    local owner_id = -1; "
+        "    if pl.id then owner_id = pl.id elseif pl.player_num then owner_id = pl.player_num end; "
+        "    local ir = pl.cities_iterate and pl:cities_iterate() or nil; "
+        "    if ir then "
+        "      while true do "
+        "        local c = ir(); "
+        "        if not c then break end; "
+        "        local t = c.tile; "
+        "        local x = -1; local y = -1; "
+        "        if t then x = t.nat_x or -1; y = t.nat_y or -1 end; "
+        "        local cname = tostring(c.name or ''):gsub('[|;]','/'); "
+        "        local size = c.size; "
+        "        if size == nil then "
+        "          local ok_sz, v = pcall(function() return c:size() end); "
+        "          if ok_sz then size = v end "
+        "        end; "
+        "        if size == nil then size = -1 end; "
+        "        local score = nil; "
+        "        if c.score_game then "
+        "          local ok_score, v = pcall(function() return c:score_game() end); "
+        "          if ok_score then score = v end "
+        "        end; "
+        "        parts[#parts + 1] = string.format('%d|%d|%d|%d|%s|%s|%s', c.id or -1, x, y, owner_id, cname, tostring(size), tostring(score)); "
+        "      end "
+        "    end "
+        "  end "
+        "end; "
+        "return table.concat(parts, ';')"
+    )
+    result = lr.eval(lua)
+    payload = result.last_return()
+    cities: List[Dict[str, object]] = []
+    if payload:
+        for entry in payload.split(";"):
+            if not entry:
+                continue
+            parts = entry.split("|", 6)
+            if len(parts) != 7:
+                continue
+            try:
+                cid = int(parts[0])
+                nx = int(parts[1])
+                ny = int(parts[2])
+                owner = int(parts[3])
+            except ValueError:
+                continue
+            raw_size = parts[5].strip().lower()
+            raw_score = parts[6].strip().lower()
+            try:
+                size: Optional[int] = int(float(raw_size))
+            except ValueError:
+                size = None
+            if size is not None and size < 0:
+                size = None
+            if raw_score in {"nil", "none", ""}:
+                score: Optional[float] = None
+            else:
+                try:
+                    score = float(raw_score)
+                except ValueError:
+                    score = None
+            cities.append(
+                {
+                    "id": cid,
+                    "x": nx,
+                    "y": ny,
+                    "owner": owner,
+                    "name": parts[4],
+                    "size": size,
+                    "score": score,
+                }
+            )
+    return cities
+
+
 def list_city_sizes(lr: LuaRemoteClient) -> Dict[int, int]:
     lua = (
         "local parts = {}; "

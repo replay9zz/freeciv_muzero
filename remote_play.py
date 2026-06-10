@@ -5,6 +5,8 @@ import csv
 import datetime
 import json
 import os
+import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -18,8 +20,9 @@ from self_play import MCTS, SelfPlay
 
 REPO_ROOT = Path(__file__).resolve().parent
 try:
-    from freeciv_sim.remote.lua_queries import list_player_scores
+    from freeciv_sim.remote.lua_queries import list_city_scores, list_player_scores
 except Exception:  # pragma: no cover - optional dependency
+    list_city_scores = None
     list_player_scores = None
 
 
@@ -27,6 +30,11 @@ def _set_env(name: str, value) -> None:
     if value is None:
         return
     os.environ[name] = str(value)
+
+
+class _FormatContext(dict):
+    def __missing__(self, key):
+        return "{" + key + "}"
 
 
 def _format_checkpoint_path(checkpoint_path: Path) -> str:
@@ -50,6 +58,103 @@ def _write_checkpoint_file(output_dir: Path, checkpoint_path: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     display_path = _format_checkpoint_path(checkpoint_path)
     (output_dir / "CHECKPOINT").write_text(f"{display_path}\n", encoding="utf-8")
+
+
+def _resolve_server_scorefile_path() -> Path | None:
+    explicit = os.environ.get("FREECIV_SERVER_SCOREFILE")
+    if explicit:
+        return Path(explicit).expanduser()
+
+    server_cmd = os.environ.get("FREECIV_SERVER_CMD")
+    if not server_cmd:
+        return None
+    context = _FormatContext(os.environ)
+    context.setdefault("server_port", os.environ.get("FREECIV_SERVER_PORT", ""))
+    context.setdefault("luaremote_port", os.environ.get("FREECIV_LUAREMOTE_PORT", ""))
+    context.setdefault("host", os.environ.get("HOST", "127.0.0.1"))
+    context.setdefault("server_host", os.environ.get("HOST", "127.0.0.1"))
+    try:
+        formatted = server_cmd.format_map(context)
+        parts = shlex.split(formatted)
+    except Exception:
+        return None
+
+    rc_path = None
+    for idx, part in enumerate(parts[:-1]):
+        if part == "-r":
+            rc_path = Path(parts[idx + 1]).expanduser()
+            break
+    if rc_path is None or not rc_path.exists():
+        return None
+
+    scorefile = None
+    try:
+        for line in rc_path.read_text(encoding="utf-8").splitlines():
+            match = re.match(r'\s*set\s+scorefile\s+(?:"([^"]+)"|(\S+))', line)
+            if match:
+                scorefile = match.group(1) or match.group(2)
+    except OSError:
+        return None
+    if not scorefile:
+        return None
+
+    path = Path(scorefile).expanduser()
+    if path.is_absolute():
+        return path
+    server_cwd = REPO_ROOT
+    if parts:
+        cmd0 = Path(parts[0]).expanduser()
+        if cmd0.is_absolute() and cmd0.exists():
+            server_cwd = cmd0.parent
+    return server_cwd / path
+
+
+def _read_server_scorefile_scores(
+    scorefile_path: Path | None = None,
+) -> dict[int, tuple[float | None, None, str]]:
+    path = scorefile_path or _resolve_server_scorefile_path()
+    if path is None or not path.exists():
+        return {}
+    tags: dict[int, str] = {}
+    names: dict[int, str] = {}
+    best_turn: dict[int, int] = {}
+    scores: dict[int, tuple[float | None, None, str]] = {}
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {}
+    for line in lines:
+        if line.startswith("tag "):
+            parts = line.split(maxsplit=2)
+            if len(parts) == 3:
+                try:
+                    tags[int(parts[1])] = parts[2]
+                except ValueError:
+                    pass
+        elif line.startswith("addplayer "):
+            parts = line.split(maxsplit=3)
+            if len(parts) >= 4:
+                try:
+                    names[int(parts[2])] = parts[3]
+                except ValueError:
+                    pass
+        elif line.startswith("data "):
+            parts = line.split(maxsplit=4)
+            if len(parts) != 5:
+                continue
+            try:
+                turn = int(parts[1])
+                tag = int(parts[2])
+                pid = int(parts[3])
+                value = float(parts[4])
+            except ValueError:
+                continue
+            if tags.get(tag) != "score":
+                continue
+            if turn >= best_turn.get(pid, -1):
+                best_turn[pid] = turn
+                scores[pid] = (value, None, names.get(pid, ""))
+    return scores
 
 
 def _resolve_checkpoint_dir_from_env() -> Path | None:
@@ -260,13 +365,48 @@ def _query_score(client, player_id):
     return None, None
 
 
-def _query_player_scores(client):
+def _query_player_scores(client=None):
+    server_scores = _read_server_scorefile_scores()
+    if server_scores:
+        return server_scores
     if client is None or list_player_scores is None:
         return {}
     try:
         return list_player_scores(client)
     except Exception:
         return {}
+
+
+def _query_player_score(client, player_id):
+    if player_id is None:
+        return None, None
+    scores = _query_player_scores(client)
+    if isinstance(scores, dict):
+        score = scores.get(int(player_id), (None, None, ""))[0]
+        if score is not None:
+            return score, None
+    return _query_score(client, player_id)
+
+
+def _query_city_scores(client):
+    if client is None or list_city_scores is None:
+        return []
+    try:
+        return list_city_scores(client)
+    except Exception:
+        return []
+
+
+def _city_score_data(game):
+    cities = _query_city_scores(getattr(game, "client", None))
+    state = getattr(game, "_last_state", None)
+    cfg = getattr(state, "cfg", None)
+    pop_weight = float(getattr(cfg, "score_population", 1.0))
+    for city in cities:
+        size = city.get("size")
+        if isinstance(size, (int, float)):
+            city["population_score"] = float(size) * pop_weight
+    return cities
 
 
 def _current_civ_score(game):
@@ -403,6 +543,8 @@ def main() -> None:
     ap.add_argument("--episodes", type=int, default=1)
     ap.add_argument("--score-log", help="Write civ scores to JSONL every N turns.")
     ap.add_argument("--score-log-interval", type=int, default=25)
+    ap.add_argument("--city-score-log", help="Write per-city civ scores to JSONL every N turns.")
+    ap.add_argument("--city-score-log-interval", type=int, default=25)
     ap.add_argument(
         "--turn-score-csv",
         help="Write per-turn player civ scores to this CSV (episode,turn,p0,p1).",
@@ -529,6 +671,29 @@ def main() -> None:
             pass
         print(f"Score log output: {score_log_path}", file=sys.stderr)
 
+    city_score_log_path = None
+    city_score_log_fp = None
+    last_city_score_turn = None
+    if args.city_score_log:
+        if list_city_scores is None:
+            print(
+                "Warning: city score log requested but Lua score queries are unavailable.",
+                file=sys.stderr,
+            )
+        else:
+            city_score_log_path = Path(args.city_score_log).expanduser()
+            _write_checkpoint_file(city_score_log_path.parent, checkpoint_path)
+            checkpoint_written = True
+            city_score_log_path.parent.mkdir(parents=True, exist_ok=True)
+            city_score_log_fp = city_score_log_path.open("a", encoding="utf-8")
+            try:
+                if city_score_log_path.stat().st_size == 0:
+                    city_score_log_fp.write(f"# checkpoint: {args.checkpoint}\n")
+                    city_score_log_fp.flush()
+            except OSError:
+                pass
+            print(f"City score log output: {city_score_log_path}", file=sys.stderr)
+
     if not checkpoint_written:
         stamp = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
         default_dir = (
@@ -632,6 +797,7 @@ def main() -> None:
     win_count = 0
     score_values = []
     score_log_interval = int(args.score_log_interval or 0)
+    city_score_log_interval = int(args.city_score_log_interval or 0)
     for episode in range(args.episodes):
         observation = game.reset()
         if args.belief_tensorboard and getattr(game, "belief_tb_enabled", False):
@@ -674,7 +840,9 @@ def main() -> None:
             if isinstance(enemy_cities, list):
                 extra += f" enemy_cities={len(enemy_cities)}"
             civ_score = _current_civ_score(game)
-            fc_score, fc_winner = _query_score(game.client, getattr(game, "player_id", None))
+            fc_score, fc_winner = _query_player_score(
+                game.client, getattr(game, "player_id", None)
+            )
             score_parts = []
             if civ_score is not None:
                 score_parts.append(f"civ_score={civ_score:.2f}")
@@ -688,7 +856,6 @@ def main() -> None:
             print(line, file=log_fp)
             if (
                 turn_score_writer is not None
-                and list_player_scores is not None
                 and turn is not None
                 and turn > 0
                 and turn != last_turn_csv
@@ -701,7 +868,6 @@ def main() -> None:
                 last_turn_csv = turn
             if (
                 score_log_fp is not None
-                and list_player_scores is not None
                 and turn is not None
                 and score_log_interval > 0
                 and turn > 0
@@ -719,11 +885,29 @@ def main() -> None:
                 score_log_fp.write(json.dumps(payload) + "\n")
                 score_log_fp.flush()
                 last_score_turn = turn
+            if (
+                city_score_log_fp is not None
+                and list_city_scores is not None
+                and turn is not None
+                and city_score_log_interval > 0
+                and turn > 0
+                and turn % city_score_log_interval == 0
+                and turn != last_city_score_turn
+            ):
+                payload = {
+                    "episode": episode + 1,
+                    "turn": turn,
+                    "players": _query_player_scores(game.client),
+                    "cities": _city_score_data(game),
+                }
+                city_score_log_fp.write(json.dumps(payload) + "\n")
+                city_score_log_fp.flush()
+                last_city_score_turn = turn
             if args.render:
                 game.render()
             steps += 1
 
-        score, winner = _query_score(game.client, getattr(game, "player_id", None))
+        score, winner = _query_player_score(game.client, getattr(game, "player_id", None))
         if winner is True:
             win_count += 1
         if score is not None:
@@ -776,6 +960,8 @@ def main() -> None:
         json_fp.close()
     if score_log_fp is not None:
         score_log_fp.close()
+    if city_score_log_fp is not None:
+        city_score_log_fp.close()
     if turn_score_fp is not None:
         turn_score_fp.close()
 

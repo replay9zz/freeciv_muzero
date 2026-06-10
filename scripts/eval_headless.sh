@@ -167,4 +167,12 @@ if [ -n "${SCORE_LOG:-}" ]; then
   args+=(--score-log "${SCORE_LOG}")
 fi
 
+if [ -n "${CITY_SCORE_LOG:-}" ]; then
+  args+=(--city-score-log "${CITY_SCORE_LOG}")
+fi
+
+if [ -n "${CITY_SCORE_LOG_INTERVAL:-}" ]; then
+  args+=(--city-score-log-interval "${CITY_SCORE_LOG_INTERVAL}")
+fi
+
 exec python "${args[@]}"
