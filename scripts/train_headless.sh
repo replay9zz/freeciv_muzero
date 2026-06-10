@@ -7,9 +7,9 @@ source "${ROOT_DIR}/scripts/common.sh"
 
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-0}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
-  SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_generated_16x16.serv}"
-  MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-16}}"
-  MAP_HEIGHT="${MAP_HEIGHT:-${FREECIV_MAP_H:-16}}"
+  SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_generated_32x32.serv}"
+  MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-32}}"
+  MAP_HEIGHT="${MAP_HEIGHT:-${FREECIV_MAP_H:-32}}"
 else
   SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
   MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-4}}"
