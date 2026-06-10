@@ -41,6 +41,7 @@ OBSERVER_CLIENT_HOME="${OBSERVER_CLIENT_HOME:-${RECORD_DIR}/observer-home}"
 OBSERVER_ZOOM_SET="${OBSERVER_ZOOM_SET:-TRUE}"
 OBSERVER_ZOOM_DEFAULT_LEVEL="${OBSERVER_ZOOM_DEFAULT_LEVEL:-0.40}"
 EVAL_LOG="${EVAL_LOG:-}"
+RUN_INFO_FILE="${RUN_INFO_FILE:-${RECORD_DIR}/run_info.txt}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-16}}"
@@ -77,6 +78,50 @@ if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
 fi
 
 echo "Checkpoint: ${CHECKPOINT}"
+
+write_run_info() {
+  local git_rev git_status
+  git_rev="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || true)"
+  if [ -z "$(git -C "${ROOT_DIR}" status --porcelain 2>/dev/null)" ]; then
+    git_status="clean"
+  else
+    git_status="dirty"
+  fi
+  {
+    printf 'checkpoint: %s\n' "${CHECKPOINT}"
+    printf 'created_utc: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'script: %s\n' "${SCRIPT_DIR}/eval_record_dual_view.sh"
+    printf 'args: %s\n' "$*"
+    printf 'record_dir: %s\n' "${RECORD_DIR}"
+    printf 'eval_log: %s\n' "${EVAL_LOG}"
+    printf 'game_name: %s\n' "${EVAL_GAME_NAME:-}"
+    printf 'game_index: %s\n' "${EVAL_GAME_INDEX:-}"
+    printf 'gpu: %s\n' "${EVAL_GPU:-${CUDA_VISIBLE_DEVICES:-}}"
+    printf 'git_rev: %s\n' "${git_rev}"
+    printf 'git_status: %s\n' "${git_status}"
+    printf 'max_turns: %s\n' "${MAX_TURNS:-}"
+    printf 'num_simulations: %s\n' "${NUM_SIMULATIONS:-}"
+    printf 'temperature: %s\n' "${TEMPERATURE:-}"
+    printf 'freeciv_generated_map: %s\n' "${FREECIV_GENERATED_MAP}"
+    printf 'map_width: %s\n' "${MAP_WIDTH:-}"
+    printf 'map_height: %s\n' "${MAP_HEIGHT:-}"
+    printf 'server_port: %s\n' "${SERVER_PORT}"
+    printf 'lua_port: %s\n' "${LUA_PORT}"
+    printf 'observer_lua_port: %s\n' "${OBSERVER_LUA_PORT}"
+    printf 'display_num: %s\n' "${DISPLAY_NUM}"
+    printf 'observer_display_num: %s\n' "${OBSERVER_DISPLAY_NUM}"
+    printf 'display_size: %s\n' "${DISPLAY_SIZE}"
+    printf 'client_resolution: %s\n' "${CLIENT_RESOLUTION}"
+    printf 'record_fps: %s\n' "${RECORD_FPS}"
+    printf 'record_size: %s\n' "${RECORD_SIZE}"
+    printf 'heatmap_tags: %s\n' "${HEATMAP_TAGS}"
+    printf 'heatmap_tile_shape: %s\n' "${HEATMAP_TILE_SHAPE}"
+    printf 'heatmap_map_width: %s\n' "${HEATMAP_MAP_WIDTH}"
+    printf 'heatmap_map_height: %s\n' "${HEATMAP_MAP_HEIGHT}"
+  } >"${RUN_INFO_FILE}"
+}
+
+write_run_info "$@"
 
 export DISPLAY_NUM
 export DISPLAY_SIZE
