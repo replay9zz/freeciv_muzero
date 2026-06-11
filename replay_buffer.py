@@ -1,4 +1,6 @@
 import copy
+import os
+import sys
 import time
 
 import numpy
@@ -322,6 +324,14 @@ class Reanalyse:
         self.model.set_weights(initial_checkpoint["weights"])
         self.model.to(torch.device("cuda" if self.config.reanalyse_on_gpu else "cpu"))
         self.model.eval()
+        if self.config.reanalyse_on_gpu and torch.cuda.is_available():
+            print(
+                "[gpu] reanalyse "
+                f"visible={os.getenv('CUDA_VISIBLE_DEVICES', '<unset>')} "
+                f"device={torch.cuda.current_device()} "
+                f"name={torch.cuda.get_device_name(torch.cuda.current_device())}",
+                file=sys.stderr,
+            )
 
         self.num_reanalysed_games = initial_checkpoint["num_reanalysed_games"]
 

@@ -5,21 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${ROOT_DIR}/scripts/common.sh"
 
-FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-0}"
+FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_generated_32x32.serv}"
   MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-32}}"
   MAP_HEIGHT="${MAP_HEIGHT:-${FREECIV_MAP_H:-32}}"
 else
   SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
-  MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-4}}"
+  MAP_WIDTH="${MAP_WIDTH:-${FREECIV_MAP_W:-16}}"
   MAP_HEIGHT="${MAP_HEIGHT:-${FREECIV_MAP_H:-16}}"
 fi
 if server_rc_has_start "${SERVER_RC}"; then
   FREECIV_TAKE_PLAYER="${FREECIV_TAKE_PLAYER:-}"
   FREECIV_START_AFTER_TAKE="${FREECIV_START_AFTER_TAKE:-0}"
 else
-  FREECIV_TAKE_PLAYER="${FREECIV_TAKE_PLAYER:--}"
+  FREECIV_TAKE_PLAYER="${FREECIV_TAKE_PLAYER:-}"
   FREECIV_START_AFTER_TAKE="${FREECIV_START_AFTER_TAKE:-1}"
 fi
 FREECIV_START_COMMAND="${FREECIV_START_COMMAND:-}"
@@ -38,7 +38,7 @@ FREECIV_REWARD_SETTLER="${FREECIV_REWARD_SETTLER:-25.0}"
 FREECIV_TAKE_PLAYER="${FREECIV_TAKE_PLAYER:-}"
 FREECIV_TAKE_COMMAND="${FREECIV_TAKE_COMMAND:-}"
 USE_GPU="${USE_GPU:-1}"
-MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-1}"
+MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-}"
 MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
 MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
 MUZERO_REANALYSE_ON_GPU="${MUZERO_REANALYSE_ON_GPU:-true}"
@@ -68,6 +68,9 @@ if [ "${USE_GPU}" = "0" ]; then
   MUZERO_SELFPLAY_ON_GPU=false
   MUZERO_TRAIN_ON_GPU=false
   MUZERO_REANALYSE_ON_GPU=false
+else
+  init_train_runtime train_gui
+  MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-1}"
 fi
 
 cleanup() {
@@ -83,7 +86,7 @@ cleanup
 cd "${ROOT_DIR}"
 init_python_env
 
-python muzero.py freeciv_remote "{
+run_with_timing_and_log train_gui python muzero.py freeciv_remote "{
   \"training_steps\": ${TRAINING_STEPS},
   \"num_workers\": 1,
   \"num_simulations\": ${NUM_SIMULATIONS},
@@ -93,6 +96,9 @@ python muzero.py freeciv_remote "{
   \"selfplay_on_gpu\": ${MUZERO_SELFPLAY_ON_GPU},
   \"train_on_gpu\": ${MUZERO_TRAIN_ON_GPU},
   \"reanalyse_on_gpu\": ${MUZERO_REANALYSE_ON_GPU},
+  \"train_gpu_id\": \"${MUZERO_TRAIN_GPU_ID:-}\",
+  \"selfplay_gpu_ids\": \"${MUZERO_SELFPLAY_GPU_IDS:-}\",
+  \"reanalyse_gpu_id\": \"${MUZERO_REANALYSE_GPU_ID:-}\",
   \"env\": {
     \"FREECIV_SERVER_PORT\": \"${SERVER_PORT}\",
     \"FREECIV_SERVER_CMD\": \"${FREECIV_SERVER_CMD_VALUE}\",

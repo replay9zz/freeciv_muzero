@@ -20,6 +20,18 @@ import shared_storage
 import trainer
 
 
+def _csv_items(value):
+    if value is None:
+        return []
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
+def _actor_runtime_env_for_gpu(gpu_id):
+    if gpu_id is None or str(gpu_id).strip() == "":
+        return None
+    return {"env_vars": {"CUDA_VISIBLE_DEVICES": str(gpu_id).strip()}}
+
+
 class MuZero:
     """
     Main class to manage MuZero.
@@ -97,15 +109,27 @@ class MuZero:
         torch.manual_seed(self.config.seed)
 
         # Manage GPUs
+        self.train_gpu_id = str(getattr(self.config, "train_gpu_id", "") or "").strip()
+        self.selfplay_gpu_ids = _csv_items(
+            getattr(self.config, "selfplay_gpu_ids", "")
+        )
+        self.reanalyse_gpu_id = str(
+            getattr(self.config, "reanalyse_gpu_id", "") or ""
+        ).strip()
+        self.role_gpu_pinning = bool(
+            self.train_gpu_id or self.selfplay_gpu_ids or self.reanalyse_gpu_id
+        )
         if self.config.max_num_gpus == 0 and (
             self.config.selfplay_on_gpu
             or self.config.train_on_gpu
             or self.config.reanalyse_on_gpu
-        ):
+        ) and not self.role_gpu_pinning:
             raise ValueError(
                 "Inconsistent MuZeroConfig: max_num_gpus = 0 but GPU requested by selfplay_on_gpu or train_on_gpu or reanalyse_on_gpu."
             )
-        if (
+        if self.role_gpu_pinning:
+            total_gpus = 0
+        elif (
             self.config.selfplay_on_gpu
             or self.config.train_on_gpu
             or self.config.reanalyse_on_gpu
@@ -188,7 +212,9 @@ class MuZero:
             self.config.results_path.mkdir(parents=True, exist_ok=True)
 
         # Manage GPUs
-        if 0 < self.num_gpus:
+        if self.role_gpu_pinning:
+            num_gpus_per_worker = 0
+        elif 0 < self.num_gpus:
             num_gpus_per_worker = self.num_gpus / (
                 self.config.train_on_gpu
                 + self.config.num_workers * self.config.selfplay_on_gpu
@@ -201,10 +227,16 @@ class MuZero:
             num_gpus_per_worker = 0
 
         # Initialize workers
-        self.training_worker = trainer.Trainer.options(
-            num_cpus=0,
-            num_gpus=num_gpus_per_worker if self.config.train_on_gpu else 0,
-        ).remote(self.checkpoint, self.config)
+        training_options = {
+            "num_cpus": 0,
+            "num_gpus": num_gpus_per_worker if self.config.train_on_gpu else 0,
+        }
+        training_runtime_env = _actor_runtime_env_for_gpu(self.train_gpu_id)
+        if self.config.train_on_gpu and training_runtime_env:
+            training_options["runtime_env"] = training_runtime_env
+        self.training_worker = trainer.Trainer.options(**training_options).remote(
+            self.checkpoint, self.config
+        )
 
         self.shared_storage_worker = shared_storage.SharedStorage.remote(
             self.checkpoint,
@@ -217,23 +249,34 @@ class MuZero:
         )
 
         if self.config.use_last_model_value:
+            reanalyse_options = {
+                "num_cpus": 0,
+                "num_gpus": num_gpus_per_worker if self.config.reanalyse_on_gpu else 0,
+            }
+            reanalyse_runtime_env = _actor_runtime_env_for_gpu(self.reanalyse_gpu_id)
+            if self.config.reanalyse_on_gpu and reanalyse_runtime_env:
+                reanalyse_options["runtime_env"] = reanalyse_runtime_env
             self.reanalyse_worker = replay_buffer.Reanalyse.options(
-                num_cpus=0,
-                num_gpus=num_gpus_per_worker if self.config.reanalyse_on_gpu else 0,
+                **reanalyse_options
             ).remote(self.checkpoint, self.config)
 
-        self.self_play_workers = [
-            self_play.SelfPlay.options(
-                num_cpus=0,
-                num_gpus=num_gpus_per_worker if self.config.selfplay_on_gpu else 0,
-            ).remote(
-                self.checkpoint,
-                self.Game,
-                self.config,
-                self.config.seed + seed,
+        self.self_play_workers = []
+        for seed in range(self.config.num_workers):
+            selfplay_options = {
+                "num_cpus": 0,
+                "num_gpus": num_gpus_per_worker if self.config.selfplay_on_gpu else 0,
+            }
+            if self.config.selfplay_on_gpu and self.selfplay_gpu_ids:
+                gpu_id = self.selfplay_gpu_ids[seed % len(self.selfplay_gpu_ids)]
+                selfplay_options["runtime_env"] = _actor_runtime_env_for_gpu(gpu_id)
+            self.self_play_workers.append(
+                self_play.SelfPlay.options(**selfplay_options).remote(
+                    self.checkpoint,
+                    self.Game,
+                    self.config,
+                    self.config.seed + seed,
+                )
             )
-            for seed in range(self.config.num_workers)
-        ]
 
         # Launch workers
         [

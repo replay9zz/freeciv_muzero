@@ -1,4 +1,6 @@
 import copy
+import os
+import sys
 import time
 
 import numpy
@@ -27,6 +29,14 @@ class Trainer:
         self.model.set_weights(copy.deepcopy(initial_checkpoint["weights"]))
         self.model.to(torch.device("cuda" if self.config.train_on_gpu else "cpu"))
         self.model.train()
+        if self.config.train_on_gpu and torch.cuda.is_available():
+            print(
+                "[gpu] trainer "
+                f"visible={os.getenv('CUDA_VISIBLE_DEVICES', '<unset>')} "
+                f"device={torch.cuda.current_device()} "
+                f"name={torch.cuda.get_device_name(torch.cuda.current_device())}",
+                file=sys.stderr,
+            )
 
         self.training_step = initial_checkpoint["training_step"]
 

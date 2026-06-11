@@ -12,14 +12,14 @@ if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   MAP_HEIGHT="${MAP_HEIGHT:-32}"
 else
   SERVER_RC="${SERVER_RC:-${ROOT_DIR}/start_single.serv}"
-  MAP_WIDTH="${MAP_WIDTH:-4}"
+  MAP_WIDTH="${MAP_WIDTH:-16}"
   MAP_HEIGHT="${MAP_HEIGHT:-16}"
 fi
 if server_rc_has_start "${SERVER_RC}"; then
   TAKE_PLAYER="${TAKE_PLAYER:-}"
   START_AFTER_TAKE="${START_AFTER_TAKE:-0}"
 else
-  TAKE_PLAYER="${TAKE_PLAYER:--}"
+  TAKE_PLAYER="${TAKE_PLAYER:-}"
   START_AFTER_TAKE="${START_AFTER_TAKE:-1}"
 fi
 START_COMMAND="${START_COMMAND:-}"
@@ -112,7 +112,7 @@ args=(
   --episodes "${EPISODES}"
 )
 
-if [ "${TAKE_PLAYER}" != "-" ]; then
+if [ -n "${PLAYER_ID}" ]; then
   args+=(--player-id "${PLAYER_ID}")
 fi
 
@@ -175,4 +175,4 @@ if [ -n "${CITY_SCORE_LOG_INTERVAL:-}" ]; then
   args+=(--city-score-log-interval "${CITY_SCORE_LOG_INTERVAL}")
 fi
 
-exec python "${args[@]}"
+run_with_timing_and_log eval_headless python "${args[@]}"

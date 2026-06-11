@@ -16,6 +16,7 @@ RECORD_SIZE="${RECORD_SIZE:-${DISPLAY_SIZE}}"
 RECORD_FILE="${RECORD_FILE:-${RECORD_DIR}/eval.mp4}"
 RECORD_START_TIMEOUT="${RECORD_START_TIMEOUT:-15}"
 EVAL_LOG="${EVAL_LOG:-}"
+RUN_START_EPOCH="$(date +%s)"
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "ffmpeg is required to record evaluation video." >&2
@@ -106,5 +107,8 @@ kill -INT "${ffmpeg_pid}" >/dev/null 2>&1 || true
 wait "${ffmpeg_pid}" >/dev/null 2>&1 || true
 ffmpeg_pid=""
 
+run_end_epoch="$(date +%s)"
+run_elapsed=$((run_end_epoch - RUN_START_EPOCH))
 echo "Recorded evaluation to ${RECORD_FILE}"
+echo "Elapsed: $(format_elapsed "${run_elapsed}") (${run_elapsed}s)"
 exit "${eval_status}"

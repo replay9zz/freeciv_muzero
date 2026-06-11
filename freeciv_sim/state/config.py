@@ -7,9 +7,9 @@ from typing import Dict
 @dataclass
 class MapConfig:
     # x-axis, horizonatal, not GUI number
-    map_w: int = 4
+    map_w: int = 32
     # y-axis, vertical, not GUI number 
-    map_h: int = 16
+    map_h: int = 32
     max_turns: int = 120
     max_actions_per_turn: int = 0
     max_num_actions: int = 2000

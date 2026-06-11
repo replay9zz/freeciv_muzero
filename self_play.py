@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 import time
 
 import numpy
@@ -49,6 +50,14 @@ class SelfPlay:
         self.model.set_weights(initial_checkpoint["weights"])
         self.model.to(torch.device("cuda" if self.config.selfplay_on_gpu else "cpu"))
         self.model.eval()
+        if self.config.selfplay_on_gpu and torch.cuda.is_available():
+            print(
+                "[gpu] selfplay "
+                f"visible={os.getenv('CUDA_VISIBLE_DEVICES', '<unset>')} "
+                f"device={torch.cuda.current_device()} "
+                f"name={torch.cuda.get_device_name(torch.cuda.current_device())}",
+                file=sys.stderr,
+            )
 
     def continuous_self_play(self, shared_storage, replay_buffer, test_mode=False):
         while ray.get(

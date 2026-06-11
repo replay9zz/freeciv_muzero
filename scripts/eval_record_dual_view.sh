@@ -42,12 +42,13 @@ OBSERVER_ZOOM_SET="${OBSERVER_ZOOM_SET:-TRUE}"
 OBSERVER_ZOOM_DEFAULT_LEVEL="${OBSERVER_ZOOM_DEFAULT_LEVEL:-0.40}"
 EVAL_LOG="${EVAL_LOG:-}"
 RUN_INFO_FILE="${RUN_INFO_FILE:-${RECORD_DIR}/run_info.txt}"
+RUN_START_EPOCH="$(date +%s)"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-32}}"
   HEATMAP_MAP_HEIGHT="${HEATMAP_MAP_HEIGHT:-${MAP_HEIGHT:-32}}"
 else
-  HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-4}}"
+  HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-16}}"
   HEATMAP_MAP_HEIGHT="${HEATMAP_MAP_HEIGHT:-${MAP_HEIGHT:-16}}"
 fi
 FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
@@ -560,4 +561,13 @@ fi
 
 echo "Rendered heatmap frames to ${HEATMAP_FRAME_DIR}"
 echo "Checkpoint: ${CHECKPOINT}"
+run_end_epoch="$(date +%s)"
+run_elapsed=$((run_end_epoch - RUN_START_EPOCH))
+{
+  printf 'finished_utc: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf 'elapsed: %s\n' "$(format_elapsed "${run_elapsed}")"
+  printf 'elapsed_seconds: %s\n' "${run_elapsed}"
+  printf 'exit_status: %s\n' "${eval_status}"
+} >>"${RUN_INFO_FILE}"
+echo "Elapsed: $(format_elapsed "${run_elapsed}") (${run_elapsed}s)"
 exit "${eval_status}"

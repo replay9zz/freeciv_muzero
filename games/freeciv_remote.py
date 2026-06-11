@@ -116,8 +116,8 @@ class MuZeroConfig:
         self.seed = 0
         self.max_num_gpus = 1
 
-        map_w = _env_int("FREECIV_MAP_W", 4)
-        map_h = _env_int("FREECIV_MAP_H", 16)
+        map_w = _env_int("FREECIV_MAP_W", 32)
+        map_h = _env_int("FREECIV_MAP_H", 32)
         max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
         allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
         self.map_config = MapConfig(
@@ -171,6 +171,9 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 1
         self.selfplay_on_gpu = True
+        self.train_gpu_id = os.getenv("MUZERO_TRAIN_GPU_ID", "")
+        self.selfplay_gpu_ids = os.getenv("MUZERO_SELFPLAY_GPU_IDS", "")
+        self.reanalyse_gpu_id = os.getenv("MUZERO_REANALYSE_GPU_ID", "")
         self.max_turns = self.map_config.max_turns
         self.max_moves = self.max_turns * self.max_actions_per_turn
         self.num_simulations = 50
@@ -276,8 +279,8 @@ class Game(AbstractGame):
                 getattr(config, "max_cities", _env_int("FREECIV_MAX_CITIES", 3))
             )
         else:
-            map_w = _env_int("FREECIV_MAP_W", 4)
-            map_h = _env_int("FREECIV_MAP_H", 16)
+            map_w = _env_int("FREECIV_MAP_W", 32)
+            map_h = _env_int("FREECIV_MAP_H", 32)
             max_turns = _env_int("FREECIV_MAX_TURNS", 2000)
             allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
             self.config = MapConfig(
@@ -716,6 +719,8 @@ class Game(AbstractGame):
 
     def _maybe_take_player(self) -> None:
         cmd = self.take_command
+        if self.take_player and self.take_player.strip() == "-":
+            self.take_player = ""
         if not cmd and self.take_player_id is not None and not self.take_player:
             resolved = None
             for attempt in range(max(1, int(self.take_retries))):
@@ -731,10 +736,7 @@ class Game(AbstractGame):
             if resolved:
                 self.take_player = resolved
         if not cmd and self.take_player:
-            if self.take_player.strip() == "-":
-                cmd = "/take -"
-            else:
-                cmd = f'/take "{self.take_player}"'
+            cmd = f'/take "{self.take_player}"'
         if not cmd:
             return
         ok = self._issue_chat_command(cmd)

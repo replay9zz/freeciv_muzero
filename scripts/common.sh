@@ -107,6 +107,162 @@ init_python_env() {
   cd "${ROOT_DIR}"
   source .venv/bin/activate
   export RAY_memory_usage_threshold="${RAY_memory_usage_threshold:-${RAY_MEMORY_USAGE_THRESHOLD:-0.99}}"
+  export RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO="${RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO:-0}"
+}
+
+count_csv_items() {
+  local csv="$1"
+  local old_ifs="${IFS}"
+  local -a items=()
+  IFS=',' read -r -a items <<<"${csv}"
+  IFS="${old_ifs}"
+  printf '%s\n' "${#items[@]}"
+}
+
+first_csv_item() {
+  local csv="$1"
+  local old_ifs="${IFS}"
+  local -a items=()
+  IFS=',' read -r -a items <<<"${csv}"
+  IFS="${old_ifs}"
+  printf '%s\n' "${items[0]:-}"
+}
+
+tail_csv_items() {
+  local csv="$1"
+  local old_ifs="${IFS}"
+  local -a items=()
+  IFS=',' read -r -a items <<<"${csv}"
+  IFS="${old_ifs}"
+  if [ "${#items[@]}" -le 1 ]; then
+    printf '%s\n' "${items[0]:-}"
+    return
+  fi
+  local joined="" idx item
+  for ((idx = 1; idx < ${#items[@]}; idx++)); do
+    item="${items[idx]}"
+    if [ -z "${joined}" ]; then
+      joined="${item}"
+    else
+      joined="${joined},${item}"
+    fi
+  done
+  printf '%s\n' "${joined}"
+}
+
+init_train_runtime() {
+  local run_name="${1:-train}"
+  local gpu_list="${TRAIN_GPU_LIST:-${GPU_LIST:-}}"
+
+  if [ -n "${gpu_list}" ]; then
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-${gpu_list}}"
+    export MUZERO_TRAIN_GPU_ID="${MUZERO_TRAIN_GPU_ID:-$(first_csv_item "${gpu_list}")}"
+    export MUZERO_SELFPLAY_GPU_IDS="${MUZERO_SELFPLAY_GPU_IDS:-$(tail_csv_items "${gpu_list}")}"
+    if [ -z "${MUZERO_MAX_NUM_GPUS:-}" ]; then
+      MUZERO_MAX_NUM_GPUS="$(count_csv_items "${CUDA_VISIBLE_DEVICES}")"
+      export MUZERO_MAX_NUM_GPUS
+    fi
+  fi
+
+  if [ "${TRAIN_RESET_RAY:-0}" = "1" ]; then
+    if command -v ray >/dev/null 2>&1; then
+      ray stop --force >/dev/null 2>&1 || true
+    elif [ -x "${ROOT_DIR}/.venv/bin/ray" ]; then
+      "${ROOT_DIR}/.venv/bin/ray" stop --force >/dev/null 2>&1 || true
+    fi
+  fi
+
+  printf '[init] run=%s cuda_visible_devices=%s max_num_gpus=%s reset_ray=%s\n' \
+    "${run_name}" \
+    "${CUDA_VISIBLE_DEVICES:-<unset>}" \
+    "${MUZERO_MAX_NUM_GPUS:-<unset>}" \
+    "${TRAIN_RESET_RAY:-0}"
+  printf '[init] role_gpus train=%s selfplay=%s reanalyse=%s\n' \
+    "${MUZERO_TRAIN_GPU_ID:-<auto>}" \
+    "${MUZERO_SELFPLAY_GPU_IDS:-<auto>}" \
+    "${MUZERO_REANALYSE_GPU_ID:-<auto>}"
+}
+
+format_elapsed() {
+  local elapsed="$1"
+  local hours minutes seconds
+  hours=$((elapsed / 3600))
+  minutes=$(((elapsed % 3600) / 60))
+  seconds=$((elapsed % 60))
+  printf '%02d:%02d:%02d' "${hours}" "${minutes}" "${seconds}"
+}
+
+run_with_timing_and_log() {
+  local run_name="$1"
+  shift
+
+  local start_epoch end_epoch elapsed status stamp log_path
+  start_epoch="$(date +%s)"
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  log_path="${RUN_LOG:-${LOG_FILE:-}}"
+
+  if [ "${SAVE_RUN_LOG:-1}" = "1" ]; then
+    if [ -z "${log_path}" ]; then
+      log_path="${RUN_LOG_DIR:-${ROOT_DIR}/results/logs}/${run_name}-${stamp}.log"
+    elif [ "${log_path}" = "0" ] || [ "${log_path}" = "false" ]; then
+      log_path=""
+    fi
+  else
+    log_path=""
+  fi
+
+  if [ -n "${log_path}" ]; then
+    mkdir -p "$(dirname "${log_path}")"
+    {
+      printf 'Run: %s\n' "${run_name}"
+      printf 'Started: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      printf 'CUDA_VISIBLE_DEVICES: %s\n' "${CUDA_VISIBLE_DEVICES:-<unset>}"
+      printf 'MUZERO_MAX_NUM_GPUS: %s\n' "${MUZERO_MAX_NUM_GPUS:-<unset>}"
+      printf 'MUZERO_TRAIN_GPU_ID: %s\n' "${MUZERO_TRAIN_GPU_ID:-<auto>}"
+      printf 'MUZERO_SELFPLAY_GPU_IDS: %s\n' "${MUZERO_SELFPLAY_GPU_IDS:-<auto>}"
+      printf 'MUZERO_REANALYSE_GPU_ID: %s\n' "${MUZERO_REANALYSE_GPU_ID:-<auto>}"
+      printf 'Command:'
+      printf ' %q' "$@"
+      printf '\n'
+      printf 'Log: %s\n' "${log_path}"
+    } | tee -a "${log_path}"
+
+    set +e
+    "$@" 2>&1 | tee -a "${log_path}"
+    status="${PIPESTATUS[0]}"
+    set -e
+  else
+    printf 'Run: %s\n' "${run_name}"
+    printf 'Started: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'CUDA_VISIBLE_DEVICES: %s\n' "${CUDA_VISIBLE_DEVICES:-<unset>}"
+    printf 'MUZERO_MAX_NUM_GPUS: %s\n' "${MUZERO_MAX_NUM_GPUS:-<unset>}"
+    printf 'MUZERO_TRAIN_GPU_ID: %s\n' "${MUZERO_TRAIN_GPU_ID:-<auto>}"
+    printf 'MUZERO_SELFPLAY_GPU_IDS: %s\n' "${MUZERO_SELFPLAY_GPU_IDS:-<auto>}"
+    printf 'MUZERO_REANALYSE_GPU_ID: %s\n' "${MUZERO_REANALYSE_GPU_ID:-<auto>}"
+    set +e
+    "$@"
+    status="$?"
+    set -e
+  fi
+
+  end_epoch="$(date +%s)"
+  elapsed=$((end_epoch - start_epoch))
+  if [ -n "${log_path}" ]; then
+    {
+      printf '\n'
+      printf 'Finished: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      printf 'Exit status: %s\n' "${status}"
+      printf 'Elapsed: %s (%ss)\n' "$(format_elapsed "${elapsed}")" "${elapsed}"
+      printf 'Log: %s\n' "${log_path}"
+    } | tee -a "${log_path}"
+  else
+    printf '\n'
+    printf 'Finished: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'Exit status: %s\n' "${status}"
+    printf 'Elapsed: %s (%ss)\n' "$(format_elapsed "${elapsed}")" "${elapsed}"
+  fi
+
+  return "${status}"
 }
 
 cleanup_freeciv_ports() {

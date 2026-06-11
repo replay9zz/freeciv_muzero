@@ -46,13 +46,35 @@ convs, set `FREECIV_HEX_CONV=1`, for example
 
 To force CPU mode, use `USE_GPU=0 ./scripts/train.sh`.
 To target a specific GPU on a shared machine, set `CUDA_VISIBLE_DEVICES`, for example `CUDA_VISIBLE_DEVICES=5 ./scripts/train.sh`.
+For the training wrappers, `TRAIN_GPU_LIST` is the easier form; it sets
+`CUDA_VISIBLE_DEVICES` and, when `MUZERO_MAX_NUM_GPUS` is unset, matches Ray's
+GPU count to the list length.
+
+```bash
+TRAIN_GPU_LIST=1,2,3,4,5 ./scripts/train_headless.sh
+```
+
+With `TRAIN_GPU_LIST`, training is pinned to the first GPU and self-play workers
+are pinned round-robin to the remaining GPUs. Override the split explicitly with
+`MUZERO_TRAIN_GPU_ID=1 MUZERO_SELFPLAY_GPU_IDS=2,3,4,5`.
+
+Monitor GPU use with:
+
+```bash
+watch -n 1 nvidia-smi -i 1,2,3,4,5
+nvidia-smi dmon -i 1,2,3,4,5 -s pucm
+nvidia-smi pmon -i 1,2,3,4,5
+```
+
+If a previous crashed run left Ray workers behind, add `TRAIN_RESET_RAY=1`.
+This stops the local Ray runtime before starting the new training run.
+
 For multi-GPU headless training, increase the Ray self-play workers and expose
 the GPUs:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9 \
-MUZERO_MAX_NUM_GPUS=10 \
-NUM_WORKERS=8 \
+TRAIN_GPU_LIST=1,2,3,4,5 \
+NUM_WORKERS=4 \
 TRAINING_STEPS=50000 \
 NUM_SIMULATIONS=16 \
 ./scripts/train_headless.sh
@@ -62,7 +84,7 @@ Each worker gets its own Freeciv server and LuaRemote port by offsetting
 `SERVER_PORT` and `LUA_PORT`. Override `FREECIV_SERVER_PORT_STRIDE` or
 `FREECIV_LUAREMOTE_PORT_STRIDE` if a host has nearby occupied ports.
 
-The default server rc used by the training scripts is [`start_single.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_single.serv).
+The default server rc used by the training scripts is [`start_generated_32x32.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_generated_32x32.serv), which starts a 32x32 generated map. Set `FREECIV_GENERATED_MAP=0` to use the scenario path instead.
 The training scripts now prefer repo-local paths first:
 
 - `./freeciv_build_v3_2_uv`
@@ -77,6 +99,10 @@ For scenarios they prefer:
 - `~/.freeciv/scenarios/minimal_v4.sav`
 
 Override either with `BUILD_DIR=...` or `SCENARIO_PATH=...` if needed.
+
+Training and evaluation wrappers print elapsed time at the end and save logs
+under `results/logs/` by default. Set `RUN_LOG=/path/to/run.log` to choose the
+log path, or `SAVE_RUN_LOG=0` to disable wrapper logging.
 
 Optional strategic reward shaping:
 
@@ -96,7 +122,7 @@ Example:
 ```bash
 python3 remote_play.py \
     --checkpoint path/to/checkpoint/model.checkpoint \
-    --map-width 4 --map-height 16 --max-turns 300 \
+    --map-width 32 --map-height 32 --max-turns 300 \
     --max-actions-per-turn 100 \
     --num-simulations 50 --temperature 0.0 \
     --no-sea-units \
