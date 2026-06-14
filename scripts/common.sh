@@ -98,6 +98,27 @@ prepare_server_rc_template() {
       }
     ' "${tmp}" >"${target}"
     rm -f "${tmp}"
+    if [ -n "${FREECIV_AIFILL:-}" ]; then
+      tmp="${target}.tmp"
+      awk -v aifill="${FREECIV_AIFILL}" '
+        /^[[:space:]]*set[[:space:]]+aifill([[:space:]]|$)/ {
+          print "set aifill " aifill
+          inserted = 1
+          next
+        }
+        /^[[:space:]]*start([[:space:]]|$)/ && !inserted {
+          print "set aifill " aifill
+          inserted = 1
+        }
+        { print }
+        END {
+          if (!inserted) {
+            print "set aifill " aifill
+          }
+        }
+      ' "${target}" >"${tmp}"
+      mv "${tmp}" "${target}"
+    fi
   done
 
   printf '%s\n' "${output_dir}/start-{server_port}.serv"

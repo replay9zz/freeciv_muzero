@@ -5,6 +5,7 @@ import math
 import os
 import pathlib
 import pickle
+import shutil
 import sys
 import time
 
@@ -186,6 +187,9 @@ class MuZero:
         self.reanalyse_worker = None
         self.replay_buffer_worker = None
         self.shared_storage_worker = None
+        self._progress_tty = None
+        self._progress_tty_disabled = False
+        self._progress_tty_rows = None
 
     def train(self, log_in_tensorboard=True):
         """
@@ -418,10 +422,7 @@ class MuZero:
                 writer.add_scalar("3.Loss/Value_loss", info["value_loss"], counter)
                 writer.add_scalar("3.Loss/Reward_loss", info["reward_loss"], counter)
                 writer.add_scalar("3.Loss/Policy_loss", info["policy_loss"], counter)
-                print(
-                    f'Last test reward: {info["total_reward"]:.2f}. Training step: {info["training_step"]}/{self.config.training_steps}. Played games: {info["num_played_games"]}. Loss: {info["total_loss"]:.2f}',
-                    end="\r",
-                )
+                self._emit_training_progress(info, include_reward=True)
                 counter += 1
                 time.sleep(0.5)
         except KeyboardInterrupt:
@@ -440,11 +441,7 @@ class MuZero:
         try:
             while True:
                 info = ray.get(self.shared_storage_worker.get_info.remote(keys))
-                print(
-                    f'Training step: {info["training_step"]}/{self.config.training_steps}. '
-                    f'Played games: {info["num_played_games"]}. Loss: {info["total_loss"]:.2f}',
-                    end="\r",
-                )
+                self._emit_training_progress(info)
                 if info["training_step"] >= self.config.training_steps:
                     break
                 time.sleep(1.0)
@@ -452,7 +449,111 @@ class MuZero:
             pass
         self._finalize_training(start_time=start_time)
 
+    def _emit_training_progress(self, info, include_reward=False):
+        print(self._training_progress_line(info, include_reward=include_reward), flush=True)
+        self._write_terminal_progress_bar(info)
+
+    def _training_progress_line(self, info, include_reward=False):
+        training_steps = max(1, int(self.config.training_steps))
+        training_step = int(info.get("training_step", 0))
+        clamped_step = min(max(training_step, 0), training_steps)
+        ratio = clamped_step / training_steps
+        bar_width = 30
+        filled = int(bar_width * ratio)
+        bar = "#" * filled + "-" * (bar_width - filled)
+
+        parts = [
+            f"Training step: {training_step}/{self.config.training_steps}",
+            f"[{bar}] {ratio * 100:6.2f}%",
+            f'Played games: {info.get("num_played_games", 0)}',
+            f'Loss: {float(info.get("total_loss", 0.0)):.2f}',
+        ]
+        if include_reward:
+            parts.insert(3, f'Reward: {float(info.get("total_reward", 0.0)):.2f}')
+        return " | ".join(parts)
+
+    def _terminal_progress_allowed(self):
+        value = os.getenv("MUZERO_TERMINAL_PROGRESS_BAR", "1").strip().lower()
+        return value not in ("0", "false", "no", "off")
+
+    def _init_terminal_progress_bar(self):
+        if self._progress_tty or self._progress_tty_disabled:
+            return bool(self._progress_tty)
+        if not self._terminal_progress_allowed():
+            self._progress_tty_disabled = True
+            return False
+        try:
+            self._progress_tty = open("/dev/tty", "w", buffering=1)
+        except OSError:
+            self._progress_tty_disabled = True
+            return False
+        self._resize_terminal_progress_bar()
+        return True
+
+    def _resize_terminal_progress_bar(self):
+        if not self._progress_tty:
+            return None
+        try:
+            size = os.get_terminal_size(self._progress_tty.fileno())
+        except OSError:
+            size = shutil.get_terminal_size(fallback=(80, 24))
+        rows = max(2, size.lines)
+        if rows != self._progress_tty_rows:
+            self._progress_tty.write(f"\0337\033[1;{rows - 1}r\033[{rows};1H\033[2K\0338")
+            self._progress_tty.flush()
+            self._progress_tty_rows = rows
+        return rows, max(20, size.columns)
+
+    def _write_terminal_progress_bar(self, info):
+        if not self._init_terminal_progress_bar():
+            return
+        size = self._resize_terminal_progress_bar()
+        if not size:
+            return
+        rows, columns = size
+
+        training_steps = max(1, int(self.config.training_steps))
+        training_step = int(info.get("training_step", 0))
+        clamped_step = min(max(training_step, 0), training_steps)
+        ratio = clamped_step / training_steps
+
+        text = (
+            f" Training Step {training_step}/{self.config.training_steps}"
+            f"  {ratio * 100:5.1f}%"
+            f"  games {info.get('num_played_games', 0)}"
+            f"  loss {float(info.get('total_loss', 0.0)):.2f}"
+        )
+        if len(text) > columns:
+            text = text[:columns]
+        text = text.ljust(columns)
+
+        filled = min(columns, int(columns * ratio))
+        if ratio > 0 and filled == 0:
+            filled = 1
+        filled_text = text[:filled]
+        empty_text = text[filled:]
+        line = f"\033[30;47m{filled_text}\033[0m{empty_text}"
+
+        self._progress_tty.write(f"\0337\033[{rows};1H{line}\0338")
+        self._progress_tty.flush()
+
+    def _clear_terminal_progress_bar(self):
+        if not self._progress_tty:
+            return
+        try:
+            try:
+                rows = os.get_terminal_size(self._progress_tty.fileno()).lines
+            except OSError:
+                rows = self._progress_tty_rows or 24
+            self._progress_tty.write(f"\0337\033[r\033[{rows};1H\033[2K\0338")
+            self._progress_tty.flush()
+        finally:
+            self._progress_tty.close()
+            self._progress_tty = None
+            self._progress_tty_rows = None
+
     def _finalize_training(self, start_time):
+        self._clear_terminal_progress_bar()
         self.terminate_workers()
 
         if self.config.save_model:
@@ -600,7 +701,8 @@ class MuZero:
         else:
             print(f"Using empty buffer.")
             self.replay_buffer = {}
-            self.checkpoint["training_step"] = 0
+            if not checkpoint_path:
+                self.checkpoint["training_step"] = 0
             self.checkpoint["num_played_steps"] = 0
             self.checkpoint["num_played_games"] = 0
             self.checkpoint["num_reanalysed_games"] = 0
@@ -777,6 +879,12 @@ def load_model_menu(muzero, game_name):
     )
 
 
+def _load_resume_paths(config):
+    checkpoint_path = config.pop("checkpoint_path", None)
+    replay_buffer_path = config.pop("replay_buffer_path", None)
+    return checkpoint_path, replay_buffer_path
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         # Train directly with: python muzero.py cartpole
@@ -785,7 +893,13 @@ if __name__ == "__main__":
     elif len(sys.argv) == 3:
         # Train directly with: python muzero.py cartpole '{"lr_init": 0.01}'
         config = json.loads(sys.argv[2])
+        checkpoint_path, replay_buffer_path = _load_resume_paths(config)
         muzero = MuZero(sys.argv[1], config)
+        if checkpoint_path or replay_buffer_path:
+            muzero.load_model(
+                checkpoint_path=checkpoint_path,
+                replay_buffer_path=replay_buffer_path,
+            )
         muzero.train()
     else:
         print("\nWelcome to MuZero! Here's a list of games:")

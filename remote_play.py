@@ -497,6 +497,8 @@ def main() -> None:
     ap.add_argument("--map-width", type=int, default=4)
     ap.add_argument("--map-height", type=int, default=16)
     ap.add_argument("--max-turns", type=int, default=2000)
+    ap.add_argument("--max-units", type=int, help="Observation/action unit slots.")
+    ap.add_argument("--max-cities", type=int, help="Observation/action city slots.")
     ap.add_argument(
         "--no-sea-units",
         action="store_true",
@@ -632,6 +634,12 @@ def main() -> None:
     turn_score_path = None
     turn_score_fp = None
     turn_score_writer = None
+    turn_score_header_written = False
+    turn_score_player_ids = []
+    try:
+        turn_score_default_count = max(2, int(os.environ.get("FREECIV_AIFILL", "2")))
+    except ValueError:
+        turn_score_default_count = 2
     if args.turn_score_csv:
         if list_player_scores is None:
             print(
@@ -646,11 +654,7 @@ def main() -> None:
             turn_score_fp = turn_score_path.open("a", newline="", encoding="utf-8")
             turn_score_writer = csv.writer(turn_score_fp)
             try:
-                if not file_exists or turn_score_path.stat().st_size == 0:
-                    turn_score_writer.writerow(
-                        ["episode", "turn", "player0_score", "player1_score"]
-                    )
-                    turn_score_fp.flush()
+                turn_score_header_written = file_exists and turn_score_path.stat().st_size > 0
             except OSError:
                 pass
 
@@ -711,6 +715,8 @@ def main() -> None:
     _set_env("FREECIV_MAP_H", args.map_height)
     _set_env("FREECIV_NO_SEA_UNITS", "1" if args.no_sea_units else None)
     _set_env("FREECIV_MAX_TURNS", args.max_turns)
+    _set_env("FREECIV_MAX_UNITS", args.max_units)
+    _set_env("FREECIV_MAX_CITIES", args.max_cities)
     _set_env("FREECIV_MAX_ACTIONS_PER_TURN", args.max_actions_per_turn)
     _set_env("FREECIV_PLAYER_ID", args.player_id)
     _set_env("FREECIV_UNIT_ID", args.unit_id)
@@ -840,9 +846,13 @@ def main() -> None:
             if isinstance(enemy_cities, list):
                 extra += f" enemy_cities={len(enemy_cities)}"
             civ_score = _current_civ_score(game)
-            fc_score, fc_winner = _query_player_score(
-                game.client, getattr(game, "player_id", None)
-            )
+            player_id = getattr(game, "player_id", None)
+            scores = _query_player_scores(game.client)
+            fc_score, fc_winner = (None, None)
+            if isinstance(scores, dict) and player_id is not None:
+                fc_score, fc_winner, _name = scores.get(int(player_id), (None, None, ""))
+            if fc_score is None and fc_winner is None:
+                fc_score, fc_winner = _query_player_score(game.client, player_id)
             score_parts = []
             if civ_score is not None:
                 score_parts.append(f"civ_score={civ_score:.2f}")
@@ -850,6 +860,15 @@ def main() -> None:
                 score_parts.append(f"fc_score={fc_score}")
             if fc_winner is not None:
                 score_parts.append(f"fc_win={fc_winner}")
+            if isinstance(scores, dict) and scores:
+                score_parts.append(
+                    "scores=["
+                    + ",".join(
+                        f"{pid}:{score}"
+                        for pid, (score, _win, _name) in sorted(scores.items())
+                    )
+                    + "]"
+                )
             line = f"{prefix} action={game.action_to_string(action)}{extra}"
             if score_parts:
                 line += " " + " ".join(score_parts)
@@ -860,10 +879,24 @@ def main() -> None:
                 and turn > 0
                 and turn != last_turn_csv
             ):
-                scores = _query_player_scores(game.client)
-                p0 = scores.get(0, (None, None, ""))[0]
-                p1 = scores.get(1, (None, None, ""))[0]
-                turn_score_writer.writerow([episode + 1, turn, p0, p1])
+                if not turn_score_player_ids:
+                    if isinstance(scores, dict) and scores:
+                        turn_score_player_ids = sorted(scores.keys())
+                    else:
+                        turn_score_player_ids = list(range(turn_score_default_count))
+                if not turn_score_header_written:
+                    turn_score_writer.writerow(
+                        ["episode", "turn"]
+                        + [f"player{pid}_score" for pid in turn_score_player_ids]
+                    )
+                    turn_score_header_written = True
+                turn_score_writer.writerow(
+                    [episode + 1, turn]
+                    + [
+                        scores.get(pid, (None, None, ""))[0]
+                        for pid in turn_score_player_ids
+                    ]
+                )
                 turn_score_fp.flush()
                 last_turn_csv = turn
             if (
@@ -874,14 +907,19 @@ def main() -> None:
                 and turn % score_log_interval == 0
                 and turn != last_score_turn
             ):
-                scores = _query_player_scores(game.client)
-                p0 = scores.get(0, (None, None, ""))[0]
-                p1 = scores.get(1, (None, None, ""))[0]
                 payload = {
                     "turn": turn,
-                    "player0_score": p0,
-                    "player1_score": p1,
+                    "players": {
+                        str(pid): {
+                            "score": score,
+                            "winner": winner,
+                            "name": name,
+                        }
+                        for pid, (score, winner, name) in sorted(scores.items())
+                    },
                 }
+                for pid in (0, 1):
+                    payload[f"player{pid}_score"] = scores.get(pid, (None, None, ""))[0]
                 score_log_fp.write(json.dumps(payload) + "\n")
                 score_log_fp.flush()
                 last_score_turn = turn

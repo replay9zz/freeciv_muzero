@@ -34,6 +34,8 @@ PLAYER_ID="${PLAYER_ID:-0}"
 TAKE_PLAYER_ID="${TAKE_PLAYER_ID:-${PLAYER_ID}}"
 MAX_TURNS="${MAX_TURNS:-300}"
 MAX_ACTIONS_PER_TURN="${MAX_ACTIONS_PER_TURN:-100}"
+FREECIV_MAX_UNITS="${FREECIV_MAX_UNITS:-}"
+FREECIV_MAX_CITIES="${FREECIV_MAX_CITIES:-}"
 NUM_SIMULATIONS="${NUM_SIMULATIONS:-50}"
 TEMPERATURE="${TEMPERATURE:-0.0}"
 SLEEP="${SLEEP:-0.1}"
@@ -112,6 +114,14 @@ args=(
   --episodes "${EPISODES}"
 )
 
+if [ -n "${FREECIV_MAX_UNITS}" ]; then
+  args+=(--max-units "${FREECIV_MAX_UNITS}")
+fi
+
+if [ -n "${FREECIV_MAX_CITIES}" ]; then
+  args+=(--max-cities "${FREECIV_MAX_CITIES}")
+fi
+
 if [ -n "${PLAYER_ID}" ]; then
   args+=(--player-id "${PLAYER_ID}")
 fi
@@ -165,6 +175,10 @@ fi
 
 if [ -n "${SCORE_LOG:-}" ]; then
   args+=(--score-log "${SCORE_LOG}")
+fi
+
+if [ -n "${SCORE_LOG_INTERVAL:-}" ]; then
+  args+=(--score-log-interval "${SCORE_LOG_INTERVAL}")
 fi
 
 if [ -n "${CITY_SCORE_LOG:-}" ]; then
