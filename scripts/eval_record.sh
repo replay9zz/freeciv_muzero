@@ -27,6 +27,7 @@ mkdir -p "${RECORD_DIR}"
 
 export DISPLAY_NUM
 export DISPLAY_SIZE
+export FREECIV_SAVE_PATH="${FREECIV_SAVE_PATH:-${RECORD_DIR}:${HOME}/.freeciv/saves}"
 
 cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 

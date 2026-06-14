@@ -732,11 +732,24 @@ def main() -> None:
 
     device = torch.device(args.device)
     weights = load_weights(checkpoint_path, map_location=device)
+    checkpoint_channels = _infer_in_channels(weights)
 
     config = freeciv_remote.MuZeroConfig()
+    if (
+        checkpoint_channels is not None
+        and not bool(getattr(config, "observe_belief", False))
+        and checkpoint_channels
+        == config.base_observation_shape[0]
+        + len(freeciv_remote.BELIEF_OBSERVATION_PLANES)
+    ):
+        _set_env("FREECIV_OBSERVE_BELIEF", "1")
+        config = freeciv_remote.MuZeroConfig()
+        print(
+            "Enabled belief observation planes for checkpoint compatibility.",
+            file=sys.stderr,
+        )
     config.num_simulations = args.num_simulations
     native_obs_shape = config.observation_shape
-    checkpoint_channels = _infer_in_channels(weights)
     obs_adapter = None
     if checkpoint_channels is not None and checkpoint_channels != native_obs_shape[0]:
         num_techs = len(freeciv_remote.MultiheadState.RESEARCH_TECHS)
