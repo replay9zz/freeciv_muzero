@@ -31,6 +31,7 @@ FREECIV_MAX_CITIES="${FREECIV_MAX_CITIES:-}"
 NUM_SIMULATIONS="${NUM_SIMULATIONS:-50}"
 TEMPERATURE="${TEMPERATURE:-0.0}"
 SLEEP="${SLEEP:-0.1}"
+DEVICE="${DEVICE:-}"
 NO_SEA_UNITS="${NO_SEA_UNITS:-1}"
 FREECIV_BELIEF_TENSORBOARD="${FREECIV_BELIEF_TENSORBOARD:-1}"
 FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-5}"
@@ -39,6 +40,12 @@ PLAYER_ID_A="${PLAYER_ID_A:-0}"
 PLAYER_ID_B="${PLAYER_ID_B:-1}"
 CLIENT_NAME_A="${CLIENT_NAME_A:-agent0}"
 CLIENT_NAME_B="${CLIENT_NAME_B:-agent1}"
+START_AFTER_TAKE="${START_AFTER_TAKE:-1}"
+REMOTE_START_AFTER_TAKE="${REMOTE_START_AFTER_TAKE:-0}"
+DUAL_START_DELAY="${DUAL_START_DELAY:-3}"
+FREECIV_START_WAIT="${FREECIV_START_WAIT:-5}"
+FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-120}"
+FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
 XVFB_PATTERN="Xvfb ${DISPLAY_NUM}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
@@ -48,6 +55,9 @@ OUTPUT_DIR="${OUTPUT_DIR:-${ROOT_DIR}/results/remote_play/${RUN_ID}}"
 SERVER_RC_DIR="${SERVER_RC_DIR:-/tmp/freeciv-muzero-rc-${RUN_ID}}"
 FREECIV_AIFILL="${FREECIV_AIFILL:-2}"
 export FREECIV_AIFILL
+export FREECIV_START_WAIT
+export FREECIV_TAKE_RETRIES
+export FREECIV_TAKE_WAIT
 
 SERVER_RC_TEMPLATE="$(prepare_server_rc_template \
   "${SERVER_RC}" \
@@ -56,6 +66,7 @@ SERVER_RC_TEMPLATE="$(prepare_server_rc_template \
   "1" \
   "1" \
   "${RUN_ID}")"
+SERVER_RC_FILE="${SERVER_RC_TEMPLATE//\{server_port\}/${SERVER_PORT}}"
 
 CHECKPOINT_A="${1:-${CHECKPOINT_A:-$(latest_checkpoint)}}"
 CHECKPOINT_B="${2:-${CHECKPOINT_B:-${CHECKPOINT_A}}}"
@@ -94,9 +105,9 @@ cd "${ROOT_DIR}"
 init_python_env
 
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
-  "${BUILD_DIR}/run.sh" freeciv-server -p "${SERVER_PORT}" -r "${SERVER_RC_TEMPLATE}" >"${OUTPUT_DIR}/server.log" 2>&1 &
+  (cd "${BUILD_DIR}" && ./run.sh freeciv-server -p "${SERVER_PORT}" -r "${SERVER_RC_FILE}") >"${OUTPUT_DIR}/server.log" 2>&1 &
 else
-  "${BUILD_DIR}/run.sh" freeciv-server -p "${SERVER_PORT}" -f "${SCENARIO_PATH}" -r "${SERVER_RC_TEMPLATE}" >"${OUTPUT_DIR}/server.log" 2>&1 &
+  (cd "${BUILD_DIR}" && ./run.sh freeciv-server -p "${SERVER_PORT}" -f "${SCENARIO_PATH}" -r "${SERVER_RC_FILE}") >"${OUTPUT_DIR}/server.log" 2>&1 &
 fi
 sleep 2
 
@@ -125,6 +136,69 @@ fi
 if [ "${FREECIV_BELIEF_TENSORBOARD}" = "1" ]; then
   common_args+=(--belief-tensorboard --belief-tensorboard-interval "${FREECIV_BELIEF_TENSORBOARD_INTERVAL}")
 fi
+if [ "${REMOTE_START_AFTER_TAKE}" = "1" ]; then
+  common_args+=(--start-after-take)
+fi
+if [ -n "${DEVICE}" ]; then
+  common_args+=(--device "${DEVICE}")
+fi
+
+send_start_after_agents_ready() {
+  "${PYTHON:-${ROOT_DIR}/.venv/bin/python}" - "${HOST}" "${LUA_PORT_A}" "${LUA_PORT_B}" "${DUAL_START_DELAY}" <<'PY'
+import socket
+import sys
+import time
+
+from freeciv_sim.remote.lua_client import LuaRemoteClient
+
+host = sys.argv[1]
+ports = [int(sys.argv[2]), int(sys.argv[3])]
+delay = float(sys.argv[4])
+
+def wait_port(port: int) -> None:
+    deadline = time.monotonic() + 30.0
+    last_exc = None
+    while time.monotonic() < deadline:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        try:
+            sock.connect((host, port))
+            sock.close()
+            return
+        except OSError as exc:
+            last_exc = exc
+            time.sleep(0.5)
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                pass
+    raise SystemExit(f"LuaRemote port {port} not ready: {last_exc}")
+
+for port in ports:
+    wait_port(port)
+time.sleep(max(0.0, delay))
+
+client = LuaRemoteClient(host, ports[0], timeout=2.5)
+client.connect()
+safe_cmd = LuaRemoteClient._quote_lua_string("/start")
+lua = (
+    "return (function() "
+    f"local cmd={safe_cmd}; local ok=false; "
+    "if type(send_chat)=='function' then ok=pcall(send_chat, cmd) end; "
+    "if (not ok) and chat and type(chat.send)=='function' then ok=pcall(chat.send, cmd) end; "
+    "if (not ok) and client and type(client.send_chat)=='function' then ok=pcall(client.send_chat, cmd) end; "
+    "if chat and chat.base then if ok then chat.base('__OK__ dual_start') else chat.base('__ERR__ dual_start') end end; "
+    "return ok and '__OK__' or '__ERR__' "
+    "end)()"
+)
+res = client.eval(lua)
+payload = res.last_return() if res else None
+client.close()
+if not (isinstance(payload, str) and payload.startswith("__OK__")):
+    raise SystemExit(f"/start failed: {payload!r}")
+PY
+}
 
 FREECIV_CLIENT_CMD="${BUILD_DIR}/run.sh freeciv-gtk3.22 -a -s ${HOST} -p ${SERVER_PORT} -n ${CLIENT_NAME_A} -P none -- --resolution ${CLIENT_RESOLUTION}" \
 FREECIV_TAKE_PLAYER_ID="${PLAYER_ID_A}" \
@@ -151,6 +225,10 @@ python remote_play.py \
   "${common_args[@]}" \
   >"${OUTPUT_DIR}/agent${PLAYER_ID_B}.log" 2>&1 &
 pid_b=$!
+
+if [ "${START_AFTER_TAKE}" = "1" ]; then
+  send_start_after_agents_ready >>"${OUTPUT_DIR}/dual-start.log" 2>&1 || true
+fi
 
 status_a=0
 status_b=0

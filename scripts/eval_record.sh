@@ -17,6 +17,7 @@ RECORD_FILE="${RECORD_FILE:-${RECORD_DIR}/eval.mp4}"
 RECORD_START_TIMEOUT="${RECORD_START_TIMEOUT:-15}"
 EVAL_LOG="${EVAL_LOG:-}"
 RUN_START_EPOCH="$(date +%s)"
+BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "ffmpeg is required to record evaluation video." >&2
@@ -46,6 +47,32 @@ stop_recording() {
 }
 
 trap stop_recording EXIT INT TERM
+
+copy_saved_games_to_record_dir() {
+  if [ -z "${EVAL_LOG}" ] || [ ! -f "${EVAL_LOG}" ]; then
+    return 0
+  fi
+  local save_name candidate copied=0
+  while IFS= read -r save_name; do
+    [ -n "${save_name}" ] || continue
+    for candidate in \
+      "${RECORD_DIR}/${save_name}" \
+      "${BUILD_DIR}/${save_name}" \
+      "${ROOT_DIR}/${save_name}" \
+      "${HOME}/.freeciv/saves/${save_name}"; do
+      if [ -f "${candidate}" ]; then
+        if [ "${candidate}" != "${RECORD_DIR}/${save_name}" ]; then
+          cp -f "${candidate}" "${RECORD_DIR}/${save_name}"
+        fi
+        copied=1
+        break
+      fi
+    done
+  done < <(sed -n "s/^Game saved as //p" "${EVAL_LOG}" | awk '{print $1}' | sort -u)
+  if [ "${copied}" = "1" ]; then
+    echo "Copied saved game(s) to ${RECORD_DIR}"
+  fi
+}
 
 if [ -n "${EVAL_LOG}" ]; then
   mkdir -p "$(dirname "${EVAL_LOG}")"
@@ -107,6 +134,8 @@ eval_status=$?
 kill -INT "${ffmpeg_pid}" >/dev/null 2>&1 || true
 wait "${ffmpeg_pid}" >/dev/null 2>&1 || true
 ffmpeg_pid=""
+
+copy_saved_games_to_record_dir
 
 run_end_epoch="$(date +%s)"
 run_elapsed=$((run_end_epoch - RUN_START_EPOCH))

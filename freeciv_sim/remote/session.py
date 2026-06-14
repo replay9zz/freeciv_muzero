@@ -93,6 +93,34 @@ def simple_knows_tech(client: LuaRemoteClient, player_id: int, tech_name: str) -
     return player_knows_tech(client, player_id, tech_name)
 
 
+def discover_client_player_id(client: LuaRemoteClient) -> Optional[int]:
+    lua = (
+        "return (function() "
+        "local you = nil; "
+        "if client and client.conn then "
+        "  if client.conn.playing then you = client.conn.playing "
+        "  elseif client.conn.player then you = client.conn.player end "
+        "end; "
+        "if not you then return '__PLAYER__ -1' end; "
+        "local pid = -1; "
+        "if you.id then pid = you.id elseif you.player_num then pid = you.player_num end; "
+        "return string.format('__PLAYER__ %d', pid) "
+        "end)()"
+    )
+    try:
+        res = client.eval(lua)
+        val = res.last_return() if res else None
+    except Exception:
+        return None
+    if not isinstance(val, str) or "__PLAYER__" not in val:
+        return None
+    try:
+        pid = int(float(val.split("__PLAYER__", 1)[1].strip()))
+    except ValueError:
+        return None
+    return pid if pid >= 0 else None
+
+
 def discover_controlled_units(
     client: LuaRemoteClient,
     player_hint: Optional[int],
@@ -102,7 +130,8 @@ def discover_controlled_units(
     except Exception as exc:
         raise RuntimeError("Failed to enumerate units via LuaRemote.") from exc
 
-    player_id = player_hint
+    client_player_id = discover_client_player_id(client)
+    player_id = client_player_id if client_player_id is not None else player_hint
     if player_id is None:
         for _uid, _x, _y, unit_owner in units:
             if unit_owner >= 0:
@@ -113,6 +142,14 @@ def discover_controlled_units(
         return [], None
 
     controlled = [uid for uid, _x, _y, unit_owner in units if unit_owner == player_id]
+    if (
+        not controlled
+        and player_hint is not None
+        and client_player_id is not None
+        and client_player_id != player_hint
+    ):
+        player_id = client_player_id
+        controlled = [uid for uid, _x, _y, unit_owner in units if unit_owner == player_id]
     return controlled, player_id
 
 

@@ -178,6 +178,32 @@ stop_recording() {
 
 trap stop_recording EXIT INT TERM
 
+copy_saved_games_to_record_dir() {
+  if [ -z "${EVAL_LOG}" ] || [ ! -f "${EVAL_LOG}" ]; then
+    return 0
+  fi
+  local save_name candidate copied=0
+  while IFS= read -r save_name; do
+    [ -n "${save_name}" ] || continue
+    for candidate in \
+      "${RECORD_DIR}/${save_name}" \
+      "${BUILD_DIR}/${save_name}" \
+      "${ROOT_DIR}/${save_name}" \
+      "${HOME}/.freeciv/saves/${save_name}"; do
+      if [ -f "${candidate}" ]; then
+        if [ "${candidate}" != "${RECORD_DIR}/${save_name}" ]; then
+          cp -f "${candidate}" "${RECORD_DIR}/${save_name}"
+        fi
+        copied=1
+        break
+      fi
+    done
+  done < <(sed -n "s/^Game saved as //p" "${EVAL_LOG}" | awk '{print $1}' | sort -u)
+  if [ "${copied}" = "1" ]; then
+    echo "Copied saved game(s) to ${RECORD_DIR}"
+  fi
+}
+
 wait_tcp() {
   local host="$1"
   local port="$2"
@@ -481,6 +507,8 @@ if [ -n "${ffmpeg_global_pid}" ]; then
   wait "${ffmpeg_global_pid}" >/dev/null 2>&1 || true
   ffmpeg_global_pid=""
 fi
+
+copy_saved_games_to_record_dir
 
 echo "Recorded agent view to ${RECORD_AGENT_FILE}"
 if [ -f "${RECORD_GLOBAL_FILE}" ]; then
