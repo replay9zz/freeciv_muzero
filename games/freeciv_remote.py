@@ -411,6 +411,7 @@ class Game(AbstractGame):
         self._belief_last_logged_turn = None
         self._reward_last_logged_step = None
         self.episode_index = 0
+        self.final_save_requested = False
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
         self._last_snapshot = None
@@ -760,6 +761,39 @@ class Game(AbstractGame):
             )
         if self.start_wait > 0:
             time.sleep(self.start_wait)
+
+    def save_game(self, filename: str) -> bool:
+        filename = filename.strip()
+        if not filename:
+            return False
+        ok = self._issue_chat_command(f"/save {filename}")
+        if ok:
+            self.final_save_requested = True
+            wait = _env_float("FREECIV_SAVE_WAIT", 1.0)
+            if wait > 0:
+                time.sleep(wait)
+        return ok
+
+    def _final_save_name(self) -> str:
+        configured = os.getenv("FREECIV_FINAL_SAVE_NAME")
+        episodes = max(1, _env_int("FREECIV_EPISODES", 1))
+        episode = max(1, int(self.episode_index or 1))
+        if configured:
+            if episodes > 1:
+                stem, dot, suffix = configured.partition(".")
+                return f"{stem}-episode-{episode:02d}{dot}{suffix}" if dot else f"{configured}-episode-{episode:02d}"
+            return configured
+        episode_part = f"-E{episode:02d}" if episodes > 1 else ""
+        return f"freeciv-T{max(0, self.turns):04d}{episode_part}-final"
+
+    def _save_on_exit_if_enabled(self) -> None:
+        if self.final_save_requested or not _env_bool("FREECIV_SAVE_ON_EXIT", False):
+            return
+        save_name = self._final_save_name()
+        if self.save_game(save_name):
+            print(f"Requested final save: {save_name}", file=sys.stderr)
+        else:
+            print(f"Warning: final save failed: {save_name}", file=sys.stderr)
 
     def _refresh_controlled_units_with_retry(self) -> None:
         attempts = max(1, int(self.take_retries))
@@ -2902,6 +2936,8 @@ class Game(AbstractGame):
         except Exception:
             done = True
             board_state = self._last_state
+        if done:
+            self._save_on_exit_if_enabled()
         if done and self.restart_on_reset and self.client_cmd:
             self._shutdown_client_for_restart()
 

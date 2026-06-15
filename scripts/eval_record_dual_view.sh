@@ -43,6 +43,7 @@ OBSERVER_ZOOM_DEFAULT_LEVEL="${OBSERVER_ZOOM_DEFAULT_LEVEL:-0.40}"
 EVAL_LOG="${EVAL_LOG:-}"
 RUN_INFO_FILE="${RUN_INFO_FILE:-${RECORD_DIR}/run_info.txt}"
 RUN_START_EPOCH="$(date +%s)"
+SAVE_SCAN_MARKER="${SAVE_SCAN_MARKER:-${RECORD_DIR}/.save-scan-start}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-32}}"
@@ -71,6 +72,7 @@ if ! command -v ffprobe >/dev/null 2>&1; then
 fi
 
 mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}" "${HEATMAP_VIDEO_DIR}"
+touch "${SAVE_SCAN_MARKER}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
   echo "Checkpoint not found: ${CHECKPOINT}" >&2
@@ -139,6 +141,7 @@ export FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}"
 export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
 export FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}"
 export FREECIV_SAVE_PATH="${FREECIV_SAVE_PATH:-${RECORD_DIR}:${HOME}/.freeciv/saves}"
+export FREECIV_SAVE_ON_EXIT="${FREECIV_SAVE_ON_EXIT:-1}"
 
 cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 cleanup_freeciv_ports "${SERVER_PORT}" "${OBSERVER_LUA_PORT}"
@@ -182,9 +185,11 @@ copy_saved_games_to_record_dir() {
   if [ -z "${EVAL_LOG}" ] || [ ! -f "${EVAL_LOG}" ]; then
     return 0
   fi
-  local save_name candidate copied=0
+  local save_name candidate copied=0 dir
+  local scan_dirs=()
   while IFS= read -r save_name; do
     [ -n "${save_name}" ] || continue
+    save_name="$(basename "${save_name}")"
     for candidate in \
       "${RECORD_DIR}/${save_name}" \
       "${BUILD_DIR}/${save_name}" \
@@ -199,6 +204,27 @@ copy_saved_games_to_record_dir() {
       fi
     done
   done < <(sed -n "s/^Game saved as //p" "${EVAL_LOG}" | awk '{print $1}' | sort -u)
+  if [ "${copied}" != "1" ]; then
+    for dir in "${RECORD_DIR}" "${BUILD_DIR}" "${ROOT_DIR}" "${HOME}/.freeciv/saves"; do
+      [ -d "${dir}" ] && scan_dirs+=("${dir}")
+    done
+    if [ "${#scan_dirs[@]}" -gt 0 ]; then
+      while IFS= read -r candidate; do
+        [ -f "${candidate}" ] || continue
+        save_name="$(basename "${candidate}")"
+        if [ "${candidate}" != "${RECORD_DIR}/${save_name}" ]; then
+          cp -f "${candidate}" "${RECORD_DIR}/${save_name}"
+        fi
+        copied=1
+      done < <(
+        find "${scan_dirs[@]}" -maxdepth 1 -type f -newer "${SAVE_SCAN_MARKER}" \
+          \( -name 'freeciv-*.sav*' -o -name '*.sav' -o -name '*.sav.*' \) \
+          -printf '%T@ %p\n' 2>/dev/null \
+          | sort -nr \
+          | awk 'NR <= 20 { $1 = ""; sub(/^ /, ""); print }'
+      )
+    fi
+  fi
   if [ "${copied}" = "1" ]; then
     echo "Copied saved game(s) to ${RECORD_DIR}"
   fi

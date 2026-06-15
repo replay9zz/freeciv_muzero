@@ -32,6 +32,25 @@ def _set_env(name: str, value) -> None:
     os.environ[name] = str(value)
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _final_save_name(turns: int | None, episode: int, episodes: int) -> str:
+    configured = os.environ.get("FREECIV_FINAL_SAVE_NAME")
+    if configured:
+        if episodes > 1:
+            stem, dot, suffix = configured.partition(".")
+            return f"{stem}-episode-{episode:02d}{dot}{suffix}" if dot else f"{configured}-episode-{episode:02d}"
+        return configured
+    turn = max(0, int(turns or 0))
+    episode_part = f"-E{episode:02d}" if episodes > 1 else ""
+    return f"freeciv-T{turn:04d}{episode_part}-final"
+
+
 class _FormatContext(dict):
     def __missing__(self, key):
         return "{" + key + "}"
@@ -715,6 +734,7 @@ def main() -> None:
     _set_env("FREECIV_MAP_H", args.map_height)
     _set_env("FREECIV_NO_SEA_UNITS", "1" if args.no_sea_units else None)
     _set_env("FREECIV_MAX_TURNS", args.max_turns)
+    _set_env("FREECIV_EPISODES", args.episodes)
     _set_env("FREECIV_MAX_UNITS", args.max_units)
     _set_env("FREECIV_MAX_CITIES", args.max_cities)
     _set_env("FREECIV_MAX_ACTIONS_PER_TURN", args.max_actions_per_turn)
@@ -973,6 +993,13 @@ def main() -> None:
             "winner": winner,
             "elapsed_sec": round(elapsed, 3),
         }
+        if _env_bool("FREECIV_SAVE_ON_EXIT") and not getattr(game, "final_save_requested", False):
+            save_name = _final_save_name(turns, episode + 1, args.episodes)
+            saved = game.save_game(save_name)
+            if saved:
+                print(f"Requested final save: {save_name}", file=sys.stderr)
+            else:
+                print(f"Warning: final save failed: {save_name}", file=sys.stderr)
         if args.json:
             if json_records is not None:
                 json_records.append(json.dumps(record, ensure_ascii=True))
