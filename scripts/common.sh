@@ -224,7 +224,7 @@ run_with_timing_and_log() {
 
   if [ "${SAVE_RUN_LOG:-1}" = "1" ]; then
     if [ -z "${log_path}" ]; then
-      log_path="${RUN_LOG_DIR:-${ROOT_DIR}/results/logs}/${run_name}-${stamp}.log"
+      log_path="${RUN_LOG_DIR:-${ROOT_DIR}/results/logs}/${run_name}-${stamp}-$$.log"
     elif [ "${log_path}" = "0" ] || [ "${log_path}" = "false" ]; then
       log_path=""
     fi

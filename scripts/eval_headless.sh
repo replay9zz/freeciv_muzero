@@ -189,4 +189,14 @@ if [ -n "${CITY_SCORE_LOG_INTERVAL:-}" ]; then
   args+=(--city-score-log-interval "${CITY_SCORE_LOG_INTERVAL}")
 fi
 
-run_with_timing_and_log eval_headless python "${args[@]}"
+FILTER_FREECIV_DISCONNECTS="${FILTER_FREECIV_DISCONNECTS:-1}"
+if [ "${FILTER_FREECIV_DISCONNECTS}" = "1" ]; then
+  FREECIV_EVAL_LOG_FILTER="${SCRIPT_DIR}/filter_freeciv_eval_log.awk"
+  export FREECIV_EVAL_LOG_FILTER
+  run_with_timing_and_log eval_headless bash -o pipefail -c '
+    python "$@" 2>&1 | awk -f "${FREECIV_EVAL_LOG_FILTER}"
+    exit "${PIPESTATUS[0]}"
+  ' bash "${args[@]}"
+else
+  run_with_timing_and_log eval_headless python "${args[@]}"
+fi

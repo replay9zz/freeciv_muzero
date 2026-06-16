@@ -54,8 +54,9 @@ else
 fi
 FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
 FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
-START_AFTER_TAKE="${START_AFTER_TAKE:-0}"
+START_AFTER_TAKE="${START_AFTER_TAKE:-}"
 RECORD_START_COMMAND="${RECORD_START_COMMAND:-${START_COMMAND:-start}}"
+RECORD_EXTERNAL_START="${RECORD_EXTERNAL_START:-0}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
@@ -323,6 +324,19 @@ send_start_command() {
   send_chat_command "${LUA_PORT}" "${RECORD_START_COMMAND}" start_cmd
 }
 
+send_start_command_with_retry() {
+  local retries="${START_COMMAND_RETRIES:-10}"
+  local wait_seconds="${START_COMMAND_RETRY_WAIT:-1}"
+  local attempt
+  for ((attempt = 1; attempt <= retries; attempt++)); do
+    if send_start_command; then
+      return 0
+    fi
+    sleep "${wait_seconds}"
+  done
+  return 1
+}
+
 prepare_observer_client_home() {
   local freeciv_dir="${OBSERVER_CLIENT_HOME}/.freeciv"
   local rc_file="${freeciv_dir}/freeciv-client-rc-3.2"
@@ -502,8 +516,10 @@ if [ "${observer_display_ready}" = "1" ]; then
 	  else
 	    echo "Warning: observer LuaRemote ${OBSERVER_LUA_PORT} did not become available." >&2
 	  fi
-	  if [ "${observe_sent:-0}" = "1" ]; then
-	    if ! send_start_command; then
+	  if [ "${observe_sent:-0}" = "1" ] && [ "${RECORD_EXTERNAL_START}" = "1" ]; then
+	    if send_start_command_with_retry; then
+	      start_sent=1
+	    else
 	      echo "Warning: /${RECORD_START_COMMAND} command failed." >&2
 	    fi
 	  fi
@@ -512,6 +528,14 @@ if [ "${observer_display_ready}" = "1" ]; then
 	  fi
 else
   echo "Warning: Freeciv server/display unavailable; skipping global observer." >&2
+fi
+
+if [ "${RECORD_EXTERNAL_START}" = "1" ] && [ "${start_sent:-0}" != "1" ]; then
+  if send_start_command_with_retry; then
+    start_sent=1
+  else
+    echo "Warning: /${RECORD_START_COMMAND} command failed without observer." >&2
+  fi
 fi
 
 if [ "${observer_display_ready}" != "1" ]; then
