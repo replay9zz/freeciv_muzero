@@ -56,7 +56,10 @@ FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
 FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
 START_AFTER_TAKE="${START_AFTER_TAKE:-}"
 RECORD_START_COMMAND="${RECORD_START_COMMAND:-${START_COMMAND:-start}}"
-RECORD_EXTERNAL_START="${RECORD_EXTERNAL_START:-0}"
+RECORD_EXTERNAL_START="${RECORD_EXTERNAL_START:-1}"
+if [ "${RECORD_EXTERNAL_START}" = "1" ]; then
+  START_AFTER_TAKE=0
+fi
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
@@ -143,6 +146,7 @@ export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
 export FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}"
 export FREECIV_SAVE_PATH="${FREECIV_SAVE_PATH:-${RECORD_DIR}:${HOME}/.freeciv/saves}"
 export FREECIV_SAVE_ON_EXIT="${FREECIV_SAVE_ON_EXIT:-1}"
+export FREECIV_PROCESS_LOG="${FREECIV_PROCESS_LOG:-${RECORD_DIR}/freeciv-processes.log}"
 
 cleanup_freeciv_all "${SERVER_PORT}" "${LUA_PORT}" "${DISPLAY_NUM}"
 cleanup_freeciv_ports "${SERVER_PORT}" "${OBSERVER_LUA_PORT}"
@@ -516,15 +520,15 @@ if [ "${observer_display_ready}" = "1" ]; then
 	  else
 	    echo "Warning: observer LuaRemote ${OBSERVER_LUA_PORT} did not become available." >&2
 	  fi
+	  if [ "${observe_sent:-0}" = "1" ]; then
+	    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
+	  fi
 	  if [ "${observe_sent:-0}" = "1" ] && [ "${RECORD_EXTERNAL_START}" = "1" ]; then
 	    if send_start_command_with_retry; then
 	      start_sent=1
 	    else
 	      echo "Warning: /${RECORD_START_COMMAND} command failed." >&2
 	    fi
-	  fi
-	  if [ "${observe_sent:-0}" = "1" ]; then
-	    start_ffmpeg_with_retry "${OBSERVER_DISPLAY_NUM}" "${RECORD_GLOBAL_FILE}" ffmpeg_global_pid
 	  fi
 else
   echo "Warning: Freeciv server/display unavailable; skipping global observer." >&2

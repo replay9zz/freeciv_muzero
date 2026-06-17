@@ -338,15 +338,20 @@ class Game(AbstractGame):
         self._needs_restart = False
         self._server_process = None
         self._client_process = None
-
-        if self.server_cmd:
-            self._start_server_process()
-            self._wait_for_server()
-        if self.client_cmd:
-            self._start_client_process()
-
         self.client = None
-        self._connect_client()
+        self._belief_writer: SummaryWriter | None = None
+
+        try:
+            if self.server_cmd:
+                self._start_server_process()
+                self._wait_for_server()
+            if self.client_cmd:
+                self._start_client_process()
+            self._connect_client()
+        except Exception:
+            self._stop_client_process()
+            self._stop_server_process()
+            raise
 
         self.player_id = _env_int("FREECIV_PLAYER_ID", None)
         self.unit_id = _env_int("FREECIV_UNIT_ID", None)
@@ -407,7 +412,6 @@ class Game(AbstractGame):
             self.belief_tb_enabled,
         )
         self._gameplay_started = False
-        self._belief_writer: SummaryWriter | None = None
         self._belief_last_logged_turn = None
         self._reward_last_logged_step = None
         self.episode_index = 0
@@ -486,12 +490,29 @@ class Game(AbstractGame):
         cmd0 = pathlib.Path(cmd[0]).expanduser()
         if cmd0.is_absolute() and cmd0.exists():
             cwd = str(cmd0.parent)
-        return subprocess.Popen(
-            cmd,
-            start_new_session=True,
-            cwd=cwd,
-            env=self._build_freeciv_env(),
-        )
+        process_log = os.getenv("FREECIV_PROCESS_LOG")
+        log_fp = None
+        stdout = None
+        stderr = None
+        if process_log:
+            log_path = pathlib.Path(process_log).expanduser()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_fp = open(log_path, "ab", buffering=0)
+            log_fp.write(("\n--- process: " + shlex.join(cmd) + " ---\n").encode("utf-8"))
+            stdout = log_fp
+            stderr = subprocess.STDOUT
+        try:
+            return subprocess.Popen(
+                cmd,
+                start_new_session=True,
+                cwd=cwd,
+                env=self._build_freeciv_env(),
+                stdout=stdout,
+                stderr=stderr,
+            )
+        finally:
+            if log_fp is not None:
+                log_fp.close()
 
     def _stop_process(self, proc: Optional[subprocess.Popen]) -> Optional[subprocess.Popen]:
         if proc is None:
@@ -806,6 +827,8 @@ class Game(AbstractGame):
                     raise
                 if idx >= attempts - 1:
                     raise
+                if self.start_after_take or self.start_command:
+                    self._maybe_start_game()
                 time.sleep(self.take_wait)
 
     def _refresh_tile_owners(self) -> None:

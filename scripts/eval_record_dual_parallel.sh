@@ -73,7 +73,7 @@ last_finished_idx=-1
 script_start_epoch="$(date +%s)"
 progress_fd_open=0
 progress_rows=0
-progress_done_stack_lines="${EVAL_DONE_STACK_LINES:-3}"
+progress_done_stack_lines="${EVAL_DONE_STACK_LINES:-0}"
 if ! [[ "${progress_done_stack_lines}" =~ ^[0-9]+$ ]]; then
   progress_done_stack_lines=3
 fi
@@ -348,11 +348,11 @@ done_stack_line() {
   local now="$2"
   local columns="$3"
   local history_idx idx segment
-  history_idx=$((${#finished_indices[@]} - 1 - stack_idx))
-  if [ "${history_idx}" -lt 0 ]; then
+  if [ "${stack_idx}" -ge "${#finished_indices[@]}" ]; then
     printf '%-*s' "${columns}" ""
     return
   fi
+  history_idx="${stack_idx}"
   idx="${finished_indices[history_idx]}"
   segment="$(job_segment "${idx}" "${now}" "${columns}")"
   printf '%s' "${segment#*	}"
