@@ -259,7 +259,7 @@ class MuZeroConfig:
 class Game(AbstractGame):
     def __init__(self, seed=None, config=None):
         self.observe_belief = _env_bool("FREECIV_OBSERVE_BELIEF", False)
-        self.base_observation_channels = 15 + 2 * len(MultiheadState.RESEARCH_TECHS)
+        self.base_observation_channels = 0
         if config is not None and hasattr(config, "map_config"):
             self.config = config.map_config
             self.observe_belief = bool(
@@ -292,6 +292,13 @@ class Game(AbstractGame):
             )
             self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
             self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+            tmp_state = MultiheadState(
+                self.config,
+                RandomMapProvider(self.config.map_w, self.config.map_h, p_open=1.0),
+                max_units=self.max_units,
+                max_cities=self.max_cities,
+            )
+            self.base_observation_channels = tmp_state.encode(1).shape[0]
         self.dir_ids = alpha_live.parse_dir_ids(
             os.getenv("FREECIV_DIR_IDS", FREECIV_NATIVE_DIR_IDS)
         )

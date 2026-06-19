@@ -90,6 +90,9 @@ PRODUCTION_ITEM_NAMES: Tuple[Tuple[str, str], ...] = tuple(
     [("unit", name) for name in PRODUCTION_UNIT_NAMES]
     + [("building", name) for name in PRODUCTION_BUILDING_NAMES]
 )
+PRODUCTION_ITEM_INDEX: Dict[Tuple[str, str], int] = {
+    item: idx for idx, item in enumerate(PRODUCTION_ITEM_NAMES)
+}
 
 UNIT_SPECS: Dict[str, UnitSpec] = {}
 UNIT_TECHS: Dict[str, List[str]] = {}
@@ -1537,6 +1540,22 @@ class MultiheadState:
         city_size_opp = np.zeros_like(channels[0])
         city_walls_me = np.zeros_like(channels[0])
         city_walls_opp = np.zeros_like(channels[0])
+        production_progress_me = np.zeros_like(channels[0])
+        production_progress_opp = np.zeros_like(channels[0])
+        production_queue_len_me = np.zeros_like(channels[0])
+        production_queue_len_opp = np.zeros_like(channels[0])
+        production_current_me = [
+            np.zeros_like(channels[0]) for _ in PRODUCTION_ITEM_NAMES
+        ]
+        production_current_opp = [
+            np.zeros_like(channels[0]) for _ in PRODUCTION_ITEM_NAMES
+        ]
+        production_next_me = [
+            np.zeros_like(channels[0]) for _ in PRODUCTION_ITEM_NAMES
+        ]
+        production_next_opp = [
+            np.zeros_like(channels[0]) for _ in PRODUCTION_ITEM_NAMES
+        ]
         fatigue_turn = self.turn - 1
         for u in self.units[me]:
             if not u.alive:
@@ -1563,6 +1582,13 @@ class MultiheadState:
             )
             if c.has_city_walls:
                 city_walls_me[c.y, c.x] = 1.0
+            self._encode_city_production(
+                c,
+                production_progress_me,
+                production_queue_len_me,
+                production_current_me,
+                production_next_me,
+            )
         for c in self.cities[opp]:
             city_opp[c.y, c.x] = 1.0
             city_size_opp[c.y, c.x] = min(
@@ -1570,6 +1596,13 @@ class MultiheadState:
             )
             if c.has_city_walls:
                 city_walls_opp[c.y, c.x] = 1.0
+            self._encode_city_production(
+                c,
+                production_progress_opp,
+                production_queue_len_opp,
+                production_current_opp,
+                production_next_opp,
+            )
         channels.append(unit_me)
         channels.append(unit_opp)
         channels.append(hp_me)
@@ -1584,6 +1617,14 @@ class MultiheadState:
         channels.append(city_size_opp)
         channels.append(city_walls_me)
         channels.append(city_walls_opp)
+        channels.append(production_progress_me)
+        channels.append(production_progress_opp)
+        channels.append(production_queue_len_me)
+        channels.append(production_queue_len_opp)
+        channels.extend(production_current_me)
+        channels.extend(production_current_opp)
+        channels.extend(production_next_me)
+        channels.extend(production_next_opp)
         # research planes
         for tech in self.RESEARCH_TECHS:
             tme = np.full_like(unit_me, 1.0 if self.research_done[me].get(tech, False) else 0.0)
@@ -1596,6 +1637,43 @@ class MultiheadState:
         )
         channels.append(progress_plane)
         return np.stack(channels, axis=0)
+
+    def _encode_city_production(
+        self,
+        city: City,
+        progress_plane: np.ndarray,
+        queue_len_plane: np.ndarray,
+        current_planes: List[np.ndarray],
+        next_planes: List[np.ndarray],
+    ) -> None:
+        queue_limit = max(1, int(getattr(self.cfg, "production_queue_max", 1)))
+        queue_len_plane[city.y, city.x] = min(
+            1.0, float(len(city.production_queue)) / float(queue_limit)
+        )
+        if city.production_kind and city.production_target:
+            item = (city.production_kind, city.production_target)
+            item_idx = PRODUCTION_ITEM_INDEX.get(item)
+            if item_idx is not None:
+                current_planes[item_idx][city.y, city.x] = 1.0
+            cost = self._production_cost(city.production_kind, city.production_target)
+            if cost > 0:
+                progress_plane[city.y, city.x] = min(
+                    1.0, float(city.production_progress) / float(cost)
+                )
+        if city.production_queue:
+            next_idx = PRODUCTION_ITEM_INDEX.get(city.production_queue[0])
+            if next_idx is not None:
+                next_planes[next_idx][city.y, city.x] = 1.0
+
+    @staticmethod
+    def _production_cost(kind: str, name: str) -> int:
+        if kind == "unit":
+            spec = UNIT_SPECS.get(name)
+        elif kind == "building":
+            spec = BUILDING_SPECS.get(name)
+        else:
+            spec = None
+        return int(getattr(spec, "cost", 0) or 0)
 
     def string(self) -> str:
         parts = [f"turn={self.turn}"]
