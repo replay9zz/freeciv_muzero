@@ -1,0 +1,30 @@
+checkpoint: results/freeciv_remote/2026-06-19--05-46-31/model.checkpoint
+created_utc: 2026-06-19T10:14:27Z
+script: /home/hirokiokabe/freeciv_test/freeciv_muzero/scripts/eval_record_dual_view.sh
+args: results/freeciv_remote/2026-06-19--05-46-31/model.checkpoint
+record_dir: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05
+eval_log: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/eval.log
+game_name: game-05
+game_index: 5
+gpu: 4
+git_rev: 854566d
+git_status: clean
+max_turns: 50
+num_simulations: 8
+temperature: 
+freeciv_generated_map: 1
+map_width: 
+map_height: 
+server_port: 5606
+lua_port: 4491
+observer_lua_port: 4492
+display_num: :110
+observer_display_num: :111
+display_size: 1920x1080
+client_resolution: 1920x1080
+record_fps: 5
+record_size: 1920x1080
+heatmap_tags: belief_units,threat,visible_units,territory
+heatmap_tile_shape: hex
+heatmap_map_width: 32
+heatmap_map_height: 32

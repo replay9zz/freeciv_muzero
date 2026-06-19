@@ -1,0 +1,7 @@
+GPU: 6
+Checkpoint: results/freeciv_remote/2026-06-19--05-46-31/model.checkpoint
+[x11grab @ 0x564e2cdda5c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
+Warning: Freeciv server/display unavailable; skipping global observer.
+Warning: skipping global recording; display :115 is unavailable.
+Recorded agent view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-07/eval-agent.mp4
+No matching TensorBoard image tags found under /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-07/heatmaps/tb

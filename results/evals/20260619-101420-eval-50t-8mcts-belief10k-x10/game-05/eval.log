@@ -1,0 +1,35 @@
+Run: eval_headless
+Started: 2026-06-19T10:14:29Z
+CUDA_VISIBLE_DEVICES: 4
+MUZERO_MAX_NUM_GPUS: <unset>
+MUZERO_TRAIN_GPU_ID: <auto>
+MUZERO_SELFPLAY_GPU_IDS: <auto>
+MUZERO_REANALYSE_GPU_ID: <auto>
+Command: bash -o pipefail -c $'\n    python "$@" 2>&1 | awk -f "${FREECIV_EVAL_LOG_FILTER}"\n    exit "${PIPESTATUS[0]}"\n  ' bash remote_play.py --checkpoint results/freeciv_remote/2026-06-19--05-46-31/model.checkpoint --host 127.0.0.1 --port 4491 --map-width 32 --map-height 32 --max-turns 50 --max-actions-per-turn 100 --num-simulations 8 --temperature 0.0 --sleep 0.1 --episodes 1 --player-id 0 --no-sea-units --belief-tensorboard --belief-tensorboard-interval 1 --belief-tensorboard-dir /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/heatmaps/tb --json --json-out /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/remote_play.jsonl --turn-score-csv /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/turn_scores.csv --score-log /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/scores.jsonl --score-log-interval 1
+Log: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/logs/eval_headless-20260619-101429-4057527.log
+JSONL output: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/remote_play.jsonl
+Score log output: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-05/scores.jsonl
+Using checkpoint compatibility adapter: prediction_network.module.fc_policy.2.weight checkpoint=(1072, 64), remote=(457, 64)
+Using checkpoint compatibility adapter: prediction_network.module.fc_policy.2.bias checkpoint=(1072,), remote=(457,)
+Inference device: cuda visible=4 cuda_index=0 name=NVIDIA GeForce RTX 2080 Ti
+[player] target_player_id=0 resolved_name=None
+Traceback (most recent call last):
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/remote_play.py", line 1050, in <module>
+    main()
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/remote_play.py", line 820, in main
+    game = freeciv_remote.Game()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/games/freeciv_remote.py", line 392, in __init__
+    self._prepare_control_state()
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/games/freeciv_remote.py", line 562, in _prepare_control_state
+    self._refresh_controlled_units_with_retry()
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/games/freeciv_remote.py", line 830, in _refresh_controlled_units_with_retry
+    self._refresh_controlled_units()
+  File "/home/hirokiokabe/freeciv_test/freeciv_muzero/games/freeciv_remote.py", line 892, in _refresh_controlled_units
+    raise RuntimeError(
+RuntimeError: No controllable units found. Set FREECIV_UNIT_ID or FREECIV_PLAYER_ID.
+
+Finished: 2026-06-19T10:17:13Z
+Exit status: 1
+Elapsed: 00:02:44 (164s)
+Log: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/logs/eval_headless-20260619-101429-4057527.log

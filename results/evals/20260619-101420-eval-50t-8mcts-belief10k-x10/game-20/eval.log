@@ -1,0 +1,852 @@
+Run: eval_headless
+Started: 2026-06-19T10:17:26Z
+CUDA_VISIBLE_DEVICES: 9
+MUZERO_MAX_NUM_GPUS: <unset>
+MUZERO_TRAIN_GPU_ID: <auto>
+MUZERO_SELFPLAY_GPU_IDS: <auto>
+MUZERO_REANALYSE_GPU_ID: <auto>
+Command: bash -o pipefail -c $'\n    python "$@" 2>&1 | awk -f "${FREECIV_EVAL_LOG_FILTER}"\n    exit "${PIPESTATUS[0]}"\n  ' bash remote_play.py --checkpoint results/freeciv_remote/2026-06-19--05-46-31/model.checkpoint --host 127.0.0.1 --port 4641 --map-width 32 --map-height 32 --max-turns 50 --max-actions-per-turn 100 --num-simulations 8 --temperature 0.0 --sleep 0.1 --episodes 1 --player-id 0 --no-sea-units --belief-tensorboard --belief-tensorboard-interval 1 --belief-tensorboard-dir /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/heatmaps/tb --json --json-out /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/remote_play.jsonl --turn-score-csv /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/turn_scores.csv --score-log /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/scores.jsonl --score-log-interval 1
+Log: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/logs/eval_headless-20260619-101726-4078295.log
+JSONL output: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/remote_play.jsonl
+Score log output: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/scores.jsonl
+Using checkpoint compatibility adapter: prediction_network.module.fc_policy.2.weight checkpoint=(1072, 64), remote=(457, 64)
+Using checkpoint compatibility adapter: prediction_network.module.fc_policy.2.bias checkpoint=(1072,), remote=(457,)
+Inference device: cuda visible=9 cuda_index=0 name=NVIDIA GeForce RTX 2080 Ti
+[player] target_player_id=0 resolved_name='Agent0'
+[warn] failed to send take command: /take "Agent0"
+[research] completed=Horseback Riding
+Belief TensorBoard log dir: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/heatmaps/tb
+[tensorboard] freeciv_logdir=/home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260619-101420-eval-50t-8mcts-belief10k-x10/game-20/heatmaps/tb
+[turn 0 step 0] action=build_city_u0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=2.0 scores=[0:2.0,1:2.0]
+[turn 0 step 1] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=2.0 scores=[0:2.0,1:2.0]
+[turn 0 step 2] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=2.0 scores=[0:2.0,1:2.0]
+[production] city=118 append unit Horsemen x3
+[turn 0 step 3] action=produce_c0_Horsemen enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=2.0 scores=[0:2.0,1:2.0]
+[turn 1 step 4] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:4.0]
+[turn 1 step 5] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:4.0]
+[turn 1 step 6] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:4.0]
+[turn 1 step 7] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:4.0]
+[turn 2 step 8] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 2 step 9] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 2 step 10] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 2 step 11] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 3 step 12] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 3 step 13] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 3 step 14] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 3 step 15] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 4 step 16] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 4 step 17] action=move_u1_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 4 step 18] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 4 step 19] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 5 step 20] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 5 step 21] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 5 step 22] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 5 step 23] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 6 step 24] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 6 step 25] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 6 step 26] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 6 step 27] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 7 step 28] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 7 step 29] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 7 step 30] action=move_u1_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 7 step 31] action=move_u2_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:5.0]
+[turn 8 step 32] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 8 step 33] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 8 step 34] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 8 step 35] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 9 step 36] action=pass enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 9 step 37] action=move_u2_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 9 step 38] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 9 step 39] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=4.90 fc_score=3.0 scores=[0:3.0,1:6.0]
+[turn 10 step 40] action=pass enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 10 step 41] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 10 step 42] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 10 step 43] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 11 step 44] action=pass enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 11 step 45] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 11 step 46] action=move_u0_d1 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 11 step 47] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:6.0]
+[turn 12 step 48] action=pass enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 12 step 49] action=move_u1_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 12 step 50] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 12 step 51] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 13 step 52] action=pass enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 13 step 53] action=move_u1_d3 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 13 step 54] action=move_u0_d3 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 13 step 55] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 14 step 56] action=pass enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 14 step 57] action=move_u0_d5 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 14 step 58] action=move_u1_d3 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[turn 14 step 59] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=5.90 fc_score=4.0 scores=[0:4.0,1:7.0]
+[research] completed=Masonry
+[production-options] reason=research turn=15 city=118 size=3 units=Settlers,Warriors,Horsemen buildings=Barracks,City Walls
+[turn 15 step 60] action=pass enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:7.0]
+[turn 15 step 61] action=move_u1_d4 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:7.0]
+[turn 15 step 62] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:7.0]
+[turn 15 step 63] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:7.0]
+[turn 15 step 64] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:7.0]
+[turn 16 step 65] action=pass enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 16 step 66] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 16 step 67] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 16 step 68] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 17 step 69] action=pass enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 17 step 70] action=move_u1_d1 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 17 step 71] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 17 step 72] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 18 step 73] action=pass enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 18 step 74] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 18 step 75] action=move_u2_d4 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 18 step 76] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 19 step 77] action=pass enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 19 step 78] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 19 step 79] action=move_u2_d1 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[turn 19 step 80] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=8.90 fc_score=7.0 scores=[0:7.0,1:8.0]
+[production] city=118 completed unit Horsemen
+[production] city=118 queued unit Horsemen
+[turn 20 step 81] action=pass enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 20 step 82] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[production] city=118 append unit Warriors x1
+[turn 20 step 83] action=produce_c0_Warriors enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 20 step 84] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 20 step 85] action=move_u2_d4 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 20 step 86] action=move_u0_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 21 step 87] action=pass enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 21 step 88] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 21 step 89] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 21 step 90] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 21 step 91] action=move_u0_d3 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:9.0]
+[turn 22 step 92] action=pass enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 22 step 93] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 22 step 94] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 22 step 95] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 22 step 96] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 23 step 97] action=pass enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 23 step 98] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 23 step 99] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 23 step 100] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 23 step 101] action=move_u0_d5 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:10.0]
+[turn 24 step 102] action=pass enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:13.0]
+[turn 24 step 103] action=move_u2_d1 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:13.0]
+[turn 24 step 104] action=move_u3_d0 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:13.0]
+[turn 24 step 105] action=move_u1_d3 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:13.0]
+[turn 24 step 106] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=9.90 fc_score=8.0 scores=[0:8.0,1:13.0]
+[turn 25 step 107] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:13.0]
+[turn 25 step 108] action=move_u2_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:13.0]
+[turn 25 step 109] action=move_u3_d1 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:13.0]
+[turn 25 step 110] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:13.0]
+[turn 25 step 111] action=move_u0_d3 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:13.0]
+[turn 26 step 112] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 26 step 113] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 26 step 114] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 26 step 115] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 26 step 116] action=move_u0_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 27 step 117] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 27 step 118] action=move_u3_d1 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 27 step 119] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 27 step 120] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 27 step 121] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=9.0 scores=[0:9.0,1:11.0]
+[turn 28 step 122] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 123] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 124] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 125] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 126] action=move_u3_d0 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 127] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 128] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 129] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 130] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 131] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 132] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 133] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 134] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 135] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 136] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 137] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 138] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 139] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 140] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 141] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 142] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 143] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 144] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 145] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 146] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 147] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 148] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 149] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 150] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 151] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 152] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 153] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 154] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 155] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 156] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 157] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 158] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 159] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 160] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 161] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 162] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 163] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 164] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 165] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 166] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 167] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 168] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 169] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 170] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 171] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 172] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 173] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 174] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 175] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 176] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 177] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 178] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 179] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 180] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 181] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 182] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 183] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 184] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 185] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 186] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 187] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 188] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 189] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 190] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 191] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 192] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 193] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 194] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 195] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 196] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 197] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 198] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 199] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 200] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 201] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 202] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 203] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 204] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 205] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 206] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 207] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 208] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 209] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 210] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 211] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 212] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 213] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 214] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 215] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 216] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 217] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 218] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 219] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 220] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 28 step 221] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 29 step 222] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 29 step 223] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 29 step 224] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 29 step 225] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 29 step 226] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:13.0]
+[turn 30 step 227] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 30 step 228] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 30 step 229] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 30 step 230] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 30 step 231] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 31 step 232] action=pass enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 31 step 233] action=move_u2_d5 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 31 step 234] action=move_u3_d0 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 31 step 235] action=move_u1_d5 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 31 step 236] action=move_u0_d4 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 32 step 237] action=pass enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 32 step 238] action=move_u3_d0 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 32 step 239] action=move_u1_d2 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 32 step 240] action=move_u2_d2 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 32 step 241] action=move_u0_d2 enemy_units=1 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 33 step 242] action=pass enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 33 step 243] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 33 step 244] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 33 step 245] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[turn 33 step 246] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=10.90 fc_score=11.0 scores=[0:11.0,1:14.0]
+[research] completed=Pottery
+[production-options] reason=research turn=34 city=118 size=5 units=Settlers,Warriors,Horsemen,Chariot buildings=Barracks,City Walls,Granary
+[turn 34 step 247] action=pass enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 248] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 249] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 250] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 251] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 252] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 253] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 254] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 255] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 256] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 257] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 258] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 259] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 260] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 261] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 262] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 263] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 264] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 265] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 266] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 267] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 268] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 269] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 270] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 271] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 272] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 273] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 274] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 275] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 276] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 277] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 278] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 279] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 280] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 281] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 282] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 283] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 284] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 285] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 286] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 287] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 288] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 289] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 290] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[research] request=The Wheel current=__TECH__ The Wheel ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True[turn 34 step 291] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 292] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 293] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 294] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 295] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 296] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 297] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 298] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 299] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 300] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 301] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 302] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 303] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 304] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 305] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 306] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 307] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 308] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 309] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 310] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 311] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 312] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 313] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 314] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 315] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 316] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 317] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 318] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 319] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 320] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 321] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 322] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 323] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 324] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 325] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 326] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 327] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 328] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 329] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 330] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 331] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 332] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 333] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 334] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 335] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 336] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 337] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 338] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 339] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 340] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 341] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 342] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 343] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 344] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 345] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 34 step 346] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 35 step 347] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 35 step 348] action=move_u2_d2 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 35 step 349] action=move_u1_d4 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 35 step 350] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 35 step 351] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:14.0]
+[turn 36 step 352] action=pass enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:16.0]
+[turn 36 step 353] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:16.0]
+[turn 36 step 354] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:16.0]
+[turn 36 step 355] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:16.0]
+[turn 36 step 356] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:16.0]
+[turn 37 step 357] action=pass enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:17.0]
+[turn 37 step 358] action=move_u1_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:17.0]
+[turn 37 step 359] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:17.0]
+[turn 37 step 360] action=move_u0_d1 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:17.0]
+[turn 37 step 361] action=move_u2_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:17.0]
+[turn 38 step 362] action=pass enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:18.0]
+[turn 38 step 363] action=move_u3_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:18.0]
+[turn 38 step 364] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:18.0]
+[turn 38 step 365] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:18.0]
+[turn 38 step 366] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:18.0]
+[turn 39 step 367] action=pass enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:19.0]
+[turn 39 step 368] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:19.0]
+[turn 39 step 369] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:19.0]
+[turn 39 step 370] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:19.0]
+[turn 39 step 371] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=12.90 fc_score=13.0 scores=[0:13.0,1:19.0]
+[research] completed=Alphabet
+[production-options] reason=research turn=40 city=118 size=5 units=Settlers,Warriors,Horsemen,Chariot buildings=Barracks,City Walls,Granary
+[production] city=118 completed unit Horsemen
+[production] city=118 queued unit Chariot
+[turn 40 step 372] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 373] action=move_u0_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 374] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 375] action=move_u4_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 376] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 377] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[production] city=118 append unit Settlers x1
+[turn 40 step 378] action=produce_c0_Settlers enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 379] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 380] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 381] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 382] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 383] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 384] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 385] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 386] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 387] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 388] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 389] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 390] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 391] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 392] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 393] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 394] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 395] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 396] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 397] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 398] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 399] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 400] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 401] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 402] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 403] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 404] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 405] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 406] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 407] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 408] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 409] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 410] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 411] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 412] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 413] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 414] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 415] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 416] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 417] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 418] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 419] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 420] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 421] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 422] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 423] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 424] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 425] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 426] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 427] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 428] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 429] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 430] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 431] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 432] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 433] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 434] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 435] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 436] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 437] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 438] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 439] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 440] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 441] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 442] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 443] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 444] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 445] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 446] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 447] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 448] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 449] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 450] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 451] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 452] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 453] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 454] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 455] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 456] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 457] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 458] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True[turn 40 step 459] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 460] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 461] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 462] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 463] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 464] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 465] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 466] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 467] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 468] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 469] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 470] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 40 step 471] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 472] action=research_The Wheel enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 473] action=move_u4_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 474] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 475] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 476] action=move_u3_d1 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 41 step 477] action=move_u0_d1 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 478] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 479] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 480] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 481] action=move_u3_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 482] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 42 step 483] action=move_u4_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 484] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 485] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 486] action=move_u2_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 487] action=move_u3_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 488] action=move_u0_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 43 step 489] action=move_u4_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:21.0]
+[turn 44 step 490] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 44 step 491] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 44 step 492] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 44 step 493] action=move_u2_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 44 step 494] action=move_u3_d1 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 44 step 495] action=move_u4_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 496] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 497] action=move_u4_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 498] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 499] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 500] action=move_u0_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 45 step 501] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:24.0]
+[turn 46 step 502] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 46 step 503] action=move_u4_d3 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 46 step 504] action=move_u1_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 46 step 505] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 46 step 506] action=move_u3_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 46 step 507] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:27.0]
+[turn 47 step 508] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 47 step 509] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 47 step 510] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 47 step 511] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 47 step 512] action=move_u4_d2 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 47 step 513] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 514] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 515] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 516] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 517] action=move_u3_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 518] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 48 step 519] action=move_u4_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:28.0]
+[turn 49 step 520] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+[turn 49 step 521] action=move_u1_d5 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+[turn 49 step 522] action=move_u3_d4 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+[turn 49 step 523] action=move_u2_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+[turn 49 step 524] action=move_u4_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+[turn 49 step 525] action=move_u0_d0 enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=15.0 scores=[0:15.0,1:32.0]
+Requested final save: freeciv-T0050-final
+[turn 50 step 526] action=pass enemy_units=0 enemy_cities=0 civ_score=14.90 fc_score=16.0 scores=[0:16.0,1:32.0]
+
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+[research] request=The Wheel current=__NORESEARCH__ ok=True
+
+Finished: 2026-06-19T10:39:41Z
+Exit status: 0
+Elapsed: 00:22:15 (1335s)
+Log: /home/hirokiokabe/freeciv_test/freeciv_muzero/results/logs/eval_headless-20260619-101726-4078295.log
