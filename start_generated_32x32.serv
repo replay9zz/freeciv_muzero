@@ -1,7 +1,14 @@
+rulesetdir civ2civ3
 set scorelog enabled
 set scoreloglevel all
 set scorefile "freeciv-score-single.log"
 set autosaves ""
+set barbarians DISABLED
+set huts 0
+set sciencebox 50
+set foodbox 50
+set shieldbox 50
+set citymindist 2
 set minplayers 0
 set aifill 2
 set mapsize XYSIZE

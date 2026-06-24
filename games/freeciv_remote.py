@@ -373,7 +373,7 @@ class Game(AbstractGame):
         self.production_queue: dict[int, list[tuple[str, str]]] = {}
         self.production_current: dict[int, tuple[str, str] | None] = {}
         self.max_production_queue = _env_int("FREECIV_PRODUCTION_QUEUE_MAX", 3)
-        self.production_queue_add = _env_int("FREECIV_PRODUCTION_QUEUE_ADD", 3)
+        self.production_queue_add = _env_int("FREECIV_PRODUCTION_QUEUE_ADD", 1)
         self.config.production_queue_max = self.max_production_queue
         self.config.production_queue_add = self.production_queue_add
         self.debug_settlers = _env_bool("FREECIV_DEBUG_SETTLERS", False)
@@ -381,6 +381,7 @@ class Game(AbstractGame):
         self._city_unit_counts: dict[int, dict[str, int]] = {}
         self._city_adjacent_water: dict[int, dict[str, bool]] = {}
         self.current_research = None
+        self.pending_research_target = None
         self._last_research_flags: dict[str, bool] = {}
         self._buildable_units: set[str] = set()
         self._buildable_buildings: set[str] = set()
@@ -635,6 +636,7 @@ class Game(AbstractGame):
         self._city_unit_counts.clear()
         self._city_adjacent_water.clear()
         self.current_research = None
+        self.pending_research_target = None
         self._last_research_flags = {}
         self._buildable_units = set()
         self._buildable_buildings = set()
@@ -1748,6 +1750,49 @@ class Game(AbstractGame):
                     return max(1, units)
         return 0
 
+    def _city_garrison_count(self, city_slot: int, city_id: int) -> int:
+        unit_count = sum(self._city_unit_counts.get(city_id, {}).values())
+        if self._last_state is None or city_slot >= len(self._last_state.cities[1]):
+            return unit_count
+        city = self._last_state.cities[1][city_slot]
+        tile_count = sum(
+            1
+            for unit in self._last_state.units[1]
+            if unit.alive and unit.x == city.x and unit.y == city.y
+        )
+        return max(unit_count, tile_count)
+
+    def _city_needs_garrison(self, city_slot: int, city_id: int) -> bool:
+        min_units = int(getattr(self.config, "city_unit_min", 0))
+        if min_units <= 0:
+            return False
+        return self._city_garrison_count(city_slot, city_id) < min_units
+
+    def _has_underdefended_city(self) -> bool:
+        return any(
+            self._city_needs_garrison(city_slot, city_id)
+            for city_slot, city_id in enumerate(self.city_slots)
+        )
+
+    def _preferred_garrison_unit(self) -> Optional[str]:
+        for name in ("Archers", "Phalanx", "Warriors"):
+            if self._unit_unlocked(name) and not self._unit_obsolete(name):
+                return name
+        for name in PRODUCTION_UNIT_NAMES:
+            if not self._unit_unlocked(name):
+                continue
+            if self._unit_obsolete(name):
+                continue
+            if self._production_is_excluded(name):
+                continue
+            if name == "Settlers" or self._production_is_worker_like(name):
+                continue
+            spec = UNIT_SPECS.get(name)
+            if spec is None or spec.df <= 0:
+                continue
+            return name
+        return None
+
     def _unit_is_obsolete_exempt(self, name: str) -> bool:
         label = (name or "").lower()
         return any(tag in label for tag in ("settler", "worker", "engineer", "migrant"))
@@ -1933,7 +1978,7 @@ class Game(AbstractGame):
                     continue
                 if worker_count > 0 and self._production_is_worker_like(name):
                     continue
-                if name == "Settlers" and city.size < 3:
+                if name == "Settlers" and city.size < self._settler_min_city_size():
                     continue
                 buildable_units.append(name)
             buildable_buildings = []
@@ -1978,11 +2023,16 @@ class Game(AbstractGame):
     def _select_production_unit(self) -> Optional[str]:
         if self._last_state is None:
             return None
+        if self._has_underdefended_city():
+            guard = self._preferred_garrison_unit()
+            if guard:
+                return guard
         settler_count = sum(
             1 for name in self.unit_slot_types if "settler" in (name or "").lower()
         )
         city_sizes = [city.size for city in self._last_state.cities[1]]
-        can_make_settler = any(size >= 3 for size in city_sizes)
+        settler_min_size = self._settler_min_city_size()
+        can_make_settler = any(size >= settler_min_size for size in city_sizes)
         missing_cities = max(self.max_cities - len(self.city_slots), 0)
         if (
             can_make_settler
@@ -2036,6 +2086,8 @@ class Game(AbstractGame):
         if self._last_state is None:
             return False
         if len(self._last_state.cities[1]) >= self._last_state.max_cities:
+            return False
+        if self._has_underdefended_city():
             return False
         return not self._has_alive_expansion_settler()
 
@@ -2167,6 +2219,9 @@ class Game(AbstractGame):
                 return False
         return True
 
+    def _settler_min_city_size(self) -> int:
+        return max(1, int(getattr(self.config, "settler_min_city_size", 2)))
+
     def _queue_city_production(self, city_id: int, kind: str, name: str, count: int = 1) -> int:
         queue = self.production_queue.setdefault(city_id, [])
         if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
@@ -2182,7 +2237,7 @@ class Game(AbstractGame):
                 return 0
             if name == "Settlers":
                 size = int(self.city_sizes.get(int(city_id), 1))
-                if size < 3:
+                if size < self._settler_min_city_size():
                     return 0
         if kind == "building":
             if not self._building_allowed_by_water(city_id, name):
@@ -2335,6 +2390,8 @@ class Game(AbstractGame):
                 f"[research] completed={','.join(completed)}",
                 file=sys.stderr,
             )
+            if self.pending_research_target in completed:
+                self.pending_research_target = None
             self._log_production_options(reason="research")
         for city_id, queue in self.production_queue.items():
             if not queue and self.production_current.get(city_id) is None:
@@ -2397,6 +2454,21 @@ class Game(AbstractGame):
             if start >= len(valid):
                 break
             end = min(end, len(valid), prod_end)
+            city_id = self.city_slots[slot_idx]
+            if self._city_needs_garrison(slot_idx, city_id):
+                guard_unit = self._preferred_garrison_unit()
+                guard_idx = None
+                if guard_unit:
+                    for idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+                        if kind == "unit" and name == guard_unit:
+                            guard_idx = idx
+                            break
+                guard_action = start + guard_idx if guard_idx is not None else None
+                if guard_action is not None and guard_action < end and valid[guard_action]:
+                    valid[start:end] = 0
+                    valid[guard_action] = 1
+                    applied_value_mask = True
+                continue
             candidates = []
             for action_idx in range(start, end):
                 if not valid[action_idx]:
@@ -2431,7 +2503,10 @@ class Game(AbstractGame):
             if desired_unit == "Settlers":
                 if slot_idx >= len(self._last_state.cities[1]):
                     continue
-                if self._last_state.cities[1][slot_idx].size < 3:
+                if (
+                    self._last_state.cities[1][slot_idx].size
+                    < self._settler_min_city_size()
+                ):
                     continue
             start = prod_start + slot_idx * self._last_state.PRODUCTION_ITEM_COUNT
             end = start + self._last_state.PRODUCTION_ITEM_COUNT
@@ -2862,9 +2937,20 @@ class Game(AbstractGame):
         self._refresh_production_queues()
         self._apply_production_snapshot_to_state(self._last_state)
         self.current_research = None
+        if (
+            self.pending_research_target
+            and snapshot.research_flags.get(self.pending_research_target, False)
+        ):
+            self.pending_research_target = None
         if isinstance(snapshot.research_name, str):
             if snapshot.research_name.startswith("__TECH__"):
                 self.current_research = snapshot.research_name.replace("__TECH__", "", 1).strip()
+                self.pending_research_target = self.current_research
+            elif (
+                self.pending_research_target
+                and not snapshot.research_flags.get(self.pending_research_target, False)
+            ):
+                self.current_research = self.pending_research_target
         return self._last_state
 
     def _apply_action(self, action, board_state, owned_cities):
@@ -2966,6 +3052,9 @@ class Game(AbstractGame):
                 research_flags=self._last_snapshot.research_flags,
                 tech_name=tech_name,
             )
+            if success:
+                self.pending_research_target = tech_name
+                self.current_research = tech_name
             self._debug_action(
                 f"research action={action} player_id={self.player_id} tech={tech_name} success={success}"
             )
@@ -3187,7 +3276,11 @@ class Game(AbstractGame):
                         )
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
-                    elif name == "Settlers" and city_size is not None and city_size < 3:
+                    elif (
+                        name == "Settlers"
+                        and city_size is not None
+                        and city_size < self._settler_min_city_size()
+                    ):
                         action_idx = (
                             prod_start
                             + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
@@ -3238,7 +3331,11 @@ class Game(AbstractGame):
                     for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
                         if kind != "unit":
                             continue
-                        if _name == "Settlers" and city_size is not None and city_size >= 3:
+                        if (
+                            _name == "Settlers"
+                            and city_size is not None
+                            and city_size >= self._settler_min_city_size()
+                        ):
                             continue
                         action_idx = (
                             prod_start

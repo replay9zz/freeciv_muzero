@@ -615,7 +615,8 @@ class MultiheadState:
                 if kind == "unit":
                     if self._unit_is_excluded(name):
                         continue
-                    if name == "Settlers" and city.size < 3:
+                    settler_min_size = int(getattr(self.cfg, "settler_min_city_size", 2))
+                    if name == "Settlers" and city.size < settler_min_size:
                         continue
                     if (
                         free_units > 0
@@ -1306,7 +1307,8 @@ class MultiheadState:
                         ):
                             city.production_progress -= spec.cost
                             if city.production_target == "Settlers":
-                                city.size = max(1, city.size - 2)
+                                pop_cost = int(getattr(self.cfg, "settler_population_cost", 1))
+                                city.size = max(1, city.size - pop_cost)
                             if city.production_queue:
                                 kind, name = city.production_queue.pop(0)
                                 city.production_kind = kind

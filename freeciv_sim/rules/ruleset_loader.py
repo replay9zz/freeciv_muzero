@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+import os
 import re
 
 
@@ -51,7 +52,12 @@ _QUOTED_RE = re.compile(r"\"([^\"]+)\"")
 
 def _ruleset_dir() -> Path:
     root = Path(__file__).resolve().parents[3]
-    return root / "freeciv" / "data" / "minimal"
+    data_dir = root / "freeciv" / "data"
+    configured = os.getenv("FREECIV_MUZERO_RULESET_DIR") or os.getenv("FREECIV_RULESET_DIR")
+    if configured:
+        path = Path(configured).expanduser()
+        return path if path.is_absolute() else data_dir / configured
+    return data_dir / "minimal"
 
 
 def _strip_inline_comment(line: str) -> str:
