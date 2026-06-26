@@ -49,6 +49,37 @@ server_rc_has_start() {
   [ -f "${source_rc}" ] && grep -Eq '^[[:space:]]*start([[:space:]]|$)' "${source_rc}"
 }
 
+server_rc_rulesetdir() {
+  local source_rc="$1"
+  [ -f "${source_rc}" ] || return 0
+  awk '
+    /^[[:space:]]*rulesetdir[[:space:]]+/ {
+      value = $0
+      sub(/^[[:space:]]*rulesetdir[[:space:]]+/, "", value)
+      sub(/[[:space:]]*(;.*)?$/, "", value)
+      gsub(/^"|"$/, "", value)
+      print value
+      exit
+    }
+  ' "${source_rc}"
+}
+
+server_rc_set_value() {
+  local source_rc="$1"
+  local option="$2"
+  [ -f "${source_rc}" ] || return 0
+  awk -v option="${option}" '
+    $1 == "set" && $2 == option {
+      value = $0
+      sub(/^[[:space:]]*set[[:space:]]+[^[:space:]]+[[:space:]]+/, "", value)
+      sub(/[[:space:]]*(;.*)?$/, "", value)
+      gsub(/^"|"$/, "", value)
+      print value
+      exit
+    }
+  ' "${source_rc}"
+}
+
 prepare_server_rc_template() {
   local source_rc="$1"
   local output_dir="$2"
@@ -249,8 +280,16 @@ run_with_timing_and_log() {
     } | tee -a "${log_path}"
 
     set +e
-    "$@" 2>&1 | tee -a "${log_path}"
-    status="${PIPESTATUS[0]}"
+    case "${STREAM_RUN_LOG:-1}" in
+      0|false|False|FALSE|no|No|NO|off|Off|OFF)
+        "$@" >>"${log_path}" 2>&1
+        status="$?"
+        ;;
+      *)
+        "$@" 2>&1 | tee -a "${log_path}"
+        status="${PIPESTATUS[0]}"
+        ;;
+    esac
     set -e
   else
     printf 'Run: %s\n' "${run_name}"

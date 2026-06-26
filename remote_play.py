@@ -224,6 +224,26 @@ def _infer_in_channels(weights: dict) -> int | None:
     return None
 
 
+def _infer_resnet_shape(weights: dict) -> tuple[int | None, int | None]:
+    channels = None
+    for key in (
+        "representation_network.module.conv.weight",
+        "representation_network.conv.weight",
+    ):
+        tensor = weights.get(key)
+        if tensor is not None and hasattr(tensor, "shape") and len(tensor.shape) >= 1:
+            channels = int(tensor.shape[0])
+            break
+
+    block_indices = set()
+    for key in weights:
+        match = re.search(r"\.resblocks\.(\d+)\.", key)
+        if match:
+            block_indices.add(int(match.group(1)))
+    blocks = max(block_indices) + 1 if block_indices else None
+    return channels, blocks
+
+
 def _build_obs_adapter(native_channels: int, model_channels: int, num_techs: int):
     if native_channels == model_channels:
         return None
@@ -753,8 +773,23 @@ def main() -> None:
     device = torch.device(args.device)
     weights = load_weights(checkpoint_path, map_location=device)
     checkpoint_channels = _infer_in_channels(weights)
+    checkpoint_resnet_channels, checkpoint_resnet_blocks = _infer_resnet_shape(weights)
 
     config = freeciv_remote.MuZeroConfig()
+    if checkpoint_resnet_channels is not None and checkpoint_resnet_channels != config.channels:
+        config.channels = checkpoint_resnet_channels
+        print(
+            "Using checkpoint network channels: "
+            f"{checkpoint_resnet_channels}",
+            file=sys.stderr,
+        )
+    if checkpoint_resnet_blocks is not None and checkpoint_resnet_blocks != config.blocks:
+        config.blocks = checkpoint_resnet_blocks
+        print(
+            "Using checkpoint network blocks: "
+            f"{checkpoint_resnet_blocks}",
+            file=sys.stderr,
+        )
     if (
         checkpoint_channels is not None
         and not bool(getattr(config, "observe_belief", False))
@@ -764,6 +799,10 @@ def main() -> None:
     ):
         _set_env("FREECIV_OBSERVE_BELIEF", "1")
         config = freeciv_remote.MuZeroConfig()
+        if checkpoint_resnet_channels is not None:
+            config.channels = checkpoint_resnet_channels
+        if checkpoint_resnet_blocks is not None:
+            config.blocks = checkpoint_resnet_blocks
         print(
             "Enabled belief observation planes for checkpoint compatibility.",
             file=sys.stderr,

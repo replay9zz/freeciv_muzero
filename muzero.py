@@ -450,8 +450,9 @@ class MuZero:
         self._finalize_training(start_time=start_time)
 
     def _emit_training_progress(self, info, include_reward=False):
+        if self._write_terminal_progress_bar(info):
+            return
         print(self._training_progress_line(info, include_reward=include_reward), flush=True)
-        self._write_terminal_progress_bar(info)
 
     def _training_progress_line(self, info, include_reward=False):
         training_steps = max(1, int(self.config.training_steps))
@@ -506,20 +507,21 @@ class MuZero:
 
     def _write_terminal_progress_bar(self, info):
         if not self._init_terminal_progress_bar():
-            return
+            return False
         size = self._resize_terminal_progress_bar()
         if not size:
-            return
+            return False
         rows, columns = size
 
         training_steps = max(1, int(self.config.training_steps))
         training_step = int(info.get("training_step", 0))
         clamped_step = min(max(training_step, 0), training_steps)
         ratio = clamped_step / training_steps
+        percent = ratio * 100
 
         text = (
             f" Training Step {training_step}/{self.config.training_steps}"
-            f"  {ratio * 100:5.1f}%"
+            f"  {percent:5.1f}%"
             f"  games {info.get('num_played_games', 0)}"
             f"  loss {float(info.get('total_loss', 0.0)):.2f}"
         )
@@ -532,10 +534,11 @@ class MuZero:
             filled = 1
         filled_text = text[:filled]
         empty_text = text[filled:]
-        line = f"\033[30;47m{filled_text}\033[0m{empty_text}"
+        line = f"\033[7m{filled_text}\033[0m{empty_text}"
 
         self._progress_tty.write(f"\0337\033[{rows};1H{line}\0338")
         self._progress_tty.flush()
+        return True
 
     def _clear_terminal_progress_bar(self):
         if not self._progress_tty:

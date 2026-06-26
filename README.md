@@ -85,6 +85,30 @@ Each worker gets its own Freeciv server and LuaRemote port by offsetting
 `FREECIV_LUAREMOTE_PORT_STRIDE` if a host has nearby occupied ports.
 
 The default server rc used by the training scripts is [`start_generated_32x32.serv`](/home/hirokiokabe/freeciv_test/freeciv_muzero/start_generated_32x32.serv), which starts a 32x32 generated map. Set `FREECIV_GENERATED_MAP=0` to use the scenario path instead.
+
+Action-space curriculum keeps the MuZero policy output size fixed and masks
+legal actions by group during training:
+
+```bash
+FREECIV_ACTION_CURRICULUM_STAGE=0 ./scripts/train_headless.sh  # move/pass
+FREECIV_ACTION_CURRICULUM_STAGE=1 ./scripts/train_headless.sh  # + build_city
+FREECIV_ACTION_CURRICULUM_STAGE=2 ./scripts/train_headless.sh  # + research
+FREECIV_ACTION_CURRICULUM_STAGE=3 ./scripts/train_headless.sh  # + production
+FREECIV_ACTION_CURRICULUM_STAGE=4 ./scripts/train_headless.sh  # + attack
+FREECIV_ACTION_CURRICULUM_STAGE=full ./scripts/train_headless.sh
+```
+
+Use `FREECIV_ACTION_CURRICULUM_GROUPS=move,build_city,research` for an explicit
+group set. The current remote training environment still controls one MuZero
+player in a Freeciv server; built-in AIs remain the external benchmark unless
+`FREECIV_AIFILL` is overridden in the server rc template.
+Run all stages sequentially with `./scripts/train_action_curriculum.sh`; override
+`CURRICULUM_STAGES` and `CURRICULUM_TARGET_STEPS` for longer jobs.
+The runner registers checkpoint symlinks in `results/model_registry`:
+`latest.checkpoint`, `stage/<stage>.checkpoint`, and
+`ladder/step-<target>.checkpoint`. Use the ladder checkpoints as fixed
+opponents/evaluation anchors instead of evaluating only latest-vs-latest.
+
 The training scripts now prefer repo-local paths first:
 
 - `./freeciv_build_v3_2_uv`

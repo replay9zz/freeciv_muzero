@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)-eval-heatmaps}"
 RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/evals/${RUN_STAMP}}"
 GAMEPLAY_FILE="${GAMEPLAY_FILE:-${RECORD_DIR}/gameplay.mp4}"
 COMBINED_FILE="${COMBINED_FILE:-${RECORD_DIR}/heatmaps/gameplay-heatmaps.mp4}"

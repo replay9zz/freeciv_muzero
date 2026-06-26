@@ -57,10 +57,13 @@ def _latest_by_step(events: list) -> dict[int, object]:
     return latest
 
 
-def _event_to_image(event) -> Image.Image:
-    return _mute_empty_heatmap_default(
+def _event_to_image(event, short_tag: str = "") -> Image.Image:
+    img = _mute_empty_heatmap_default(
         Image.open(io.BytesIO(event.encoded_image_string)).convert("RGB")
     )
+    if short_tag == "territory":
+        return _territory_palette_from_image(img)
+    return img
 
 
 def _mute_empty_heatmap_default(img: Image.Image) -> Image.Image:
@@ -71,6 +74,23 @@ def _mute_empty_heatmap_default(img: Image.Image) -> Image.Image:
             r, g, b = pixels[x, y]
             if r <= 2 and g <= 2 and b >= 250:
                 pixels[x, y] = EMPTY_HEATMAP_COLOR
+    return img
+
+
+def _territory_palette_from_image(img: Image.Image) -> Image.Image:
+    pixels = img.load()
+    width, height = img.size
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            if abs(r - EMPTY_HEATMAP_COLOR[0]) <= 6 and abs(g - EMPTY_HEATMAP_COLOR[1]) <= 6 and abs(b - EMPTY_HEATMAP_COLOR[2]) <= 6:
+                pixels[x, y] = EMPTY_HEATMAP_COLOR
+            elif r >= 180 and g <= 100 and b <= 100:
+                pixels[x, y] = (235, 46, 41)
+            elif r <= 130 and g >= 160 and b >= 130:
+                pixels[x, y] = (158, 163, 168)
+            elif r <= 80 and 25 <= g <= 150 and 40 <= b <= 180:
+                pixels[x, y] = (46, 107, 242)
     return img
 
 
@@ -317,7 +337,7 @@ def main() -> int:
         for short in requested_tags:
             event = by_short_tag.get(short, {}).get(step)
             if event is not None:
-                last_seen[short] = _event_to_image(event)
+                last_seen[short] = _event_to_image(event, short)
             current[short] = last_seen[short]
         if args.separate:
             for short in requested_tags:

@@ -8,7 +8,8 @@ set huts 0
 set sciencebox 50
 set foodbox 50
 set shieldbox 50
-set citymindist 2
+# Reward/action shaping reset: use ruleset default citymindist.
+# set citymindist 2
 set minplayers 0
 set aifill 2
 set mapsize XYSIZE

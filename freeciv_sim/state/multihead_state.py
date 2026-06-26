@@ -177,7 +177,7 @@ class MultiheadState:
     cfg: MapConfig
     provider: BaseProvider
     max_units: int = 6
-    max_cities: int = 3
+    max_cities: int = 16
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
     gt: GroundTruth | None = None
     movement: FreecivMovement | None = None
@@ -241,7 +241,8 @@ class MultiheadState:
         self.ACTION_SIZE = self.MOVE_SIZE + self.ATTACK_SIZE + self.ECON_SIZE
         self.PASS_ACTION = self.ACTION_SIZE - 1  # last index in econ head
         # Allow multiple actions within the same logical turn; cap to avoid stalling.
-        self.max_actions_per_turn = max(1, self.max_units * 2)
+        if self.max_actions_per_turn <= 0:
+            self.max_actions_per_turn = max(1, self.max_units * 2 + self.max_cities)
         if self.gt is None:
             self.reset()
         if not self.research_done.get(1):
@@ -550,8 +551,9 @@ class MultiheadState:
                 if nx is None or ny is None:
                     continue
                 if self.gt and 0 <= ny < self.cfg.map_h and 0 <= nx < self.cfg.map_w and self.gt.au_map[ny, nx] == 'A':
-                    # move only if not blocked by friendly
-                    if self._unit_at(nx, ny, player) is None:
+                    # Freeciv permits friendly stacking inside cities.
+                    own_city = self._city_at(nx, ny, player) is not None
+                    if self._unit_at(nx, ny, player) is None or own_city:
                         moves[move_base + dir_idx] = 1
                     # attack only if an enemy occupies the target
                     if u.atk > 0 and (
@@ -615,7 +617,7 @@ class MultiheadState:
                 if kind == "unit":
                     if self._unit_is_excluded(name):
                         continue
-                    settler_min_size = int(getattr(self.cfg, "settler_min_city_size", 2))
+                    settler_min_size = int(getattr(self.cfg, "settler_min_city_size", 1))
                     if name == "Settlers" and city.size < settler_min_size:
                         continue
                     if (
@@ -903,8 +905,8 @@ class MultiheadState:
                         attack_reward = 0.0
                     self._attack_city(player, u, -player, city_idx)
         else:
-            # Move if no friendly blocking
-            if self._unit_at(nx, ny, player) is None:
+            own_city = self._city_at(nx, ny, player) is not None
+            if self._unit_at(nx, ny, player) is None or own_city:
                 u.x, u.y = nx, ny
                 u.last_move_turn = self.turn
                 if not self.visited[player][ny, nx]:
@@ -1474,7 +1476,7 @@ class MultiheadState:
         return len(claimed)
 
     def civilization_score(self, player: Player) -> float:
-        pop = sum(city.size for city in self.cities[player])
+        citizens = sum(city.size for city in self.cities[player])
         techs = sum(1 for done in self.research_done[player].values() if done)
         future = self.future_techs.get(player, 0)
         wonders = sum(
@@ -1485,17 +1487,14 @@ class MultiheadState:
         )
         units_built = self.units_built.get(player, 0)
         kills = self.kills.get(player, 0)
-        land_area = self._land_area(player)
-        score = (
-            pop * self.cfg.score_population
-            + techs * self.cfg.score_tech
-            + future * self.cfg.score_future_tech
-            + wonders * self.cfg.score_great_wonder
-            + units_built * self.cfg.score_units_built
-            + kills * self.cfg.score_units_killed
-            + land_area * self.cfg.score_land_area
+        return float(
+            citizens
+            + techs * 2
+            + future * 2.5
+            + wonders * 5
+            + units_built / 10
+            + kills / 3
         )
-        return float(score)
 
     def heuristic_score(self, player: Player) -> int:
         """

@@ -77,7 +77,7 @@ progress_done_stack_lines="${EVAL_DONE_STACK_LINES:-0}"
 if ! [[ "${progress_done_stack_lines}" =~ ^[0-9]+$ ]]; then
   progress_done_stack_lines=3
 fi
-progress_height=$((progress_done_stack_lines + 3))
+progress_height=$((progress_done_stack_lines + MAX_PARALLEL + 2))
 
 terminal_colors_allowed() {
   local value="${EVAL_TERMINAL_COLORS:-1}"
@@ -140,8 +140,12 @@ resize_progress_bar() {
   if [ "${columns}" -lt 40 ]; then
     columns=40
   fi
+  local reserve_height="${progress_height}"
+  if [ "${reserve_height}" -ge "${rows}" ]; then
+    reserve_height=$((rows - 1))
+  fi
   if [ "${rows}" != "${progress_rows}" ]; then
-    printf '\0337\033[1;%dr' "$((rows - progress_height))" >&9
+    printf '\0337\033[1;%dr' "$((rows - reserve_height))" >&9
     local line
     for ((line = rows - progress_height + 1; line <= rows; line++)); do
       printf '\033[%d;1H\033[2K' "${line}" >&9
@@ -156,11 +160,15 @@ clear_progress_bar() {
   if [ "${progress_fd_open}" != "1" ]; then
     return 0
   fi
-  local rows columns line
+  local rows columns line reserve_height
   read -r rows columns < <(stty size </dev/tty 2>/dev/null || printf '%s 80\n' "${progress_rows:-24}")
   rows="${rows:-${progress_rows:-24}}"
+  reserve_height="${progress_height}"
+  if [ "${reserve_height}" -ge "${rows}" ]; then
+    reserve_height=$((rows - 1))
+  fi
   printf '\0337\033[r' >&9
-  for ((line = rows - progress_height + 1; line <= rows; line++)); do
+  for ((line = rows - reserve_height + 1; line <= rows; line++)); do
     if [ "${line}" -gt 0 ]; then
       printf '\033[%d;1H\033[2K' "${line}" >&9
     fi
@@ -297,23 +305,19 @@ job_segment() {
     elapsed=$((job_end_epochs[idx] - job_start_epochs[idx]))
   fi
 
-  local label color turn percent progress
+  local label turn percent progress
   case "${status}" in
     running)
       label="RUN"
-      color='46;30'
       ;;
     done)
       label="DONE"
-      color='42;30'
       ;;
     failed)
       label="FAIL"
-      color='41;97'
       ;;
     *)
       label="WAIT"
-      color='43;30'
       ;;
   esac
   read -r turn percent < <(job_turn_progress "${idx}")
@@ -340,7 +344,7 @@ job_segment() {
   fi
   local filled_text="${plain:0:fill_len}"
   local empty_text="${plain:fill_len}"
-  printf '%s\t\033[%sm%s\033[0m%s' "${plain}" "${color}" "${filled_text}" "${empty_text}"
+  printf '%s\t\033[7m%s\033[0m%s' "${plain}" "${filled_text}" "${empty_text}"
 }
 
 done_stack_line() {
@@ -402,45 +406,26 @@ write_progress_bar() {
     finish_text="finish $(date -d "@$((now + eta_seconds))" '+%H:%M:%S')"
   fi
 
-  local text line filled_text empty_text fill_color
+  local text line filled_text empty_text
   text=" Eval ${completed_count}/${GAMES} ${percent}% | running ${running}/${MAX_PARALLEL} | elapsed $(format_duration "${elapsed}") | ${eta_text} | ${finish_text}"
-  if [ "${failed_count}" -gt 0 ]; then
-    fill_color='41;97'
-  elif [ "${completed_count}" -eq "${GAMES}" ]; then
-    fill_color='42;30'
-  else
-    fill_color='46;30'
-  fi
   if [ "${#text}" -gt "${columns}" ]; then
     text="${text:0:columns}"
   fi
   text="$(printf '%-*s' "${columns}" "${text}")"
   filled_text="${text:0:filled}"
   empty_text="${text:filled}"
-  line="$(printf '\033[%sm%s\033[0m%s' "${fill_color}" "${filled_text}" "${empty_text}")"
+  line="$(printf '\033[7m%s\033[0m%s' "${filled_text}" "${empty_text}")"
 
-  local jobs_line="" segment idx running_slots slot_width remainder assigned_width
-  running_slots="${running}"
-  if [ "${running_slots}" -gt 0 ]; then
-    slot_width=$((columns / running_slots))
-    remainder=$((columns % running_slots))
-  else
-    slot_width="${columns}"
-    remainder=0
-  fi
+  local -a job_lines=()
+  local segment idx
   for ((idx = 0; idx < ${#job_statuses[@]}; idx++)); do
     if [ "${job_statuses[idx]}" = "running" ]; then
-      assigned_width="${slot_width}"
-      if [ "${remainder}" -gt 0 ]; then
-        assigned_width=$((assigned_width + 1))
-        remainder=$((remainder - 1))
-      fi
-      segment="$(job_segment "${idx}" "${now}" "${assigned_width}")"
-      jobs_line="${jobs_line}${segment#*	}"
+      segment="$(job_segment "${idx}" "${now}" "${columns}")"
+      job_lines+=("${segment#*	}")
     fi
   done
-  if [ -z "${jobs_line}" ]; then
-    jobs_line="$(printf '%-*s' "${columns}" " waiting for next game")"
+  if [ "${#job_lines[@]}" -eq 0 ]; then
+    job_lines+=("$(printf '%-*s' "${columns}" " waiting for next game")")
   fi
 
   local avg_text last_text output_text detail_line
@@ -460,12 +445,28 @@ write_progress_bar() {
   fi
   detail_line="$(printf '%-*s' "${columns}" "${detail_line}")"
 
-  local first_progress_row done_row done_line
-  first_progress_row=$((rows - progress_height + 1))
-  printf '\0337\033[%d;1H\033[2K%s' "${first_progress_row}" "${jobs_line}" >&9
+  local first_progress_row job_row job_rows max_job_rows done_row done_line blank_line
+  max_job_rows=$((rows - progress_done_stack_lines - 2))
+  if [ "${max_job_rows}" -lt 1 ]; then
+    max_job_rows=1
+  fi
+  job_rows="${MAX_PARALLEL}"
+  if [ "${job_rows}" -gt "${max_job_rows}" ]; then
+    job_rows="${max_job_rows}"
+  fi
+  first_progress_row=$((rows - progress_done_stack_lines - job_rows - 1))
+  printf '\0337' >&9
+  blank_line="$(printf '%-*s' "${columns}" "")"
+  for ((job_row = 0; job_row < job_rows; job_row++)); do
+    if [ "${job_row}" -lt "${#job_lines[@]}" ]; then
+      printf '\033[%d;1H\033[2K%s' "$((first_progress_row + job_row))" "${job_lines[job_row]}" >&9
+    else
+      printf '\033[%d;1H\033[2K%s' "$((first_progress_row + job_row))" "${blank_line}" >&9
+    fi
+  done
   for ((done_row = 0; done_row < progress_done_stack_lines; done_row++)); do
     done_line="$(done_stack_line "${done_row}" "${now}" "${columns}")"
-    printf '\033[%d;1H\033[2K%s' "$((first_progress_row + 1 + done_row))" "${done_line}" >&9
+    printf '\033[%d;1H\033[2K%s' "$((first_progress_row + job_rows + done_row))" "${done_line}" >&9
   done
   printf '\033[%d;1H\033[2K%s\033[%d;1H\033[2K%s\0338' \
     "$((rows - 1))" "${line}" \
@@ -529,6 +530,7 @@ for ((idx = 0; idx < GAMES; idx++)); do
     export EVAL_GAME_NAME="${job_name}"
     export EVAL_GAME_INDEX="$((idx + 1))"
     export EVAL_GPU="${gpu}"
+    export EVAL_TERMINAL_PROGRESS_BAR=0
     export FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
     export FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
     "${SCRIPT_DIR}/eval_record_dual_view.sh" "${CHECKPOINT}" "$@"

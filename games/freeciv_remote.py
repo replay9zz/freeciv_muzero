@@ -81,6 +81,13 @@ def _env_int(name, default):
     return int(raw)
 
 
+def _env_int_override(name, current):
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return current
+    return int(raw)
+
+
 def _env_float(name, default):
     raw = os.getenv(name)
     if raw is None or raw == "":
@@ -126,12 +133,15 @@ class MuZeroConfig:
             max_turns=max_turns,
             allow_sea_units=allow_sea_units,
             auto_worker_units=_env_bool("FREECIV_AUTO_WORKERS", False),
+            city_min_distance=_env_int("FREECIV_CITY_MIN_DISTANCE", 3),
+            expansion_min_cities=_env_int("FREECIV_EXPANSION_MIN_CITIES", 6),
+            expansion_tiles_per_city=_env_int("FREECIV_EXPANSION_TILES_PER_CITY", 48),
         )
-        self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
-        self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+        self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
+        self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
         self.max_actions_per_turn = _env_int(
             "FREECIV_MAX_ACTIONS_PER_TURN",
-            max(1, self.max_units * 2),
+            max(1, self.max_units * 2 + self.max_cities),
         )
         self.luaremote_port_base = _env_int(
             "FREECIV_LUAREMOTE_PORT",
@@ -262,6 +272,18 @@ class Game(AbstractGame):
         self.base_observation_channels = 0
         if config is not None and hasattr(config, "map_config"):
             self.config = config.map_config
+            self.config.city_min_distance = _env_int(
+                "FREECIV_CITY_MIN_DISTANCE",
+                self.config.city_min_distance,
+            )
+            self.config.expansion_min_cities = _env_int(
+                "FREECIV_EXPANSION_MIN_CITIES",
+                getattr(self.config, "expansion_min_cities", 6),
+            )
+            self.config.expansion_tiles_per_city = _env_int(
+                "FREECIV_EXPANSION_TILES_PER_CITY",
+                getattr(self.config, "expansion_tiles_per_city", 48),
+            )
             self.observe_belief = bool(
                 getattr(config, "observe_belief", self.observe_belief)
             )
@@ -272,11 +294,11 @@ class Game(AbstractGame):
                     (self.base_observation_channels,),
                 )[0]
             )
-            self.max_units = int(
-                getattr(config, "max_units", _env_int("FREECIV_MAX_UNITS", 6))
+            self.max_units = _env_int_override(
+                "FREECIV_MAX_UNITS", int(getattr(config, "max_units", 24))
             )
-            self.max_cities = int(
-                getattr(config, "max_cities", _env_int("FREECIV_MAX_CITIES", 3))
+            self.max_cities = _env_int_override(
+                "FREECIV_MAX_CITIES", int(getattr(config, "max_cities", 16))
             )
         else:
             map_w = _env_int("FREECIV_MAP_W", 32)
@@ -289,9 +311,12 @@ class Game(AbstractGame):
                 max_turns=max_turns,
                 allow_sea_units=allow_sea_units,
                 auto_worker_units=_env_bool("FREECIV_AUTO_WORKERS", False),
+                city_min_distance=_env_int("FREECIV_CITY_MIN_DISTANCE", 3),
+                expansion_min_cities=_env_int("FREECIV_EXPANSION_MIN_CITIES", 6),
+                expansion_tiles_per_city=_env_int("FREECIV_EXPANSION_TILES_PER_CITY", 48),
             )
-            self.max_units = _env_int("FREECIV_MAX_UNITS", 6)
-            self.max_cities = _env_int("FREECIV_MAX_CITIES", 3)
+            self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
+            self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
             tmp_state = MultiheadState(
                 self.config,
                 RandomMapProvider(self.config.map_w, self.config.map_h, p_open=1.0),
@@ -313,6 +338,14 @@ class Game(AbstractGame):
         self.reward_potential_discount = _env_float(
             "FREECIV_REWARD_POTENTIAL_DISCOUNT", 1.0
         )
+        self.action_curriculum_stage = os.getenv(
+            "FREECIV_ACTION_CURRICULUM_STAGE", ""
+        ).strip()
+        self.action_curriculum_groups = {
+            item.strip().lower()
+            for item in os.getenv("FREECIV_ACTION_CURRICULUM_GROUPS", "").split(",")
+            if item.strip()
+        }
 
         self.host = os.getenv("FREECIV_HOST", "127.0.0.1")
         self.server_host = os.getenv("FREECIV_SERVER_HOST", self.host)
@@ -404,13 +437,20 @@ class Game(AbstractGame):
         self.turns = 0
         self.actions_this_turn = 0
         self.max_actions_per_turn = _env_int(
-            "FREECIV_MAX_ACTIONS_PER_TURN", max(1, self.max_units * 2)
+            "FREECIV_MAX_ACTIONS_PER_TURN",
+            max(1, self.max_units * 2 + self.max_cities),
         )
         self.belief_tracker = BeliefTracker(self.config.map_w, self.config.map_h)
         self.belief_slot_id = 0
         self._belief_initialized = False
         self._belief_turn = None
         self._belief_planes: dict[str, numpy.ndarray] = {}
+        self.belief_defense_radius = max(1, _env_int("FREECIV_BELIEF_DEFENSE_RADIUS", 6))
+        self.belief_defense_threshold = _env_float(
+            "FREECIV_BELIEF_DEFENSE_THRESHOLD",
+            0.18,
+        )
+        self.belief_defense_extra = max(0, _env_int("FREECIV_BELIEF_DEFENSE_EXTRA", 1))
         self.belief_tb_enabled = _env_bool("FREECIV_BELIEF_TENSORBOARD", False)
         self.belief_tb_interval = max(1, _env_int("FREECIV_BELIEF_TENSORBOARD_INTERVAL", 1))
         self.belief_tb_dir = os.getenv("FREECIV_BELIEF_TENSORBOARD_DIR")
@@ -429,6 +469,10 @@ class Game(AbstractGame):
         self.final_save_requested = False
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
+        self.forced_settler_move_slots: set[int] = set()
+        self.max_forced_settler_moves_per_turn = max(
+            1, _env_int("FREECIV_SETTLER_FORCE_MOVES_PER_TURN", 2)
+        )
         self._last_snapshot = None
         self._last_state = None
         self.previous_pos = None
@@ -630,6 +674,7 @@ class Game(AbstractGame):
         self._reward_last_logged_step = None
         self.acted_unit_slots.clear()
         self.acted_production_cities.clear()
+        self.forced_settler_move_slots.clear()
         self.production_queue.clear()
         self.production_current.clear()
         self._city_buildings.clear()
@@ -972,6 +1017,29 @@ class Game(AbstractGame):
             rgb[1, high] = 1.0 - t
         return rgb
 
+    def _belief_territory_rgb(self, plane: numpy.ndarray) -> numpy.ndarray:
+        clipped = numpy.clip(numpy.asarray(plane, dtype=numpy.float32), 0.0, 1.0)
+        rgb = numpy.full(
+            (3, clipped.shape[0], clipped.shape[1]),
+            EMPTY_HEATMAP_VALUE,
+            dtype=numpy.float32,
+        )
+        my = (clipped > 0.0) & (clipped < 0.25)
+        neutral = (clipped >= 0.25) & (clipped < 0.75)
+        enemy = clipped >= 0.75
+        if my.any():
+            rgb[:, my] = numpy.asarray((0.18, 0.42, 0.95), dtype=numpy.float32)[:, None]
+        if neutral.any():
+            rgb[:, neutral] = numpy.asarray((0.62, 0.64, 0.66), dtype=numpy.float32)[:, None]
+        if enemy.any():
+            rgb[:, enemy] = numpy.asarray((0.92, 0.18, 0.16), dtype=numpy.float32)[:, None]
+        return rgb
+
+    def _belief_plane_rgb(self, name: str, plane: numpy.ndarray) -> numpy.ndarray:
+        if name == "territory":
+            return self._belief_territory_rgb(plane)
+        return self._belief_heatmap_rgb(plane)
+
     def _belief_hex_points(
         self,
         cx: float,
@@ -994,10 +1062,11 @@ class Game(AbstractGame):
     def _belief_hex_heatmap_rgb(
         self,
         plane: numpy.ndarray,
+        name: str = "",
         width: int = 320,
         height: int = 240,
     ) -> numpy.ndarray:
-        rgb = self._belief_heatmap_rgb(plane).transpose(1, 2, 0)
+        rgb = self._belief_plane_rgb(name, plane).transpose(1, 2, 0)
         rows, cols = rgb.shape[:2]
         canvas = Image.new("RGB", (width, height), (9, 12, 14))
         draw = ImageDraw.Draw(canvas)
@@ -1168,13 +1237,13 @@ class Game(AbstractGame):
         for name, plane in self._belief_planes.items():
             writer.add_image(
                 f"{prefix}/{name}",
-                self._belief_heatmap_rgb(plane),
+                self._belief_plane_rgb(name, plane),
                 global_step=self.turns,
             )
             if self.belief_tb_hex_enabled:
                 writer.add_image(
                     f"{prefix}/{name}_hex",
-                    self._belief_hex_heatmap_rgb(plane),
+                    self._belief_hex_heatmap_rgb(plane, name=name),
                     global_step=self.turns,
                 )
         belief_plane = self._belief_planes.get("belief_units")
@@ -1514,7 +1583,7 @@ class Game(AbstractGame):
         )
         state.turn = self.turns
         state.actions_this_turn = 0
-        state.max_actions_per_turn = max(1, self.max_units * 2)
+        state.max_actions_per_turn = self.max_actions_per_turn
         state.acted_unit_slots = {1: set(), -1: set()}
         state.acted_production_cities = {1: set(), -1: set()}
         state.visited = {
@@ -2020,27 +2089,37 @@ class Game(AbstractGame):
                     file=sys.stderr,
                 )
 
+    def _estimated_land_tiles(self) -> int:
+        if self._last_state is not None and self._last_state.gt is not None:
+            return int(numpy.count_nonzero(self._last_state.gt.au_map == "A"))
+        return int(self.config.map_w * self.config.map_h)
+
+    def _expansion_city_target(self) -> int:
+        min_cities = max(1, int(getattr(self.config, "expansion_min_cities", 6)))
+        tiles_per_city = max(1, int(getattr(self.config, "expansion_tiles_per_city", 48)))
+        land_target = max(min_cities, self._estimated_land_tiles() // tiles_per_city)
+        return max(1, min(self.max_cities, land_target))
+
     def _select_production_unit(self) -> Optional[str]:
         if self._last_state is None:
             return None
+        city_sizes = [city.size for city in self._last_state.cities[1]]
+        settler_min_size = self._settler_min_city_size()
+        can_make_settler = any(size >= settler_min_size for size in city_sizes)
+        missing_cities = max(self._expansion_city_target() - len(self.city_slots), 0)
+        if (
+            can_make_settler
+            and missing_cities > 0
+            and self._unit_unlocked("Settlers")
+        ):
+            return "Settlers"
         if self._has_underdefended_city():
             guard = self._preferred_garrison_unit()
             if guard:
                 return guard
-        settler_count = sum(
-            1 for name in self.unit_slot_types if "settler" in (name or "").lower()
-        )
-        city_sizes = [city.size for city in self._last_state.cities[1]]
-        settler_min_size = self._settler_min_city_size()
-        can_make_settler = any(size >= settler_min_size for size in city_sizes)
-        missing_cities = max(self.max_cities - len(self.city_slots), 0)
-        if (
-            can_make_settler
-            and missing_cities > 0
-            and settler_count < missing_cities
-            and self._unit_unlocked("Settlers")
-        ):
-            return "Settlers"
+        defender = self._select_defense_unit()
+        if defender and self._city_needs_combat_garrison():
+            return defender
         candidates = []
         for name in PRODUCTION_UNIT_NAMES:
             if not self._unit_unlocked(name):
@@ -2065,6 +2144,123 @@ class Game(AbstractGame):
             return "Warriors"
         return None
 
+    def _select_defense_unit(self) -> Optional[str]:
+        candidates = []
+        pressure = self._belief_defense_pressure()
+        for name in PRODUCTION_UNIT_NAMES:
+            if not self._unit_unlocked(name):
+                continue
+            if self._unit_obsolete(name):
+                continue
+            if self._production_is_excluded(name):
+                continue
+            if name == "Settlers" or self._production_is_worker_like(name):
+                continue
+            spec = UNIT_SPECS.get(name)
+            if spec is None or (spec.atk <= 0 and spec.df <= 0):
+                continue
+            score = (
+                spec.df * (2.5 + pressure)
+                + spec.hp * 0.12
+                + spec.firepower * 0.6
+                + spec.atk * 0.5
+                + spec.moves * min(1.5, pressure * 2.0)
+            )
+            candidates.append((score, name))
+        if not candidates:
+            return "Warriors" if self._unit_unlocked("Warriors") else None
+        candidates.sort(reverse=True)
+        return candidates[0][1]
+
+    def _defense_min_units(self) -> int:
+        return max(0, int(getattr(self.config, "city_unit_min", 0)))
+
+    def _belief_pressure_around(self, x: int, y: int, radius: Optional[int] = None) -> float:
+        plane = self._belief_planes.get("threat")
+        if plane is None:
+            return 0.0
+        arr = numpy.asarray(plane, dtype=numpy.float32)
+        if arr.size == 0 or self.movement is None:
+            return 0.0
+        radius = self.belief_defense_radius if radius is None else max(0, int(radius))
+        seen = {(int(x), int(y))}
+        queue = deque([(int(x), int(y), 0)])
+        pressure = 0.0
+        while queue:
+            cx, cy, dist = queue.popleft()
+            if 0 <= cy < arr.shape[0] and 0 <= cx < arr.shape[1]:
+                pressure = max(pressure, float(arr[cy, cx]))
+            if dist >= radius:
+                continue
+            for nx, ny in self.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None:
+                    continue
+                coord = (int(nx), int(ny))
+                if coord in seen:
+                    continue
+                seen.add(coord)
+                queue.append((coord[0], coord[1], dist + 1))
+        return pressure
+
+    def _city_belief_pressure(self, city_slot: int) -> float:
+        if self._last_state is None or city_slot >= len(self._last_state.cities[1]):
+            return 0.0
+        city = self._last_state.cities[1][city_slot]
+        return self._belief_pressure_around(city.x, city.y)
+
+    def _city_defense_target(self, city_slot: int) -> int:
+        target = self._defense_min_units()
+        if self.belief_defense_extra <= 0:
+            return target
+        pressure = self._city_belief_pressure(city_slot)
+        if pressure >= self.belief_defense_threshold:
+            target += self.belief_defense_extra
+        return target
+
+    def _belief_defense_pressure(self) -> float:
+        if self._last_state is None:
+            return 0.0
+        pressure = 0.0
+        for city_slot in range(len(self._last_state.cities[1])):
+            pressure = max(pressure, self._city_belief_pressure(city_slot))
+        return pressure
+
+    def _unit_is_combat_garrison(self, unit, slot_idx: int | None = None) -> bool:
+        if unit is None or not getattr(unit, "alive", False):
+            return False
+        label = (getattr(unit, "unit_type", "") or "").lower()
+        if slot_idx is not None:
+            label = label or self._unit_slot_label(slot_idx)
+        if getattr(unit, "can_build_city", False) or self._unit_is_worker_like(label):
+            return False
+        return getattr(unit, "atk", 0) > 0 or getattr(unit, "df", 0) > 0
+
+    def _combat_garrison_counts(self) -> list[int]:
+        if self._last_state is None:
+            return []
+        counts = []
+        for city in self._last_state.cities[1]:
+            counts.append(
+                sum(
+                    1
+                    for idx, unit in enumerate(self._last_state.units[1])
+                    if (
+                        self._unit_is_combat_garrison(unit, idx)
+                        and unit.x == city.x
+                        and unit.y == city.y
+                    )
+                )
+            )
+        return counts
+
+    def _city_needs_combat_garrison(self) -> bool:
+        if self._last_state is None:
+            return False
+        return any(
+            count < self._city_defense_target(city_slot)
+            for city_slot, count in enumerate(self._combat_garrison_counts())
+        )
+
     def _has_alive_expansion_settler(self) -> bool:
         if self._last_state is None:
             return False
@@ -2085,11 +2281,7 @@ class Game(AbstractGame):
     def _needs_expansion_settler(self) -> bool:
         if self._last_state is None:
             return False
-        if len(self._last_state.cities[1]) >= self._last_state.max_cities:
-            return False
-        if self._has_underdefended_city():
-            return False
-        return not self._has_alive_expansion_settler()
+        return len(self._last_state.cities[1]) < self._expansion_city_target()
 
     def _restrict_expansion_production(self, valid):
         if self._last_state is None or not self.city_slots:
@@ -2108,14 +2300,13 @@ class Game(AbstractGame):
                 break
         if settler_idx is None:
             return valid
-        pending = self._has_pending_expansion_settler()
         for city_slot, _city_id in enumerate(self.city_slots):
             start = prod_start + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
             end = min(start + self._last_state.PRODUCTION_ITEM_COUNT, len(valid), prod_end)
             if start >= end:
                 break
             desired = start + settler_idx
-            if pending or desired >= end or not valid[desired]:
+            if desired >= end or not valid[desired]:
                 valid[start:end] = 0
                 continue
             for action_idx in range(start, end):
@@ -2220,7 +2411,7 @@ class Game(AbstractGame):
         return True
 
     def _settler_min_city_size(self) -> int:
-        return max(1, int(getattr(self.config, "settler_min_city_size", 2)))
+        return max(1, int(getattr(self.config, "settler_min_city_size", 1)))
 
     def _queue_city_production(self, city_id: int, kind: str, name: str, count: int = 1) -> int:
         queue = self.production_queue.setdefault(city_id, [])
@@ -2442,6 +2633,9 @@ class Game(AbstractGame):
         if self._last_state is None or not self.city_slots:
             return valid
         valid = self._restrict_expansion_production(valid)
+        valid, applied_defense = self._prefer_defense_production_actions(valid)
+        if applied_defense:
+            return valid
         econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
@@ -2564,6 +2758,58 @@ class Game(AbstractGame):
                     valid[action_idx] = 0
         return valid
 
+    def _prefer_defense_production_actions(self, valid):
+        if self._last_state is None or not self.city_slots:
+            return valid, False
+        if self._needs_expansion_settler():
+            return valid, False
+        defender = self._select_defense_unit()
+        if not defender:
+            return valid, False
+        defender_idx = None
+        for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
+            if kind == "unit" and name == defender:
+                defender_idx = item_idx
+                break
+        if defender_idx is None:
+            return valid, False
+        counts = self._combat_garrison_counts()
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        applied = False
+        for city_slot in range(min(len(self.city_slots), len(counts))):
+            target = self._city_defense_target(city_slot)
+            if target <= 0 or counts[city_slot] >= target:
+                continue
+            start = prod_start + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+            end = min(start + self._last_state.PRODUCTION_ITEM_COUNT, prod_end, len(valid))
+            action_idx = start + defender_idx
+            if start >= len(valid) or action_idx >= end or not valid[action_idx]:
+                continue
+            valid[start:end] = 0
+            valid[action_idx] = 1
+            applied = True
+        return valid, applied
+
+    def _force_defense_production_actions(self, valid):
+        if self._last_state is None:
+            return None
+        if self._needs_expansion_settler():
+            return None
+        masked, applied = self._prefer_defense_production_actions(valid.copy())
+        if not applied:
+            return None
+        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+        prod_end = min(econ_offset + self._last_state.ECON_PASS_OFFSET, len(masked))
+        actions = [
+            idx
+            for idx in range(prod_start, prod_end)
+            if masked[idx] and valid[idx]
+        ]
+        return actions or None
+
     def _prefer_research_actions(self, valid):
         if self._last_state is None:
             return valid
@@ -2634,6 +2880,12 @@ class Game(AbstractGame):
         threats = self._enemy_threats()
         for slot_idx, unit_id in enumerate(self.unit_slots):
             if unit_id is None:
+                continue
+            if (
+                self._last_state is not None
+                and slot_idx < len(self._last_state.units[1])
+                and self._last_state.units[1][slot_idx].can_build_city
+            ):
                 continue
             label = self._unit_slot_label(slot_idx)
             if not self._unit_is_autosettler_candidate(label):
@@ -2733,7 +2985,7 @@ class Game(AbstractGame):
         if self._last_state is None:
             return None
         player = 1
-        if len(self._last_state.cities[player]) >= self._last_state.max_cities:
+        if len(self._last_state.cities[player]) >= self._expansion_city_target():
             return None
         econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
         build_base = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -2773,6 +3025,11 @@ class Game(AbstractGame):
         if build_actions:
             return build_actions
         if best_move is not None:
+            if (
+                len(self.forced_settler_move_slots)
+                >= self.max_forced_settler_moves_per_turn
+            ):
+                return None
             if self.debug_settlers:
                 _dist, action, idx, ux, uy, dir_idx = best_move
                 print(
@@ -2780,8 +3037,119 @@ class Game(AbstractGame):
                     f"action=move dir={dir_idx} dist={_dist}",
                     file=sys.stderr,
                 )
+            self.forced_settler_move_slots.add(best_move[2])
             return [best_move[1]]
         return None
+
+    def _unit_city_slot(self, unit) -> Optional[int]:
+        if self._last_state is None or unit is None:
+            return None
+        for city_slot, city in enumerate(self._last_state.cities[1]):
+            if unit.x == city.x and unit.y == city.y:
+                return city_slot
+        return None
+
+    def _protect_city_garrisons(self, valid):
+        if self._last_state is None:
+            return valid
+        counts = self._combat_garrison_counts()
+        for slot_idx, unit in enumerate(self._last_state.units[1]):
+            if not self._unit_is_combat_garrison(unit, slot_idx):
+                continue
+            city_slot = self._unit_city_slot(unit)
+            if city_slot is None or city_slot >= len(counts):
+                continue
+            target = self._city_defense_target(city_slot)
+            if target <= 0 or counts[city_slot] > target:
+                continue
+            move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+            move_end = move_start + self._last_state.MOVE_PER_UNIT
+            atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
+            atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+            valid[move_start:min(move_end, len(valid))] = 0
+            valid[atk_start:min(atk_end, len(valid))] = 0
+        return valid
+
+    def _defense_first_step(
+        self,
+        start: tuple[int, int],
+        target: tuple[int, int],
+    ) -> Optional[tuple[int, int]]:
+        if self._last_state is None or self.movement is None or self._last_state.gt is None:
+            return None
+        if start == target:
+            return None
+        sx, sy = start
+        seen = {(sx, sy)}
+        queue = deque()
+        for dir_idx, (nx, ny) in enumerate(self.movement.get_native_neighbors(sx, sy)):
+            if nx is None or ny is None:
+                continue
+            if self._last_state.gt.au_map[ny, nx] != "A":
+                continue
+            coord = (int(nx), int(ny))
+            seen.add(coord)
+            queue.append((coord[0], coord[1], dir_idx, 1))
+        while queue:
+            cx, cy, first_dir, dist = queue.popleft()
+            if (cx, cy) == target:
+                return first_dir, dist
+            for nx, ny in self.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None:
+                    continue
+                coord = (int(nx), int(ny))
+                if coord in seen:
+                    continue
+                if self._last_state.gt.au_map[coord[1], coord[0]] != "A":
+                    continue
+                seen.add(coord)
+                queue.append((coord[0], coord[1], first_dir, dist + 1))
+        return None
+
+    def _force_city_defense_actions(self, valid):
+        if self._last_state is None:
+            return None
+        if self._needs_expansion_settler():
+            return None
+        counts = self._combat_garrison_counts()
+        target_slots = [
+            city_slot
+            for city_slot, count in enumerate(counts)
+            if (
+                city_slot < len(self._last_state.cities[1])
+                and count < self._city_defense_target(city_slot)
+            )
+        ]
+        if not target_slots:
+            return None
+        best = None
+        for slot_idx, unit in enumerate(self._last_state.units[1]):
+            if not self._unit_is_combat_garrison(unit, slot_idx):
+                continue
+            if slot_idx in self.acted_unit_slots:
+                continue
+            city_slot = self._unit_city_slot(unit)
+            if (
+                city_slot is not None
+                and city_slot < len(counts)
+                and counts[city_slot] <= self._city_defense_target(city_slot)
+            ):
+                continue
+            move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+            for target_slot in target_slots:
+                city = self._last_state.cities[1][target_slot]
+                step = self._defense_first_step((unit.x, unit.y), (city.x, city.y))
+                if step is None:
+                    continue
+                dir_idx, dist = step
+                action = move_start + dir_idx
+                if 0 <= action < len(valid) and valid[action]:
+                    candidate = (counts[target_slot], dist, action, slot_idx, target_slot)
+                    if best is None or candidate < best:
+                        best = candidate
+        if best is None:
+            return None
+        return [best[2]]
 
     def _prefer_worker_evasion(self, valid):
         if self._last_state is None or self.movement is None:
@@ -3153,6 +3521,7 @@ class Game(AbstractGame):
             self.actions_this_turn = 0
             self.acted_unit_slots.clear()
             self.acted_production_cities.clear()
+            self.forced_settler_move_slots.clear()
             if self.sleep:
                 time.sleep(self.sleep)
 
@@ -3184,6 +3553,98 @@ class Game(AbstractGame):
 
     def to_play(self):
         return 0
+
+    def _action_curriculum_allowed_groups(self) -> set[str] | None:
+        if self.action_curriculum_groups:
+            groups = set(self.action_curriculum_groups)
+            groups.add("pass")
+            return groups
+        stage = self.action_curriculum_stage.lower()
+        if not stage or stage in {"full", "none", "off", "5"}:
+            return None
+        stage_groups = {
+            "0": {"move", "pass"},
+            "move": {"move", "pass"},
+            "moves": {"move", "pass"},
+            "1": {"move", "build_city", "pass"},
+            "settle": {"move", "build_city", "pass"},
+            "city": {"move", "build_city", "pass"},
+            "build_city": {"move", "build_city", "pass"},
+            "2": {"move", "build_city", "research", "pass"},
+            "research": {"move", "build_city", "research", "pass"},
+            "3": {"move", "build_city", "research", "production", "pass"},
+            "production": {"move", "build_city", "research", "production", "pass"},
+            "econ": {"move", "build_city", "research", "production", "pass"},
+            "4": {
+                "move",
+                "build_city",
+                "research",
+                "production",
+                "attack",
+                "pass",
+            },
+            "combat": {
+                "move",
+                "build_city",
+                "research",
+                "production",
+                "attack",
+                "pass",
+            },
+            "attack": {
+                "move",
+                "build_city",
+                "research",
+                "production",
+                "attack",
+                "pass",
+            },
+        }
+        return stage_groups.get(stage)
+
+    def _apply_action_curriculum(self, valid):
+        if self._last_state is None:
+            return valid
+        groups = self._action_curriculum_allowed_groups()
+        if groups is None:
+            return valid
+
+        allowed = numpy.zeros_like(valid)
+        state = self._last_state
+        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+
+        if "move" in groups:
+            allowed[: min(state.MOVE_SIZE, len(allowed))] = 1
+        if "attack" in groups:
+            start = state.MOVE_SIZE
+            end = min(start + state.ATTACK_SIZE, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "research" in groups:
+            start = econ_offset
+            end = min(econ_offset + state.ECON_BUILD_CITY_OFFSET, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "build_city" in groups:
+            start = econ_offset + state.ECON_BUILD_CITY_OFFSET
+            end = min(econ_offset + state.ECON_PRODUCTION_OFFSET, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "production" in groups:
+            start = econ_offset + state.ECON_PRODUCTION_OFFSET
+            end = min(econ_offset + state.ECON_PASS_OFFSET, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "pass" in groups and 0 <= state.PASS_ACTION < len(allowed):
+            allowed[state.PASS_ACTION] = 1
+
+        masked = valid * allowed
+        if masked.any():
+            return masked
+        fallback = numpy.zeros_like(valid)
+        if 0 <= state.PASS_ACTION < len(fallback):
+            fallback[state.PASS_ACTION] = 1
+        return fallback
 
     def _legal_action_mask(self):
         if self._last_state is None:
@@ -3222,7 +3683,6 @@ class Game(AbstractGame):
         if self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            min_units = int(getattr(self.config, "city_unit_min", 0))
             free_units = int(getattr(self.config, "city_unit_free", 0))
             for city_slot, city_id in enumerate(self.city_slots):
                 if city_id in self.acted_production_cities:
@@ -3253,8 +3713,12 @@ class Game(AbstractGame):
                     city = self._last_state.cities[1][city_slot]
                     tile_count = sum(
                         1
-                        for u in self._last_state.units[1]
-                        if u.alive and u.x == city.x and u.y == city.y
+                        for unit_idx, u in enumerate(self._last_state.units[1])
+                        if (
+                            self._unit_is_combat_garrison(u, unit_idx)
+                            and u.x == city.x
+                            and u.y == city.y
+                        )
                     )
                     garrison_count = tile_count
                     if tile_count > unit_count:
@@ -3265,6 +3729,7 @@ class Game(AbstractGame):
                     and city_slot < len(self._last_state.cities[1])
                 ):
                     city_size = self._last_state.cities[1][city_slot].size
+                target_units = self._city_defense_target(city_slot)
                 for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
                     if kind != "unit":
                         continue
@@ -3315,7 +3780,7 @@ class Game(AbstractGame):
                         )
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
-                    elif min_units > 0 and garrison_count < min_units:
+                    elif target_units > 0 and garrison_count < target_units:
                         action_idx = (
                             prod_start
                             + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
@@ -3326,7 +3791,7 @@ class Game(AbstractGame):
                 if (
                     free_units > 0
                     and unit_count >= free_units
-                    and garrison_count >= min_units
+                    and garrison_count >= target_units
                 ):
                     for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
                         if kind != "unit":
@@ -3377,8 +3842,23 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
+        valid = self._protect_city_garrisons(valid)
         valid = self._prefer_worker_evasion(valid)
         valid = self._mask_autosettler_actions(valid)
+        forced = self._force_city_defense_actions(valid)
+        if forced:
+            forced_mask = numpy.zeros_like(valid)
+            for idx in forced:
+                if 0 <= idx < len(forced_mask):
+                    forced_mask[idx] = 1
+            return forced_mask
+        forced = self._force_defense_production_actions(valid)
+        if forced:
+            forced_mask = numpy.zeros_like(valid)
+            for idx in forced:
+                if 0 <= idx < len(forced_mask):
+                    forced_mask[idx] = 1
+            return forced_mask
         forced = self._force_settler_city_actions(valid)
         if forced:
             forced_mask = numpy.zeros_like(valid)
@@ -3387,6 +3867,7 @@ class Game(AbstractGame):
                     forced_mask[idx] = 1
             return forced_mask
         valid = self._prefer_attack_actions(valid)
+        valid = self._apply_action_curriculum(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any():

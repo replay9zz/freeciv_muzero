@@ -11,7 +11,7 @@ SERVER_PORT="${SERVER_PORT:-5566}"
 LUA_PORT="${LUA_PORT:-4451}"
 OBSERVER_LUA_PORT="${OBSERVER_LUA_PORT:-$((LUA_PORT + 1))}"
 HOST="${HOST:-127.0.0.1}"
-RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)}"
+RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)-eval-dual}"
 RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/evals/${RUN_STAMP}}"
 RECORD_FPS="${RECORD_FPS:-30}"
 DISPLAY_SIZE="${DISPLAY_SIZE:-1920x1080}"
@@ -21,6 +21,13 @@ CLIENT_RESOLUTION="${CLIENT_RESOLUTION:-1920x1080}"
 RECORD_SIZE="${RECORD_SIZE:-${CLIENT_RESOLUTION}}"
 RECORD_AGENT_FILE="${RECORD_AGENT_FILE:-${RECORD_DIR}/eval-agent.mp4}"
 RECORD_GLOBAL_FILE="${RECORD_GLOBAL_FILE:-${RECORD_DIR}/eval-global.mp4}"
+RECORD_MAP_ONLY="${RECORD_MAP_ONLY:-1}"
+RECORD_AGENT_MAP_FILE="${RECORD_AGENT_MAP_FILE:-${RECORD_DIR}/eval-agent-map.mp4}"
+RECORD_GLOBAL_MAP_FILE="${RECORD_GLOBAL_MAP_FILE:-${RECORD_DIR}/eval-global-map.mp4}"
+RECORD_MAP_CROP_X="${RECORD_MAP_CROP_X:-293}"
+RECORD_MAP_CROP_Y="${RECORD_MAP_CROP_Y:-34}"
+RECORD_AGENT_MAP_CROP_BOTTOM="${RECORD_AGENT_MAP_CROP_BOTTOM:-0}"
+RECORD_GLOBAL_MAP_CROP_BOTTOM="${RECORD_GLOBAL_MAP_CROP_BOTTOM:-180}"
 HEATMAP_VIDEO_FILE="${HEATMAP_VIDEO_FILE:-${RECORD_DIR}/eval-heatmaps.mp4}"
 HEATMAP_VIDEO_DIR="${HEATMAP_VIDEO_DIR:-${RECORD_DIR}/heatmaps/videos}"
 HEATMAP_TB_DIR="${HEATMAP_TB_DIR:-${RECORD_DIR}/heatmaps/tb}"
@@ -40,10 +47,11 @@ OBSERVER_OBSERVE_RETRIES="${OBSERVER_OBSERVE_RETRIES:-5}"
 OBSERVER_CLIENT_HOME="${OBSERVER_CLIENT_HOME:-${RECORD_DIR}/observer-home}"
 OBSERVER_ZOOM_SET="${OBSERVER_ZOOM_SET:-TRUE}"
 OBSERVER_ZOOM_DEFAULT_LEVEL="${OBSERVER_ZOOM_DEFAULT_LEVEL:-0.40}"
-EVAL_LOG="${EVAL_LOG:-}"
+EVAL_LOG="${EVAL_LOG:-${RECORD_DIR}/eval.log}"
 RUN_INFO_FILE="${RUN_INFO_FILE:-${RECORD_DIR}/run_info.txt}"
 RUN_START_EPOCH="$(date +%s)"
 SAVE_SCAN_MARKER="${SAVE_SCAN_MARKER:-${RECORD_DIR}/.save-scan-start}"
+MAX_TURNS="${MAX_TURNS:-300}"
 FREECIV_GENERATED_MAP="${FREECIV_GENERATED_MAP:-1}"
 if [ "${FREECIV_GENERATED_MAP}" = "1" ]; then
   HEATMAP_MAP_WIDTH="${HEATMAP_MAP_WIDTH:-${MAP_WIDTH:-32}}"
@@ -159,6 +167,108 @@ observer_xvfb_pid=""
 ffmpeg_agent_pid=""
 ffmpeg_global_pid=""
 observer_display_ready=0
+progress_fd_open=0
+progress_rows=0
+
+eval_progress_allowed() {
+  local value="${EVAL_TERMINAL_PROGRESS_BAR:-1}"
+  value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
+  [ "${value}" != "0" ] && [ "${value}" != "false" ] && [ "${value}" != "no" ] && [ "${value}" != "off" ]
+}
+
+init_eval_progress_bar() {
+  if [ "${progress_fd_open}" = "1" ]; then
+    return 0
+  fi
+  if ! eval_progress_allowed; then
+    return 1
+  fi
+  if ! exec 9>/dev/tty 2>/dev/null; then
+    return 1
+  fi
+  progress_fd_open=1
+  resize_eval_progress_bar >/dev/null
+  return 0
+}
+
+resize_eval_progress_bar() {
+  if [ "${progress_fd_open}" != "1" ]; then
+    return 1
+  fi
+  local rows columns
+  read -r rows columns < <(stty size </dev/tty 2>/dev/null || printf '24 80\n')
+  rows="${rows:-24}"
+  columns="${columns:-80}"
+  if [ "${rows}" -lt 3 ]; then
+    rows=3
+  fi
+  if [ "${columns}" -lt 40 ]; then
+    columns=40
+  fi
+  if [ "${rows}" != "${progress_rows}" ]; then
+    printf '\0337\033[1;%dr\033[%d;1H\033[2K\0338' "$((rows - 1))" "${rows}" >&9
+    progress_rows="${rows}"
+  fi
+  printf '%s %s\n' "${rows}" "${columns}"
+}
+
+clear_eval_progress_bar() {
+  if [ "${progress_fd_open}" != "1" ]; then
+    return 0
+  fi
+  local rows columns
+  read -r rows columns < <(stty size </dev/tty 2>/dev/null || printf '%s 80\n' "${progress_rows:-24}")
+  rows="${rows:-${progress_rows:-24}}"
+  printf '\0337\033[r\033[%d;1H\033[2K\0338' "${rows}" >&9
+  exec 9>&-
+  progress_fd_open=0
+  progress_rows=0
+}
+
+eval_turn_progress() {
+  local turn=0
+  if [ -f "${EVAL_LOG}" ]; then
+    turn="$(
+      tail -n 300 "${EVAL_LOG}" \
+        | sed -n 's/.*\[turn \([0-9][0-9]*\) step.*/\1/p' \
+        | tail -n 1
+    )"
+    turn="${turn:-0}"
+  fi
+  if [ "${turn}" -lt 0 ]; then
+    turn=0
+  elif [ "${turn}" -gt "${MAX_TURNS}" ]; then
+    turn="${MAX_TURNS}"
+  fi
+  printf '%s\n' "${turn}"
+}
+
+write_eval_progress_bar() {
+  init_eval_progress_bar || return 0
+  local size rows columns now elapsed turn percent filled text filled_text empty_text
+  size="$(resize_eval_progress_bar)" || return 0
+  rows="${size%% *}"
+  columns="${size##* }"
+  now="$(date +%s)"
+  elapsed=$((now - RUN_START_EPOCH))
+  turn="$(eval_turn_progress)"
+  percent=0
+  if [ "${MAX_TURNS}" -gt 0 ]; then
+    percent=$((turn * 100 / MAX_TURNS))
+  fi
+  filled=$((percent * columns / 100))
+  if [ "${percent}" -gt 0 ] && [ "${filled}" -eq 0 ]; then
+    filled=1
+  fi
+  text=" Eval Turn ${turn}/${MAX_TURNS} ${percent}% | elapsed $(format_elapsed "${elapsed}") | out ${RECORD_DIR}"
+  if [ "${#text}" -gt "${columns}" ]; then
+    text="${text:0:columns}"
+  fi
+  text="$(printf '%-*s' "${columns}" "${text}")"
+  filled_text="${text:0:filled}"
+  empty_text="${text:filled}"
+  printf '\0337\033[%d;1H\033[2K\033[7m%s\033[0m%s\0338' "${rows}" "${filled_text}" "${empty_text}" >&9
+}
 
 stop_recording() {
   if [ -n "${ffmpeg_agent_pid}" ] && kill -0 "${ffmpeg_agent_pid}" >/dev/null 2>&1; then
@@ -184,7 +294,7 @@ stop_recording() {
   fi
 }
 
-trap stop_recording EXIT INT TERM
+trap 'stop_recording; clear_eval_progress_bar' EXIT INT TERM
 
 copy_saved_games_to_record_dir() {
   if [ -z "${EVAL_LOG}" ] || [ ! -f "${EVAL_LOG}" ]; then
@@ -449,6 +559,37 @@ start_ffmpeg_with_retry() {
   return 1
 }
 
+render_map_only_video() {
+  local input_file="$1"
+  local output_file="$2"
+  local crop_bottom="$3"
+  local record_width="${RECORD_SIZE%x*}"
+  local record_height="${RECORD_SIZE#*x}"
+  local crop_filter
+
+  if [ "${RECORD_MAP_ONLY}" != "1" ] || [ ! -f "${input_file}" ]; then
+    return 0
+  fi
+
+  crop_filter="crop=iw-${RECORD_MAP_CROP_X}:ih-${RECORD_MAP_CROP_Y}-${crop_bottom}:${RECORD_MAP_CROP_X}:${RECORD_MAP_CROP_Y},scale=${record_width}:${record_height}:flags=lanczos:force_original_aspect_ratio=decrease,pad=${record_width}:${record_height}:(ow-iw)/2:(oh-ih)/2:black"
+  if ffmpeg \
+    -hide_banner \
+    -loglevel warning \
+    -y \
+    -i "${input_file}" \
+    -vf "${crop_filter}" \
+    -an \
+    -c:v libx264 \
+    -preset veryfast \
+    -crf 20 \
+    -pix_fmt yuv420p \
+    "${output_file}"; then
+    echo "Rendered map-only view to ${output_file}"
+  else
+    echo "Warning: failed to render map-only view from ${input_file}" >&2
+  fi
+}
+
 if [ -n "${EVAL_LOG}" ]; then
   mkdir -p "$(dirname "${EVAL_LOG}")"
   "${SCRIPT_DIR}/eval_headless.sh" "${CHECKPOINT}" "${@:2}" >"${EVAL_LOG}" 2>&1 &
@@ -500,10 +641,12 @@ if [ "${observer_display_ready}" = "1" ]; then
     export FREECIV_PORT="${OBSERVER_LUA_PORT}"
     export FREECIV_BUILD_DIR="${BUILD_DIR}"
     cd "${BUILD_DIR}"
+    printf '\n--- process: observer freeciv-gtk3.22 server_port=%s luaremote_port=%s ---\n' \
+      "${SERVER_PORT}" "${OBSERVER_LUA_PORT}"
     exec ./run.sh freeciv-gtk3.22 \
       -a -s "${HOST}" -p "${SERVER_PORT}" -n "${OBSERVER_NAME}" -P none \
       -- --resolution "${CLIENT_RESOLUTION}"
-  ) &
+  ) >>"${FREECIV_PROCESS_LOG}" 2>&1 &
   observer_pid="$!"
   if wait_tcp "${HOST}" "${OBSERVER_LUA_PORT}" "${OBSERVER_START_TIMEOUT}"; then
     observe_sent=0
@@ -549,9 +692,15 @@ elif [ "${observe_sent:-0}" != "1" ]; then
 fi
 
 set +e
+while kill -0 "${eval_pid}" >/dev/null 2>&1; do
+  write_eval_progress_bar
+  sleep 1
+done
 wait "${eval_pid}"
 eval_status=$?
 set -e
+write_eval_progress_bar
+clear_eval_progress_bar
 
 kill -INT "${ffmpeg_agent_pid}" >/dev/null 2>&1 || true
 wait "${ffmpeg_agent_pid}" >/dev/null 2>&1 || true
@@ -568,6 +717,8 @@ echo "Recorded agent view to ${RECORD_AGENT_FILE}"
 if [ -f "${RECORD_GLOBAL_FILE}" ]; then
   echo "Recorded global view to ${RECORD_GLOBAL_FILE}"
 fi
+render_map_only_video "${RECORD_AGENT_FILE}" "${RECORD_AGENT_MAP_FILE}" "${RECORD_AGENT_MAP_CROP_BOTTOM}"
+render_map_only_video "${RECORD_GLOBAL_FILE}" "${RECORD_GLOBAL_MAP_FILE}" "${RECORD_GLOBAL_MAP_CROP_BOTTOM}"
 
 render_args=(
   "${SCRIPT_DIR}/render_tb_heatmap_panel.py"
