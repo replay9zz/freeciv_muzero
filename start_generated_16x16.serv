@@ -2,6 +2,7 @@ set scorelog enabled
 set scoreloglevel all
 set scorefile "freeciv-score-single.log"
 set autosaves ""
+set victories "ALLIED"
 set minplayers 0
 set aifill 2
 set mapsize XYSIZE

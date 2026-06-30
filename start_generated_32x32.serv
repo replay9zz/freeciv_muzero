@@ -3,6 +3,7 @@ set scorelog enabled
 set scoreloglevel all
 set scorefile "freeciv-score-single.log"
 set autosaves ""
+set victories "ALLIED"
 set barbarians DISABLED
 set huts 0
 set sciencebox 50

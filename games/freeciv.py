@@ -107,6 +107,12 @@ class MuZeroConfig:
         # UCB formula
         self.pb_c_base = 19652
         self.pb_c_init = 1.25
+        self.mcts_backup_operator = "mean"
+        self.mcts_wasserstein_power = 1.0
+        self.mcts_wasserstein_selection = "optimistic"
+        self.mcts_wasserstein_uncertainty_coef = 0.0
+        self.mcts_wasserstein_min_std = 1e-6
+        self.mcts_wasserstein_shift_epsilon = 1e-6
 
         ### Network
         self.network = "resnet"

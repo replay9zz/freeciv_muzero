@@ -439,6 +439,59 @@ class MCTS:
         )
         return action, node.children[action]
 
+    def _use_wasserstein_mcts(self):
+        return str(
+            getattr(self.config, "mcts_backup_operator", "mean")
+        ).strip().lower() in {"wasserstein", "w-mcts", "wmcts"}
+
+    def _wasserstein_power_mean(self, values, weights, power):
+        weighted_values = [
+            (float(value), float(weight))
+            for value, weight in zip(values, weights)
+            if float(weight) > 0
+        ]
+        if not weighted_values:
+            return 0.0
+        weight_sum = sum(weight for _, weight in weighted_values)
+        normalized = [(value, weight / weight_sum) for value, weight in weighted_values]
+        if abs(power - 1.0) < 1e-8:
+            return sum(weight * value for value, weight in normalized)
+
+        # Power means with non-integer powers are undefined for negative values.
+        # Shift all children into the positive domain, aggregate, then shift back.
+        min_value = min(value for value, _ in normalized)
+        shift = max(0.0, -min_value) + getattr(
+            self.config, "mcts_wasserstein_shift_epsilon", 1e-6
+        )
+        powered = sum(weight * ((value + shift) ** power) for value, weight in normalized)
+        return max(powered, 0.0) ** (1.0 / power) - shift
+
+    def _refresh_wasserstein_value(self, node):
+        if not node.children:
+            return
+        visited_children = [
+            child for child in node.children.values() if child.visit_count > 0
+        ]
+        if not visited_children:
+            return
+        weights = [child.visit_count for child in visited_children]
+        q_means = [
+            child.reward + self.config.discount * child.value()
+            for child in visited_children
+        ]
+        q_stds = [
+            self.config.discount * child.value_std()
+            for child in visited_children
+        ]
+        power = float(getattr(self.config, "mcts_wasserstein_power", 1.0))
+        node.wasserstein_value_mean = self._wasserstein_power_mean(
+            q_means, weights, power
+        )
+        node.wasserstein_value_std = max(
+            self._wasserstein_power_mean(q_stds, weights, power),
+            float(getattr(self.config, "mcts_wasserstein_min_std", 1e-6)),
+        )
+
     def ucb_score(self, parent, child, min_max_stats):
         """
         The score for a node is based on its value, plus an exploration bonus based on the prior.
@@ -463,7 +516,30 @@ class MCTS:
         else:
             value_score = 0
 
-        return prior_score + value_score
+        score = prior_score + value_score
+        if self._use_wasserstein_mcts() and child.visit_count > 0:
+            selection = str(
+                getattr(self.config, "mcts_wasserstein_selection", "optimistic")
+            ).strip().lower()
+            if selection == "thompson":
+                sampled_value = numpy.random.normal(
+                    child.value(), max(child.value_std(), 1e-6)
+                )
+                sampled_value = sampled_value if len(self.config.players) == 1 else -sampled_value
+                score += min_max_stats.normalize(
+                    child.reward + self.config.discount * sampled_value
+                ) - value_score
+            else:
+                uncertainty_coef = float(
+                    getattr(self.config, "mcts_wasserstein_uncertainty_coef", 0.0)
+                )
+                if uncertainty_coef:
+                    score += (
+                        uncertainty_coef
+                        * child.value_std()
+                        * math.sqrt(math.log(parent.visit_count + 1))
+                    )
+        return score
 
     def backpropagate(self, search_path, value, to_play, min_max_stats):
         """
@@ -472,16 +548,24 @@ class MCTS:
         """
         if len(self.config.players) == 1:
             for node in reversed(search_path):
-                node.value_sum += value
+                backed_up_value = value
+                node.value_sum += backed_up_value
+                node.value_sq_sum += backed_up_value * backed_up_value
                 node.visit_count += 1
+                if self._use_wasserstein_mcts():
+                    self._refresh_wasserstein_value(node)
                 min_max_stats.update(node.reward + self.config.discount * node.value())
 
                 value = node.reward + self.config.discount * value
 
         elif len(self.config.players) == 2:
             for node in reversed(search_path):
-                node.value_sum += value if node.to_play == to_play else -value
+                backed_up_value = value if node.to_play == to_play else -value
+                node.value_sum += backed_up_value
+                node.value_sq_sum += backed_up_value * backed_up_value
                 node.visit_count += 1
+                if self._use_wasserstein_mcts():
+                    self._refresh_wasserstein_value(node)
                 min_max_stats.update(node.reward + self.config.discount * -node.value())
 
                 value = (
@@ -498,6 +582,9 @@ class Node:
         self.to_play = -1
         self.prior = prior
         self.value_sum = 0
+        self.value_sq_sum = 0
+        self.wasserstein_value_mean = None
+        self.wasserstein_value_std = None
         self.children = {}
         self.hidden_state = None
         self.reward = 0
@@ -506,9 +593,20 @@ class Node:
         return len(self.children) > 0
 
     def value(self):
+        if self.wasserstein_value_mean is not None:
+            return self.wasserstein_value_mean
         if self.visit_count == 0:
             return 0
         return self.value_sum / self.visit_count
+
+    def value_std(self):
+        if self.wasserstein_value_std is not None:
+            return self.wasserstein_value_std
+        if self.visit_count <= 1:
+            return 1.0
+        mean = self.value_sum / self.visit_count
+        variance = self.value_sq_sum / self.visit_count - mean * mean
+        return math.sqrt(max(variance, 1e-6))
 
     def expand(self, actions, to_play, reward, policy_logits, hidden_state):
         """
