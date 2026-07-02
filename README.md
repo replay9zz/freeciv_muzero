@@ -1,6 +1,13 @@
 # Freeciv Learning Environment for MuZero
 This repo is Freeciv Learning Environment for MuZero based on [MuZero General](https://github.com/werner-duvaud/muzero-general)
 
+## License
+
+This project is distributed under the GNU General Public License version 3
+(GPL-3.0-only).
+Portions are derived from MuZero General, originally licensed under the MIT
+License by Werner Duvaud. See [NOTICE](NOTICE) and [LICENSES/MIT.txt](LICENSES/MIT.txt).
+
 ## Layout
 
 `freeciv_muzero` now carries its own Freeciv remote helpers and no longer depends on sibling `freeciv_alpha_zero` or `freeciv_rl` directories for training scripts.

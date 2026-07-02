@@ -1,0 +1,19 @@
+Freeciv MuZero
+
+Copyright (c) 2025-2026 Hiroki Okabe
+
+This project is distributed under the GNU General Public License version 3
+(GPL-3.0-only).
+
+This project includes code derived from MuZero General:
+
+  Copyright (c) 2020 Werner Duvaud
+  https://github.com/werner-duvaud/muzero-general
+
+MuZero General was originally licensed under the MIT License. The original MIT
+license text is preserved in LICENSES/MIT.txt.
+
+Substantial Freeciv-specific modifications, remote environment helpers, state
+tracking, training scripts, and related model extensions are authored by Hiroki
+Okabe and distributed under the GNU General Public License version 3
+(GPL-3.0-only).
