@@ -9,6 +9,9 @@ results/checkpoints/*
 !results/evals/
 results/evals/*
 
+# References
+references/*
+
 # Remote Play
 !results/remote_play/
 results/remote_play/*

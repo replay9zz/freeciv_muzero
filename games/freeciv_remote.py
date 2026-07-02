@@ -355,16 +355,26 @@ class Game(AbstractGame):
 
         self.host = os.getenv("FREECIV_HOST", "127.0.0.1")
         self.server_host = os.getenv("FREECIV_SERVER_HOST", self.host)
-        self.server_port = _env_int("FREECIV_SERVER_PORT", _env_int("FREECIV_GAME_PORT", 5555))
+        self.server_port_base = _env_int("FREECIV_SERVER_PORT", _env_int("FREECIV_GAME_PORT", 5555))
+        self.server_port_stride = _env_int("FREECIV_SERVER_PORT_STRIDE", 1)
+        self.luaremote_port_base = _env_int(
+            "FREECIV_LUAREMOTE_PORT",
+            _env_int("FREECIV_PORT", 4444),
+        )
+        self.luaremote_port_stride = _env_int("FREECIV_LUAREMOTE_PORT_STRIDE", 1)
+        self.port_generation = 0
+        self.server_port = self.server_port_base
         self.port = _env_int(
             "FREECIV_LUAREMOTE_PORT",
             _env_int("FREECIV_PORT", 4444),
         )
         self.timeout = _env_float("FREECIV_TIMEOUT", 2.5)
-        self.server_cmd = os.getenv("FREECIV_SERVER_CMD")
-        self.client_cmd = os.getenv("FREECIV_CLIENT_CMD")
-        self.server_cmd = self._format_process_command(self.server_cmd)
-        self.client_cmd = self._format_process_command(self.client_cmd)
+        self.server_cmd_template = os.getenv("FREECIV_SERVER_CMD")
+        self.client_cmd_template = os.getenv("FREECIV_CLIENT_CMD")
+        self.server_cmd = self._format_process_command(self.server_cmd_template)
+        self.client_cmd = self._format_process_command(self.client_cmd_template)
+        self.rotate_ports_on_restart = _env_bool("FREECIV_ROTATE_PORTS_ON_RESTART", True)
+        self.restart_retries = max(1, _env_int("FREECIV_RESTART_RETRIES", 3))
         self.restart_on_reset = _env_bool("FREECIV_CLIENT_RESTART", False)
         if self.server_cmd:
             self.restart_on_reset = True
@@ -528,9 +538,9 @@ class Game(AbstractGame):
         # The GTK client only exposes LuaRemote when enabled in its process env.
         # Export the port here so child processes started by MuZero consistently
         # listen on the same socket that the Python side will connect to.
-        env.setdefault("ENABLE_LUAREMOTE", "1")
-        env.setdefault("FREECIV_LUAREMOTE_PORT", str(self.port))
-        env.setdefault("FREECIV_PORT", str(self.port))
+        env["ENABLE_LUAREMOTE"] = "1"
+        env["FREECIV_LUAREMOTE_PORT"] = str(self.port)
+        env["FREECIV_PORT"] = str(self.port)
         return env
 
     def _format_process_command(self, command: Optional[str]) -> Optional[str]:
@@ -541,6 +551,27 @@ class Game(AbstractGame):
             luaremote_port=self.port,
             host=self.host,
             server_host=self.server_host,
+        )
+
+    def _refresh_process_commands(self) -> None:
+        self.server_cmd = self._format_process_command(self.server_cmd_template)
+        self.client_cmd = self._format_process_command(self.client_cmd_template)
+
+    def _advance_ports_for_restart(self) -> None:
+        if not self.rotate_ports_on_restart:
+            return
+        self.port_generation += 1
+        self.server_port = self.server_port_base + (
+            self.port_generation * self.server_port_stride
+        )
+        self.port = self.luaremote_port_base + (
+            self.port_generation * self.luaremote_port_stride
+        )
+        self._refresh_process_commands()
+        print(
+            f"[restart] rotating Freeciv ports: server={self.server_port} luaremote={self.port}",
+            file=sys.stderr,
+            flush=True,
         )
 
     def _start_process(self, command: str) -> subprocess.Popen:
@@ -645,7 +676,7 @@ class Game(AbstractGame):
         self._stop_client_process()
         self._start_client_process()
 
-    def _shutdown_client_for_restart(self) -> None:
+    def _shutdown_client_for_restart(self, advance_ports: bool = True) -> None:
         try:
             if self.client is not None:
                 self.client.close()
@@ -656,17 +687,47 @@ class Game(AbstractGame):
             self._stop_client_process()
         if self.server_cmd:
             self._stop_server_process()
+        if advance_ports:
+            self._advance_ports_for_restart()
         self._needs_restart = True
 
     def _restart_environment(self) -> None:
-        if self.server_cmd:
-            self._start_server_process()
-            self._wait_for_server()
-        if self.client_cmd:
-            self._start_client_process()
-        self._needs_restart = False
-        self._connect_client()
-        self._prepare_control_state()
+        last_exc = None
+        for attempt in range(1, self.restart_retries + 1):
+            try:
+                self._refresh_process_commands()
+                if self.server_cmd:
+                    self._start_server_process()
+                    self._wait_for_server()
+                if self.client_cmd:
+                    self._start_client_process()
+                self._needs_restart = False
+                self._connect_client()
+                self._prepare_control_state()
+                return
+            except Exception as exc:
+                last_exc = exc
+                try:
+                    if self.client is not None:
+                        self.client.close()
+                except Exception:
+                    pass
+                self.client = None
+                if self.client_cmd:
+                    self._stop_client_process()
+                if self.server_cmd:
+                    self._stop_server_process()
+                if attempt >= self.restart_retries:
+                    self._needs_restart = True
+                    raise
+                print(
+                    f"[restart] Freeciv restart failed on attempt {attempt}/{self.restart_retries}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                self._advance_ports_for_restart()
+        if last_exc is not None:
+            raise last_exc
 
     def _reset_episode_state(self) -> None:
         self.turns = 0
