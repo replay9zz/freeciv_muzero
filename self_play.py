@@ -367,6 +367,7 @@ class MCTS:
                 reward,
                 policy_logits,
                 hidden_state,
+                child_is_chance=self._use_stochastic_muzero(),
             )
 
         if add_exploration_noise:
@@ -390,27 +391,49 @@ class MCTS:
                 search_path.append(node)
 
                 # Players play turn by turn
-                if virtual_to_play + 1 < len(self.config.players):
-                    virtual_to_play = self.config.players[virtual_to_play + 1]
-                else:
-                    virtual_to_play = self.config.players[0]
+                if not node.is_chance:
+                    virtual_to_play = self.next_player(virtual_to_play)
 
-            # Inside the search tree we use the dynamics function to obtain the next hidden
-            # state given an action and the previous hidden state
             parent = search_path[-2]
-            value, reward, policy_logits, hidden_state = model.recurrent_inference(
-                parent.hidden_state,
-                torch.tensor([[action]]).to(parent.hidden_state.device),
-            )
-            value = models.support_to_scalar(value, self.config.support_size).item()
-            reward = models.support_to_scalar(reward, self.config.support_size).item()
-            node.expand(
-                self.config.action_space,
-                virtual_to_play,
-                reward,
-                policy_logits,
-                hidden_state,
-            )
+            if self._use_stochastic_muzero() and node.is_chance:
+                outcome = 0
+                value, reward, policy_logits, hidden_state = model.recurrent_inference(
+                    parent.hidden_state,
+                    torch.tensor([[action]]).to(parent.hidden_state.device),
+                )
+                value = models.support_to_scalar(value, self.config.support_size).item()
+                reward = models.support_to_scalar(reward, self.config.support_size).item()
+                node.reward = reward
+                node.hidden_state = hidden_state
+                outcome_node = Node(1.0)
+                outcome_node.is_chance_outcome = True
+                outcome_node.expand(
+                    self.config.action_space,
+                    self.next_player(virtual_to_play),
+                    0,
+                    policy_logits,
+                    hidden_state,
+                    child_is_chance=True,
+                )
+                node.children[outcome] = outcome_node
+                virtual_to_play = outcome_node.to_play
+            else:
+                # Inside the search tree we use the dynamics function to obtain the next
+                # hidden state given an action and the previous hidden state.
+                value, reward, policy_logits, hidden_state = model.recurrent_inference(
+                    parent.hidden_state,
+                    torch.tensor([[action]]).to(parent.hidden_state.device),
+                )
+                value = models.support_to_scalar(value, self.config.support_size).item()
+                reward = models.support_to_scalar(reward, self.config.support_size).item()
+                node.expand(
+                    self.config.action_space,
+                    virtual_to_play,
+                    reward,
+                    policy_logits,
+                    hidden_state,
+                    child_is_chance=self._use_stochastic_muzero(),
+                )
 
             self.backpropagate(search_path, value, virtual_to_play, min_max_stats)
 
@@ -426,6 +449,16 @@ class MCTS:
         """
         Select the child with the highest UCB score.
         """
+        if node.is_chance:
+            outcomes = list(node.children.keys())
+            probabilities = numpy.array(
+                [node.children[outcome].prior for outcome in outcomes],
+                dtype="float64",
+            )
+            probabilities = probabilities / probabilities.sum()
+            outcome = numpy.random.choice(outcomes, p=probabilities)
+            return outcome, node.children[outcome]
+
         max_ucb = max(
             self.ucb_score(node, child, min_max_stats)
             for action, child in node.children.items()
@@ -438,6 +471,14 @@ class MCTS:
             ]
         )
         return action, node.children[action]
+
+    def next_player(self, to_play):
+        if to_play + 1 < len(self.config.players):
+            return self.config.players[to_play + 1]
+        return self.config.players[0]
+
+    def _use_stochastic_muzero(self):
+        return bool(getattr(self.config, "use_stochastic_muzero", False))
 
     def _use_wasserstein_mcts(self):
         return str(
@@ -556,7 +597,10 @@ class MCTS:
                     self._refresh_wasserstein_value(node)
                 min_max_stats.update(node.reward + self.config.discount * node.value())
 
-                value = node.reward + self.config.discount * value
+                if node.is_chance_outcome:
+                    value = node.reward + value
+                else:
+                    value = node.reward + self.config.discount * value
 
         elif len(self.config.players) == 2:
             for node in reversed(search_path):
@@ -568,9 +612,11 @@ class MCTS:
                     self._refresh_wasserstein_value(node)
                 min_max_stats.update(node.reward + self.config.discount * -node.value())
 
-                value = (
-                    -node.reward if node.to_play == to_play else node.reward
-                ) + self.config.discount * value
+                reward = -node.reward if node.to_play == to_play else node.reward
+                if node.is_chance_outcome:
+                    value = reward + value
+                else:
+                    value = reward + self.config.discount * value
 
         else:
             raise NotImplementedError("More than two player mode not implemented.")
@@ -581,6 +627,8 @@ class Node:
         self.visit_count = 0
         self.to_play = -1
         self.prior = prior
+        self.is_chance = False
+        self.is_chance_outcome = False
         self.value_sum = 0
         self.value_sq_sum = 0
         self.wasserstein_value_mean = None
@@ -608,7 +656,15 @@ class Node:
         variance = self.value_sq_sum / self.visit_count - mean * mean
         return math.sqrt(max(variance, 1e-6))
 
-    def expand(self, actions, to_play, reward, policy_logits, hidden_state):
+    def expand(
+        self,
+        actions,
+        to_play,
+        reward,
+        policy_logits,
+        hidden_state,
+        child_is_chance=False,
+    ):
         """
         We expand a node using the value, reward and policy prediction obtained from the
         neural network.
@@ -622,7 +678,10 @@ class Node:
         ).tolist()
         policy = {a: policy_values[i] for i, a in enumerate(actions)}
         for action, p in policy.items():
-            self.children[action] = Node(p)
+            child = Node(p)
+            child.is_chance = child_is_chance
+            child.to_play = to_play if child_is_chance else -1
+            self.children[action] = child
 
     def add_exploration_noise(self, dirichlet_alpha, exploration_fraction):
         """

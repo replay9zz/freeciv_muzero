@@ -189,6 +189,7 @@ class MuZeroConfig:
         self.num_simulations = 50
         self.discount = 0.997
         self.temperature_threshold = None
+        self.use_stochastic_muzero = _env_bool("MUZERO_STOCHASTIC", False)
 
         # Root prior exploration noise
         self.root_dirichlet_alpha = 0.25

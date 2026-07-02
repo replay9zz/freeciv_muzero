@@ -70,6 +70,7 @@ MUZERO_BATCH_SIZE="${MUZERO_BATCH_SIZE:-128}"
 MUZERO_CHANNELS="${MUZERO_CHANNELS:-32}"
 MUZERO_BLOCKS="${MUZERO_BLOCKS:-2}"
 MUZERO_NUM_UNROLL_STEPS="${MUZERO_NUM_UNROLL_STEPS:-20}"
+MUZERO_CHECKPOINT_INTERVAL="${MUZERO_CHECKPOINT_INTERVAL:-10}"
 XVFB_PATTERN="Xvfb ${DISPLAY_NUM}"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
@@ -150,6 +151,7 @@ run_with_timing_and_log train_headless python muzero.py freeciv_remote "{
   \"channels\": ${MUZERO_CHANNELS},
   \"blocks\": ${MUZERO_BLOCKS},
   \"num_unroll_steps\": ${MUZERO_NUM_UNROLL_STEPS},
+  \"checkpoint_interval\": ${MUZERO_CHECKPOINT_INTERVAL},
   \"env\": {
     \"FREECIV_SERVER_PORT\": \"${SERVER_PORT}\",
     \"FREECIV_SERVER_PORT_STRIDE\": \"${FREECIV_SERVER_PORT_STRIDE}\",

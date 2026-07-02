@@ -51,6 +51,7 @@ MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-}"
 MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
 MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
 MUZERO_REANALYSE_ON_GPU="${MUZERO_REANALYSE_ON_GPU:-true}"
+MUZERO_CHECKPOINT_INTERVAL="${MUZERO_CHECKPOINT_INTERVAL:-10}"
 CLIENT_PATTERN="freeciv-gtk3.22 -a -s 127.0.0.1 -p ${SERVER_PORT} -n agent0 -P none"
 
 BUILD_DIR="${BUILD_DIR:-$(default_build_dir)}"
@@ -102,6 +103,7 @@ run_with_timing_and_log train_gui python muzero.py freeciv_remote "{
   \"num_simulations\": ${NUM_SIMULATIONS},
   \"max_turns\": ${MAX_TURNS},
   \"training_delay\": ${TRAINING_DELAY},
+  \"checkpoint_interval\": ${MUZERO_CHECKPOINT_INTERVAL},
   \"max_num_gpus\": ${MUZERO_MAX_NUM_GPUS},
   \"selfplay_on_gpu\": ${MUZERO_SELFPLAY_ON_GPU},
   \"train_on_gpu\": ${MUZERO_TRAIN_ON_GPU},

@@ -184,12 +184,19 @@ Record gameplay with Freeciv-style hex heatmap panels:
 ```
 
 Set `HEATMAP_TILE_SHAPE=square` to render the previous square-grid panels.
-The dual-view recorder keeps separate `eval-agent.mp4`, `eval-global.mp4`, and
-`eval-heatmaps.mp4` files:
+The recommended recorder is `eval_record_dual_view.sh`. It runs one evaluation
+game and keeps separate `eval-agent.mp4`, `eval-global.mp4`, map-only videos,
+and heatmap videos:
 
 ```bash
 ./scripts/eval_record_dual_view.sh
 ```
+
+For multiple recorded evaluation games, use `eval_record_dual_parallel.sh`.
+It is a batch wrapper around `eval_record_dual_view.sh` and writes one
+`game-XX/` directory per game.
+
+See [`scripts/README.md`](scripts/README.md) for the script map.
 
 Recordings are ignored by default. To publish selected MP4 recordings through Git LFS:
 
