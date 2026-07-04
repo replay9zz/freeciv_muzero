@@ -244,6 +244,145 @@ format_elapsed() {
   printf '%02d:%02d:%02d' "${hours}" "${minutes}" "${seconds}"
 }
 
+drive_sync_should_list_file() {
+  local file="$1"
+  case "${file}" in
+    */belief_tensorboard/*|*.tfevents.*)
+      return 1
+      ;;
+    */heatmaps/*)
+      case "${file}" in
+        */heatmaps/videos/*.mp4) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+  esac
+  return 0
+}
+
+print_drive_sync_plan() {
+  local source="$1"
+  local tmp count total_bytes total_human shown line
+  tmp="$(mktemp)"
+  if [ -f "${source}" ]; then
+    if drive_sync_should_list_file "${source}"; then
+      printf '%s\n' "${source}" >"${tmp}"
+    fi
+  else
+    while IFS= read -r -d '' line; do
+      if drive_sync_should_list_file "${line}"; then
+        printf '%s\n' "${line}" >>"${tmp}"
+      fi
+    done < <(find "${source}" -type f -print0)
+  fi
+
+  count="$(wc -l <"${tmp}")"
+  total_bytes="$(
+    while IFS= read -r line; do
+      [ -f "${line}" ] && stat -c '%s' "${line}"
+    done <"${tmp}" | awk '{sum += $1} END {printf "%.0f", sum}'
+  )"
+  total_human="$(numfmt --to=iec --suffix=B "${total_bytes}" 2>/dev/null || printf '%s bytes' "${total_bytes}")"
+  echo "Drive sync files: ${count}" >&2
+  echo "Drive sync size: ${total_human}" >&2
+  shown=0
+  while IFS= read -r line && [ "${shown}" -lt 50 ]; do
+    if [[ "${line}" == "${source}/"* ]]; then
+      echo "  ${line#"${source}/"}" >&2
+    else
+      echo "  ${line}" >&2
+    fi
+    shown=$((shown + 1))
+  done <"${tmp}"
+  if [ "${count}" -gt 50 ] 2>/dev/null; then
+    echo "  ... $((count - 50)) more" >&2
+  fi
+  rm -f "${tmp}"
+}
+
+sync_results_to_drive() {
+  local source="${1:-${ROOT_DIR}/results}"
+  [ -n "${GOOGLE_DRIVE_RESULTS:-}" ] || return 0
+  [ -e "${source}" ] || return 0
+  local destination="${GOOGLE_DRIVE_RESULTS}"
+  local source_abs results_abs rel dest_rel source_arg
+  source_abs="$(cd "$(dirname "${source}")" && pwd)/$(basename "${source}")"
+  results_abs="$(cd "${ROOT_DIR}/results" 2>/dev/null && pwd || true)"
+  if [ -n "${results_abs}" ] && [[ "${source_abs}" == "${results_abs}/"* ]]; then
+    rel="${source_abs#"${results_abs}/"}"
+    if [ -d "${source}" ]; then
+      dest_rel="${rel}"
+    else
+      dest_rel="$(dirname "${rel}")"
+    fi
+    if [ "${dest_rel}" != "." ]; then
+      destination="${destination%/}/${dest_rel}"
+    fi
+  fi
+
+  local interval="${GOOGLE_DRIVE_RESULTS_INTERVAL:-300}"
+  local marker="/tmp/freeciv-muzero-drive-sync-$(printf '%s' "${source}" | tr '/ ' '__').stamp"
+  if [ "${interval}" -gt 0 ] 2>/dev/null && [ -e "${marker}" ]; then
+    local now last
+    now="$(date +%s)"
+    last="$(stat -c %Y "${marker}" 2>/dev/null || printf '0')"
+    if [ $((now - last)) -lt "${interval}" ]; then
+      return 0
+    fi
+  fi
+  touch "${marker}" 2>/dev/null || true
+
+  if [[ "${destination}" == *:* ]]; then
+    if ! command -v rclone >/dev/null 2>&1; then
+      echo "Google Drive sync skipped: rclone not found." >&2
+      return 0
+    fi
+    echo "Google Drive sync: ${source} -> ${destination}" >&2
+    if [ "${GOOGLE_DRIVE_RESULTS_VERBOSE:-0}" = "1" ]; then
+      print_drive_sync_plan "${source}"
+    fi
+    rclone_args=(
+      copy "${source}" "${destination}"
+      --filter '+ heatmaps/videos/*.mp4'
+      --filter '- heatmaps/**'
+      --filter '- belief_tensorboard/**'
+      --filter '- *.tfevents.*'
+    )
+    if [ "${GOOGLE_DRIVE_RESULTS_VERBOSE:-0}" = "1" ]; then
+      rclone_args+=(--progress --stats-one-line --log-level INFO)
+    fi
+    if [ "${GOOGLE_DRIVE_RESULTS_BACKGROUND:-1}" = "1" ]; then
+      if [ "${GOOGLE_DRIVE_RESULTS_VERBOSE:-0}" = "1" ]; then
+        rclone_args+=(--stats 5s)
+        rclone "${rclone_args[@]}" &
+      else
+        rclone "${rclone_args[@]}" >/dev/null 2>&1 &
+      fi
+    else
+      rclone "${rclone_args[@]}" || true
+    fi
+  else
+    mkdir -p "${destination}"
+    echo "Google Drive sync: ${source} -> ${destination}" >&2
+    if [ -d "${source}" ]; then
+      source_arg="${source}/"
+    else
+      source_arg="${source}"
+    fi
+    if command -v rsync >/dev/null 2>&1; then
+      if [ "${GOOGLE_DRIVE_RESULTS_BACKGROUND:-1}" = "1" ]; then
+        rsync -a "${source_arg}" "${destination}/" >/dev/null 2>&1 &
+      else
+        rsync -a "${source_arg}" "${destination}/" || true
+      fi
+    elif [ "${GOOGLE_DRIVE_RESULTS_BACKGROUND:-1}" = "1" ]; then
+      cp -a "${source_arg}" "${destination}/" >/dev/null 2>&1 &
+    else
+      cp -a "${source_arg}" "${destination}/" || true
+    fi
+  fi
+}
+
 run_with_timing_and_log() {
   local run_name="$1"
   shift
@@ -265,6 +404,7 @@ run_with_timing_and_log() {
 
   if [ -n "${log_path}" ]; then
     mkdir -p "$(dirname "${log_path}")"
+    export MUZERO_TERMINAL_PROGRESS_BAR="${MUZERO_TERMINAL_PROGRESS_BAR:-0}"
     {
       printf 'Run: %s\n' "${run_name}"
       printf 'Started: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

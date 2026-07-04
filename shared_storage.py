@@ -3,6 +3,8 @@ import copy
 import ray
 import torch
 
+import drive_sync
+
 
 @ray.remote
 class SharedStorage:
@@ -19,6 +21,7 @@ class SharedStorage:
             path = self.config.results_path / "model.checkpoint"
 
         torch.save(self.current_checkpoint, path)
+        drive_sync.sync_path(self.config.results_path)
 
     def get_checkpoint(self):
         return copy.deepcopy(self.current_checkpoint)

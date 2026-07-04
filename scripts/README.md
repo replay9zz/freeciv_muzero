@@ -50,6 +50,10 @@ Archive candidates:
 - `dual_view`: Use for normal recording checks, video generation, and debugging.
 - `dual_parallel`: Use for multi-run win-rate or stability evaluation across multiple GPUs.
 
+`eval_record_dual_view.sh` lets `remote_play.py` send `/take` and `/start` by
+default. Keep `RECORD_EXTERNAL_START=0` unless you are also changing the
+Freeciv control-state startup path.
+
 Common examples:
 
 ```bash

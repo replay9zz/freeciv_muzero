@@ -135,6 +135,34 @@ Training and evaluation wrappers print elapsed time at the end and save logs
 under `results/logs/` by default. Set `RUN_LOG=/path/to/run.log` to choose the
 log path, or `SAVE_RUN_LOG=0` to disable wrapper logging.
 
+## Google Drive sync
+
+Set `GOOGLE_DRIVE_RESULTS` to mirror `results/` while training or evaluating.
+Use an rclone remote for Google Drive:
+
+```bash
+GOOGLE_DRIVE_RESULTS=gdrive:freeciv_muzero/results ./scripts/train_headless.sh
+GOOGLE_DRIVE_RESULTS=gdrive:freeciv_muzero/results ./scripts/eval_record_dual_view.sh
+```
+
+For a locally mounted Drive folder, pass the mount path instead:
+
+```bash
+GOOGLE_DRIVE_RESULTS="$HOME/Google Drive/freeciv_muzero/results" ./scripts/eval.sh
+```
+
+This repo also includes a small rclone mount helper:
+
+```bash
+rclone config create gdrive drive config_is_local=false
+./scripts/mount_google_drive.sh
+GOOGLE_DRIVE_RESULTS="$HOME/gdrive/freeciv_muzero/results" ./scripts/train_headless.sh
+```
+
+The sync runs in the background by default and is rate-limited to once every 300
+seconds. Override with `GOOGLE_DRIVE_RESULTS_INTERVAL=60`, or set
+`GOOGLE_DRIVE_RESULTS_BACKGROUND=0` to wait for each sync.
+
 Optional strategic reward shaping:
 
 ```bash

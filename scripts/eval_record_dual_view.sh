@@ -33,6 +33,7 @@ HEATMAP_VIDEO_DIR="${HEATMAP_VIDEO_DIR:-${RECORD_DIR}/heatmaps/videos}"
 HEATMAP_TB_DIR="${HEATMAP_TB_DIR:-${RECORD_DIR}/heatmaps/tb}"
 HEATMAP_FRAME_DIR="${HEATMAP_FRAME_DIR:-${RECORD_DIR}/heatmaps/frames}"
 HEATMAP_METADATA="${HEATMAP_METADATA:-${RECORD_DIR}/heatmaps/heatmap.json}"
+HEATMAPS="${HEATMAPS:-0}"
 HEATMAP_TAGS="${HEATMAP_TAGS:-belief_units,threat,visible_units,territory}"
 HEATMAP_SEPARATE="${HEATMAP_SEPARATE:-1}"
 HEATMAP_PANEL_WIDTH="${HEATMAP_PANEL_WIDTH:-640}"
@@ -64,7 +65,7 @@ FREECIV_TAKE_RETRIES="${FREECIV_TAKE_RETRIES:-60}"
 FREECIV_TAKE_WAIT="${FREECIV_TAKE_WAIT:-1}"
 START_AFTER_TAKE="${START_AFTER_TAKE:-}"
 RECORD_START_COMMAND="${RECORD_START_COMMAND:-${START_COMMAND:-start}}"
-RECORD_EXTERNAL_START="${RECORD_EXTERNAL_START:-1}"
+RECORD_EXTERNAL_START="${RECORD_EXTERNAL_START:-0}"
 if [ "${RECORD_EXTERNAL_START}" = "1" ]; then
   START_AFTER_TAKE=0
 fi
@@ -83,7 +84,10 @@ if ! command -v ffprobe >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${RECORD_DIR}" "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}" "${HEATMAP_VIDEO_DIR}"
+mkdir -p "${RECORD_DIR}"
+if [ "${HEATMAPS}" = "1" ]; then
+  mkdir -p "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}" "${HEATMAP_VIDEO_DIR}"
+fi
 touch "${SAVE_SCAN_MARKER}"
 
 if [ -z "${CHECKPOINT}" ] || [ ! -f "${CHECKPOINT}" ]; then
@@ -148,10 +152,14 @@ export FREECIV_GENERATED_MAP
 export FREECIV_TAKE_RETRIES
 export FREECIV_TAKE_WAIT
 export START_AFTER_TAKE
-export FREECIV_BELIEF_TENSORBOARD=1
-export FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}"
-export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
-export FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}"
+if [ "${HEATMAPS}" = "1" ]; then
+  export FREECIV_BELIEF_TENSORBOARD=1
+  export FREECIV_BELIEF_TENSORBOARD_HEX="${FREECIV_BELIEF_TENSORBOARD_HEX:-1}"
+  export FREECIV_BELIEF_TENSORBOARD_DIR="${HEATMAP_TB_DIR}"
+  export FREECIV_BELIEF_TENSORBOARD_INTERVAL="${FREECIV_BELIEF_TENSORBOARD_INTERVAL:-1}"
+else
+  export FREECIV_BELIEF_TENSORBOARD=0
+fi
 export FREECIV_SAVE_PATH="${FREECIV_SAVE_PATH:-${RECORD_DIR}:${HOME}/.freeciv/saves}"
 export FREECIV_SAVE_ON_EXIT="${FREECIV_SAVE_ON_EXIT:-1}"
 export FREECIV_PROCESS_LOG="${FREECIV_PROCESS_LOG:-${RECORD_DIR}/freeciv-processes.log}"
@@ -181,6 +189,9 @@ init_eval_progress_bar() {
     return 0
   fi
   if ! eval_progress_allowed; then
+    return 1
+  fi
+  if [ ! -t 1 ] || [ ! -e /dev/tty ]; then
     return 1
   fi
   if ! exec 9>/dev/tty 2>/dev/null; then
@@ -720,80 +731,84 @@ fi
 render_map_only_video "${RECORD_AGENT_FILE}" "${RECORD_AGENT_MAP_FILE}" "${RECORD_AGENT_MAP_CROP_BOTTOM}"
 render_map_only_video "${RECORD_GLOBAL_FILE}" "${RECORD_GLOBAL_MAP_FILE}" "${RECORD_GLOBAL_MAP_CROP_BOTTOM}"
 
-render_args=(
-  "${SCRIPT_DIR}/render_tb_heatmap_panel.py"
-  --logdir "${HEATMAP_TB_DIR}"
-  --out-dir "${HEATMAP_FRAME_DIR}"
-  --tags "${HEATMAP_TAGS}"
-  --width "${HEATMAP_PANEL_WIDTH}"
-  --height "${HEATMAP_PANEL_HEIGHT}"
-  --tile-shape "${HEATMAP_TILE_SHAPE}"
-  --map-width "${HEATMAP_MAP_WIDTH}"
-  --map-height "${HEATMAP_MAP_HEIGHT}"
-  --metadata-out "${HEATMAP_METADATA}"
-)
-if [ "${HEATMAP_SEPARATE}" = "1" ]; then
-  render_args+=(--separate)
-fi
-"${PYTHON}" "${render_args[@]}"
-
-if [ "${HEATMAP_SEPARATE}" = "1" ]; then
-  first_tag="${HEATMAP_TAGS%%,*}"
-  frame_count="$(find "${HEATMAP_FRAME_DIR}/${first_tag}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
-else
-  frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
-fi
-if [ "${frame_count}" -lt 1 ]; then
-  echo "No heatmap frames were produced." >&2
-  echo "Checkpoint: ${CHECKPOINT}"
-  exit "${eval_status}"
-fi
-
-duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${RECORD_AGENT_FILE}")"
-heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" -v delay="${HEATMAP_START_DELAY}" 'BEGIN { active = duration - delay; intervals = frames > 1 ? frames - 1 : 1; if (active > 0) print intervals / active; else print 1 }')"
-
-render_heatmap_video() {
-  local input_pattern="$1"
-  local output_file="$2"
-  ffmpeg \
-    -hide_banner \
-    -loglevel warning \
-    -y \
-    -framerate "${heatmap_fps}" \
-    -i "${input_pattern}" \
-    -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
-    -an \
-    -r "${RECORD_FPS}" \
-    -c:v libx264 \
-    -preset veryfast \
-    -pix_fmt yuv420p \
-    "${output_file}"
-}
-
-if [ "${HEATMAP_SEPARATE}" = "1" ]; then
-  IFS=',' read -r -a heatmap_tags <<<"${HEATMAP_TAGS}"
-  rendered_any=0
-  for tag in "${heatmap_tags[@]}"; do
-    tag="${tag// /}"
-    tag_dir="${HEATMAP_FRAME_DIR}/${tag}"
-    if [ ! -d "${tag_dir}" ]; then
-      echo "Warning: missing heatmap frame dir ${tag_dir}" >&2
-      continue
-    fi
-    out_file="${HEATMAP_VIDEO_DIR}/eval-heatmap-${tag}.mp4"
-    render_heatmap_video "${tag_dir}/frame_%06d.png" "${out_file}"
-    echo "Rendered heatmap video to ${out_file}"
-    rendered_any=1
-  done
-  if [ "${rendered_any}" != "1" ]; then
-    echo "No heatmap videos were rendered." >&2
+if [ "${HEATMAPS}" = "1" ]; then
+  render_args=(
+    "${SCRIPT_DIR}/render_tb_heatmap_panel.py"
+    --logdir "${HEATMAP_TB_DIR}"
+    --out-dir "${HEATMAP_FRAME_DIR}"
+    --tags "${HEATMAP_TAGS}"
+    --width "${HEATMAP_PANEL_WIDTH}"
+    --height "${HEATMAP_PANEL_HEIGHT}"
+    --tile-shape "${HEATMAP_TILE_SHAPE}"
+    --map-width "${HEATMAP_MAP_WIDTH}"
+    --map-height "${HEATMAP_MAP_HEIGHT}"
+    --metadata-out "${HEATMAP_METADATA}"
+  )
+  if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+    render_args+=(--separate)
   fi
-else
-  render_heatmap_video "${HEATMAP_FRAME_DIR}/frame_%06d.png" "${HEATMAP_VIDEO_FILE}"
-  echo "Rendered heatmap video to ${HEATMAP_VIDEO_FILE}"
-fi
+  "${PYTHON}" "${render_args[@]}"
 
-echo "Rendered heatmap frames to ${HEATMAP_FRAME_DIR}"
+  if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+    first_tag="${HEATMAP_TAGS%%,*}"
+    frame_count="$(find "${HEATMAP_FRAME_DIR}/${first_tag}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+  else
+    frame_count="$(find "${HEATMAP_FRAME_DIR}" -maxdepth 1 -type f -name 'frame_*.png' | wc -l)"
+  fi
+  if [ "${frame_count}" -lt 1 ]; then
+    echo "No heatmap frames were produced." >&2
+    echo "Checkpoint: ${CHECKPOINT}"
+    exit "${eval_status}"
+  fi
+
+  duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${RECORD_AGENT_FILE}")"
+  heatmap_fps="$(awk -v frames="${frame_count}" -v duration="${duration}" -v delay="${HEATMAP_START_DELAY}" 'BEGIN { active = duration - delay; intervals = frames > 1 ? frames - 1 : 1; if (active > 0) print intervals / active; else print 1 }')"
+
+  render_heatmap_video() {
+    local input_pattern="$1"
+    local output_file="$2"
+    ffmpeg \
+      -hide_banner \
+      -loglevel warning \
+      -y \
+      -framerate "${heatmap_fps}" \
+      -i "${input_pattern}" \
+      -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
+      -an \
+      -r "${RECORD_FPS}" \
+      -c:v libx264 \
+      -preset veryfast \
+      -pix_fmt yuv420p \
+      "${output_file}"
+  }
+
+  if [ "${HEATMAP_SEPARATE}" = "1" ]; then
+    IFS=',' read -r -a heatmap_tags <<<"${HEATMAP_TAGS}"
+    rendered_any=0
+    for tag in "${heatmap_tags[@]}"; do
+      tag="${tag// /}"
+      tag_dir="${HEATMAP_FRAME_DIR}/${tag}"
+      if [ ! -d "${tag_dir}" ]; then
+        echo "Warning: missing heatmap frame dir ${tag_dir}" >&2
+        continue
+      fi
+      out_file="${HEATMAP_VIDEO_DIR}/eval-heatmap-${tag}.mp4"
+      render_heatmap_video "${tag_dir}/frame_%06d.png" "${out_file}"
+      echo "Rendered heatmap video to ${out_file}"
+      rendered_any=1
+    done
+    if [ "${rendered_any}" != "1" ]; then
+      echo "No heatmap videos were rendered." >&2
+    fi
+  else
+    render_heatmap_video "${HEATMAP_FRAME_DIR}/frame_%06d.png" "${HEATMAP_VIDEO_FILE}"
+    echo "Rendered heatmap video to ${HEATMAP_VIDEO_FILE}"
+  fi
+
+  echo "Rendered heatmap frames to ${HEATMAP_FRAME_DIR}"
+else
+  echo "Heatmap output disabled. Set HEATMAPS=1 to render heatmap TensorBoard, frames, and videos."
+fi
 echo "Checkpoint: ${CHECKPOINT}"
 run_end_epoch="$(date +%s)"
 run_elapsed=$((run_end_epoch - RUN_START_EPOCH))
@@ -804,4 +819,5 @@ run_elapsed=$((run_end_epoch - RUN_START_EPOCH))
   printf 'exit_status: %s\n' "${eval_status}"
 } >>"${RUN_INFO_FILE}"
 echo "Elapsed: $(format_elapsed "${run_elapsed}") (${run_elapsed}s)"
+sync_results_to_drive "${RECORD_DIR}"
 exit "${eval_status}"

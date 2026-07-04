@@ -14,6 +14,7 @@ import ray
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+import drive_sync
 import models
 import replay_buffer
 import self_play
@@ -75,6 +76,9 @@ class MuZero:
 
         self.Game = game_module.Game
         self.config = game_module.MuZeroConfig()
+        results_path = os.getenv("MUZERO_RESULTS_PATH")
+        if results_path:
+            self.config.results_path = pathlib.Path(results_path).expanduser()
 
         # Overwrite the config
         if config:
@@ -102,6 +106,10 @@ class MuZero:
                         self.config.max_moves = (
                             self.config.max_turns * self.config.max_actions_per_turn
                         )
+                if isinstance(getattr(self.config, "results_path", None), str):
+                    self.config.results_path = pathlib.Path(
+                        self.config.results_path
+                    ).expanduser()
             else:
                 self.config = config
 
@@ -572,6 +580,7 @@ class MuZero:
                 },
                 open(path, "wb"),
             )
+            drive_sync.sync_path(self.config.results_path, force=True)
         elapsed = time.time() - start_time
         hours = int(elapsed // 3600)
         minutes = int((elapsed % 3600) // 60)
