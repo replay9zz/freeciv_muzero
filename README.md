@@ -235,6 +235,14 @@ git push
 ```
 
 ## Results
+
+Training checkpoints, replay buffers, evaluation videos, and other generated
+artifacts under `results/` can be stored in Google Drive with
+`GOOGLE_DRIVE_RESULTS`, as described above. Google Drive is the preferred
+long-term store for these large files; they do not need to be committed to Git
+or Git LFS after a successful sync. Keep only small summaries or deliberately
+selected artifacts in the repository.
+
 Example:
 
 https://github.com/user-attachments/assets/02942ee1-d173-4deb-b7ed-cb7ad01f3233

@@ -1,9 +1,0 @@
-Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
-[x11grab @ 0x5640ce0625c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
-[x11grab @ 0x55c03da335c0] Stream #0: not enough frames to estimate rate; consider increasing probesize
-Encodings: Data=UTF-8, Local=, Internal=UTF-8
-3: LuaRemote listening on 127.0.0.1:4462
-/home/hirokiokabe/freeciv_test/freeciv_build_v3_2_uv/run.sh: line 56: 4160472 Segmentation fault      (core dumped) ./$@
-Recorded agent view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260521-eval-300t-20g-1080p5fps/game-02-gpu-1/eval-agent.mp4
-Recorded global view to /home/hirokiokabe/freeciv_test/freeciv_muzero/results/evals/20260521-eval-300t-20g-1080p5fps/game-02-gpu-1/eval-global.mp4
-Checkpoint: results/freeciv_remote/2026-05-19--09-37-33/model.checkpoint
