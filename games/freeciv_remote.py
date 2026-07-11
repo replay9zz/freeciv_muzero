@@ -23,6 +23,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from freeciv_sim.remote import session as alpha_live
+from freeciv_sim.rules.ruleset_loader import export_ruleset_config
 from freeciv_sim.agents import (
     CombatAgent,
     ExploreAgent,
@@ -47,6 +48,7 @@ from freeciv_sim.state.multihead_state import (
     UNIT_TECHS,
     UNIT_SPECS,
     UNIT_OBSOLETE_BY,
+    TERRAIN_SPECS,
 )
 from freeciv_sim.evaluation import (
     potential_shaping_reward,
@@ -119,6 +121,7 @@ BELIEF_OBSERVATION_PLANES = (
 
 class MuZeroConfig:
     def __init__(self):
+        export_ruleset_config(pathlib.Path(__file__).resolve().parents[1] / "config")
         # fmt: off
         self.seed = 0
         self.max_num_gpus = 1
@@ -198,12 +201,20 @@ class MuZeroConfig:
         # UCB formula
         self.pb_c_base = 19652
         self.pb_c_init = 1.25
-        self.mcts_backup_operator = "mean"
-        self.mcts_wasserstein_power = 1.0
-        self.mcts_wasserstein_selection = "optimistic"
-        self.mcts_wasserstein_uncertainty_coef = 0.0
-        self.mcts_wasserstein_min_std = 1e-6
-        self.mcts_wasserstein_shift_epsilon = 1e-6
+        self.mcts_backup_operator = os.getenv("MUZERO_MCTS_BACKUP_OPERATOR", "wasserstein")
+        self.mcts_wasserstein_power = _env_float("MUZERO_MCTS_WASSERSTEIN_POWER", 1.0)
+        self.mcts_wasserstein_selection = os.getenv(
+            "MUZERO_MCTS_WASSERSTEIN_SELECTION", "optimistic"
+        )
+        self.mcts_wasserstein_uncertainty_coef = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_UNCERTAINTY_COEF", 0.25
+        )
+        self.mcts_wasserstein_min_std = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_MIN_STD", 1e-6
+        )
+        self.mcts_wasserstein_shift_epsilon = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_SHIFT_EPSILON", 1e-6
+        )
 
         ### Network
         self.network = "resnet"
@@ -449,6 +460,7 @@ class Game(AbstractGame):
             map_width=self.config.map_w, map_height=self.config.map_h
         )
         self.known_tiles = {}
+        self.known_terrains = {}
         self.known_enemy = {}
         self.visited_tiles = set()
         self.turns = 0
@@ -762,6 +774,7 @@ class Game(AbstractGame):
         self.tile_owners = {}
         self.player_scores = {}
         self.known_tiles = {}
+        self.known_terrains = {}
         self.known_enemy = {}
         self.visited_tiles = set()
         self._last_snapshot = None
@@ -1610,6 +1623,11 @@ class Game(AbstractGame):
             player_pos=(cx, cy),
             enemy_pos=(-1, -1),
             status_lookup=status_lookup,
+            terrain_map=(
+                self._last_snapshot.terrain_map.copy()
+                if self._last_snapshot is not None and self._last_snapshot.terrain_map is not None
+                else numpy.full((self.config.map_h, self.config.map_w), "", dtype="<U64")
+            ),
             research_name=research_name,
             research_done=research_done,
             research_flags=research_flags,
@@ -1630,7 +1648,11 @@ class Game(AbstractGame):
         state.movement = alpha_live.FreecivMovement(self.config.map_w, self.config.map_h)
         au_map = snapshot.au_map.copy()
         au_map[au_map == "U"] = "A"
-        state.gt = GroundTruth(au_map, snapshot.enemy_map.copy())
+        state.gt = GroundTruth(
+            au_map,
+            snapshot.enemy_map.copy(),
+            None if snapshot.terrain_map is None else snapshot.terrain_map.copy(),
+        )
         state.units = {1: [], -1: []}
         state.cities = {1: [], -1: []}
         state.research_done = {
@@ -1695,14 +1717,14 @@ class Game(AbstractGame):
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
-                moves_val = max(1, int(unit_moves)) if unit_moves is not None else 1
+                moves_val = max(0, int(unit_moves)) if unit_moves is not None else 1
                 unit = MHUnit(
                     ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                 )
                 slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
-                moves_val = max(1, int(unit_moves)) if unit_moves is not None else int(spec.moves)
+                moves_val = max(0, int(unit_moves)) if unit_moves is not None else int(spec.moves)
                 unit = MHUnit(
                     ux,
                     uy,
@@ -1748,13 +1770,13 @@ class Game(AbstractGame):
                 spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
                 if spec is None:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
-                    moves_val = max(1, int(unit_moves)) if unit_moves is not None else 1
+                    moves_val = max(0, int(unit_moves)) if unit_moves is not None else 1
                     enemy = MHUnit(
                         ex, ey, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                     )
                 else:
                     hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
-                    moves_val = max(1, int(unit_moves)) if unit_moves is not None else int(spec.moves)
+                    moves_val = max(0, int(unit_moves)) if unit_moves is not None else int(spec.moves)
                     enemy = MHUnit(
                         ex,
                         ey,
@@ -2881,7 +2903,7 @@ class Game(AbstractGame):
     def _prefer_research_actions(self, valid):
         if self._last_state is None:
             return valid
-        if not self.city_slots or self.current_research:
+        if self.current_research:
             return valid
         econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
         research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -3034,10 +3056,32 @@ class Game(AbstractGame):
                 continue
             seen.add((nx, ny))
             queue.append((nx, ny, dir_idx, 1))
+        best = None
         while queue:
             cx, cy, first_dir, dist = queue.popleft()
-            if self._city_site_ok(cx, cy, player):
-                return first_dir, dist
+            revealed = bool(
+                self._last_snapshot is not None
+                and 0 <= cy < self._last_snapshot.revealed.shape[0]
+                and 0 <= cx < self._last_snapshot.revealed.shape[1]
+                and self._last_snapshot.revealed[cy, cx]
+            )
+            site_score = self._settler_site_score(cx, cy) if revealed else None
+            if site_score is not None and self._city_site_ok(cx, cy, player):
+                score = site_score - 0.35 * dist
+                if best is None or score > best[0]:
+                    best = (score, first_dir, dist)
+            elif not revealed:
+                # Unknown frontier: reveal efficiently when no known good site is nearby.
+                unknown_neighbors = sum(
+                    1
+                    for tx, ty in self.movement.get_native_neighbors(cx, cy)
+                    if tx is not None
+                    and self._last_snapshot is not None
+                    and not self._last_snapshot.revealed[ty, tx]
+                )
+                score = 0.4 * unknown_neighbors - 0.35 * dist
+                if best is None or score > best[0]:
+                    best = (score, first_dir, dist)
             for nx, ny in self.movement.get_native_neighbors(cx, cy):
                 if nx is None or ny is None:
                     continue
@@ -3047,7 +3091,31 @@ class Game(AbstractGame):
                     continue
                 seen.add((nx, ny))
                 queue.append((nx, ny, first_dir, dist + 1))
-        return None
+        return None if best is None else (best[1], best[2])
+
+    def _settler_site_score(self, x: int, y: int) -> Optional[float]:
+        if self._last_snapshot is None or self._last_snapshot.terrain_map is None:
+            return 0.0
+        score = 0.0
+        known = 0
+        frontier = deque([(x, y, 0)])
+        seen = {(x, y)}
+        while frontier:
+            cx, cy, dist = frontier.popleft()
+            terrain_name = str(self._last_snapshot.terrain_map[cy, cx]).strip().lower()
+            spec = TERRAIN_SPECS.get(terrain_name)
+            if spec is not None:
+                known += 1
+                weight = 1.0 if dist == 0 else 0.75
+                score += weight * (3.0 * spec.food + 2.0 * spec.shield + spec.trade)
+            if dist >= 2:
+                continue
+            for nx, ny in self.movement.get_native_neighbors(cx, cy):
+                if nx is None or ny is None or (nx, ny) in seen:
+                    continue
+                seen.add((nx, ny))
+                frontier.append((nx, ny, dist + 1))
+        return None if known == 0 else score / known
 
     def _force_settler_city_actions(self, valid):
         if self._last_state is None:
@@ -3308,6 +3376,7 @@ class Game(AbstractGame):
                     unit_id=self.unit_id,
                     player_id=self.player_id,
                     known_tiles=self.known_tiles,
+                    known_terrains=self.known_terrains,
                     known_enemy=self.known_enemy,
                     visited_tiles=self.visited_tiles,
                 )
@@ -3327,6 +3396,7 @@ class Game(AbstractGame):
                         unit_id=self.unit_id,
                         player_id=self.player_id,
                         known_tiles=self.known_tiles,
+                        known_terrains=self.known_terrains,
                         known_enemy=self.known_enemy,
                         visited_tiles=self.visited_tiles,
                     )
@@ -3563,9 +3633,9 @@ class Game(AbstractGame):
                     break
         self._apply_action(action, board_state, owned_cities)
         self._gameplay_started = True
-        if action < board_state.MOVE_SIZE:
-            self.acted_unit_slots.add(action // board_state.MOVE_PER_UNIT)
-        elif action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
+        # A unit may move repeatedly while Freeciv reports moves_left > 0.
+        # Attacks and city founding remain one-shot actions for the turn.
+        if board_state.MOVE_SIZE <= action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
             rel = action - board_state.MOVE_SIZE
             self.acted_unit_slots.add(rel // board_state.ATTACK_PER_UNIT)
         else:
@@ -3727,23 +3797,22 @@ class Game(AbstractGame):
                 valid[hold_idx] = 0
         if not self.city_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
-            research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
             build_start = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             build_end = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            valid[econ_offset:research_end] = 0
             valid[prod_start:prod_end] = 0
             build_candidates = [
                 idx
                 for idx in range(build_start, build_end)
                 if 0 <= idx < len(valid) and valid[idx]
             ]
-            if build_candidates:
-                forced = numpy.zeros_like(valid)
-                for idx in build_candidates:
-                    forced[idx] = 1
-                valid = forced
+            # Disabled heuristic forcing: let MCTS decide whether to found the first city.
+            # if build_candidates:
+            #     forced = numpy.zeros_like(valid)
+            #     for idx in build_candidates:
+            #         forced[idx] = 1
+            #     valid = forced
         if self.current_research:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -3848,35 +3917,38 @@ class Game(AbstractGame):
                         )
                         if 0 <= action_idx < len(valid):
                             valid[action_idx] = 0
-                    elif target_units > 0 and garrison_count < target_units:
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
+                    # Disabled heuristic forcing: do not block buildings just to fill garrisons.
+                    # elif target_units > 0 and garrison_count < target_units:
+                    #     action_idx = (
+                    #         prod_start
+                    #         + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                    #         + item_idx
+                    #     )
+                    #     if 0 <= action_idx < len(valid):
+                    #         valid[action_idx] = 0
                 if (
                     free_units > 0
                     and unit_count >= free_units
                     and garrison_count >= target_units
                 ):
-                    for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
-                        if kind != "unit":
-                            continue
-                        if (
-                            _name == "Settlers"
-                            and city_size is not None
-                            and city_size >= self._settler_min_city_size()
-                        ):
-                            continue
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
+                    # Disabled heuristic forcing: do not cap non-settler unit choices.
+                    # for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
+                    #     if kind != "unit":
+                    #         continue
+                    #     if (
+                    #         _name == "Settlers"
+                    #         and city_size is not None
+                    #         and city_size >= self._settler_min_city_size()
+                    #     ):
+                    #         continue
+                    #     action_idx = (
+                    #         prod_start
+                    #         + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                    #         + item_idx
+                    #     )
+                    #     if 0 <= action_idx < len(valid):
+                    #         valid[action_idx] = 0
+                    pass
             if self.max_production_queue > 0:
                 prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
                 for city_slot, city_id in enumerate(self.city_slots):
@@ -3892,10 +3964,12 @@ class Game(AbstractGame):
                         break
                     end = min(end, len(valid), prod_end)
                     valid[start:end] = 0
-            valid = self._restrict_expansion_production(valid)
-        valid = self._prefer_production_actions(valid)
-        valid = self._prefer_research_actions(valid)
-        valid = self._deprioritize_worker_production(valid)
+            # Disabled heuristic forcing: production expansion restriction.
+            # valid = self._restrict_expansion_production(valid)
+        # Disabled heuristic forcing: production/research preferences.
+        # valid = self._prefer_production_actions(valid)
+        # valid = self._prefer_research_actions(valid)
+        # valid = self._deprioritize_worker_production(valid)
         if self.acted_unit_slots:
             econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
             for slot_idx in self.acted_unit_slots:
@@ -3910,32 +3984,33 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
-        valid = self._protect_city_garrisons(valid)
-        valid = self._prefer_worker_evasion(valid)
-        valid = self._mask_autosettler_actions(valid)
-        forced = self._force_city_defense_actions(valid)
-        if forced:
-            forced_mask = numpy.zeros_like(valid)
-            for idx in forced:
-                if 0 <= idx < len(forced_mask):
-                    forced_mask[idx] = 1
-            return forced_mask
-        forced = self._force_defense_production_actions(valid)
-        if forced:
-            forced_mask = numpy.zeros_like(valid)
-            for idx in forced:
-                if 0 <= idx < len(forced_mask):
-                    forced_mask[idx] = 1
-            return forced_mask
-        forced = self._force_settler_city_actions(valid)
-        if forced:
-            forced_mask = numpy.zeros_like(valid)
-            for idx in forced:
-                if 0 <= idx < len(forced_mask):
-                    forced_mask[idx] = 1
-            return forced_mask
-        valid = self._prefer_attack_actions(valid)
-        valid = self._apply_action_curriculum(valid)
+        # Disabled heuristic forcing: garrison locking, worker evasion, autosettler masks.
+        # valid = self._protect_city_garrisons(valid)
+        # valid = self._prefer_worker_evasion(valid)
+        # valid = self._mask_autosettler_actions(valid)
+        # forced = self._force_city_defense_actions(valid)
+        # if forced:
+        #     forced_mask = numpy.zeros_like(valid)
+        #     for idx in forced:
+        #         if 0 <= idx < len(forced_mask):
+        #             forced_mask[idx] = 1
+        #     return forced_mask
+        # forced = self._force_defense_production_actions(valid)
+        # if forced:
+        #     forced_mask = numpy.zeros_like(valid)
+        #     for idx in forced:
+        #         if 0 <= idx < len(forced_mask):
+        #             forced_mask[idx] = 1
+        #     return forced_mask
+        # forced = self._force_settler_city_actions(valid)
+        # if forced:
+        #     forced_mask = numpy.zeros_like(valid)
+        #     for idx in forced:
+        #         if 0 <= idx < len(forced_mask):
+        #             forced_mask[idx] = 1
+        #     return forced_mask
+        # valid = self._prefer_attack_actions(valid)
+        # valid = self._apply_action_curriculum(valid)
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any():

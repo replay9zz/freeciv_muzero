@@ -60,7 +60,6 @@ class MapConfig:
     city_unit_cap: int = 6
     allow_sea_units: bool = True
     city_size_norm: int = 10
-    settler_min_city_size: int = 1
     settler_population_cost: int = 1
     city_min_distance: int = 3
     land_claim_radius: int = 2

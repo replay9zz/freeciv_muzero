@@ -73,6 +73,7 @@ class Snapshot:
     player_pos: Tuple[int, int]
     enemy_pos: Tuple[int, int]
     status_lookup: Dict[Tuple[int, int], Tuple[str, bool, bool, bool, bool]]
+    terrain_map: Optional[np.ndarray] = None
     research_name: Optional[str] = None
     research_done: bool = False
     research_flags: Dict[str, bool] = field(default_factory=dict)
@@ -254,6 +255,7 @@ def gather_snapshot(
     unit_id: int,
     player_id: Optional[int],
     known_tiles: Dict[Tuple[int, int], str],
+    known_terrains: Dict[Tuple[int, int], str],
     known_enemy: Dict[Tuple[int, int], bool],
     visited_tiles: Set[Tuple[int, int]],
 ) -> Tuple[Snapshot, Optional[int]]:
@@ -317,7 +319,7 @@ def gather_snapshot(
         for entry in batch_status:
             if len(entry) < 7:
                 continue
-            nx, ny, au_char, enemy_flag, _terrain, enemy_units, friendly_units = entry[:7]
+            nx, ny, au_char, enemy_flag, terrain, enemy_units, friendly_units = entry[:7]
             has_walls = False
             if len(entry) > 7:
                 has_walls = bool(entry[7])
@@ -328,6 +330,8 @@ def gather_snapshot(
                 bool(friendly_units),
                 has_walls,
             )
+            if terrain:
+                known_terrains[(nx, ny)] = str(terrain)
 
     for coord, status in status_lookup.items():
         if not status:
@@ -344,6 +348,7 @@ def gather_snapshot(
     enemy_grid = np.zeros((cfg.map_h, cfg.map_w), dtype=bool)
     visited_grid = np.zeros((cfg.map_h, cfg.map_w), dtype=bool)
     revealed_grid = np.zeros((cfg.map_h, cfg.map_w), dtype=bool)
+    terrain_grid = np.full((cfg.map_h, cfg.map_w), "", dtype="<U64")
 
     for (nx, ny), au_char in known_tiles.items():
         if 0 <= ny < cfg.map_h and 0 <= nx < cfg.map_w:
@@ -352,6 +357,9 @@ def gather_snapshot(
     for (nx, ny), enemy_flag in known_enemy.items():
         if enemy_flag and 0 <= ny < cfg.map_h and 0 <= nx < cfg.map_w:
             enemy_grid[ny, nx] = True
+    for (nx, ny), terrain in known_terrains.items():
+        if 0 <= ny < cfg.map_h and 0 <= nx < cfg.map_w:
+            terrain_grid[ny, nx] = terrain
     for (nx, ny) in visited_tiles:
         if 0 <= ny < cfg.map_h and 0 <= nx < cfg.map_w:
             visited_grid[ny, nx] = True
@@ -376,6 +384,7 @@ def gather_snapshot(
         player_pos=player_pos,
         enemy_pos=enemy_pos,
         status_lookup=status_lookup,
+        terrain_map=terrain_grid,
         research_name=research_name,
         research_done=research_done,
         research_flags=research_flags,

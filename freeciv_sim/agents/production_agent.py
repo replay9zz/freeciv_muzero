@@ -21,6 +21,22 @@ class ProductionAgent:
         state = game._last_state
         econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
         prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
+        if len(state.cities[1]) < state.max_cities:
+            live_settlers = sum(
+                1 for unit in state.units[1] if unit.alive and unit.can_build_city
+            )
+            if live_settlers == 0:
+                settler_actions = []
+                for action in legal:
+                    if action < prod_start:
+                        continue
+                    rel = action - prod_start
+                    item_idx = rel % state.PRODUCTION_ITEM_COUNT
+                    kind, name = state.PRODUCTION_ITEM_NAMES[item_idx]
+                    if kind == "unit" and name == "Settlers":
+                        settler_actions.append(action)
+                if settler_actions:
+                    return settler_actions
         valued = []
         for action in legal:
             if action < prod_start:

@@ -20,3 +20,6 @@ set wrap ""
 set generator FRACTAL
 set tinyisles disabled
 set startpos DEFAULT
+set animals 0
+set disasters 0
+set razechance 0

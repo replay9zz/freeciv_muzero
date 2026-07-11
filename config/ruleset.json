@@ -1,0 +1,3032 @@
+{
+  "units": [
+    {
+      "name": "Settlers",
+      "unit_class": "Small Land",
+      "cost": 30,
+      "attack": 0,
+      "defense": 1,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [],
+      "flags": [
+        "Settlers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "AddToCity",
+        "Cities",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Migrants",
+      "unit_class": "Small Land",
+      "cost": 10,
+      "attack": 0,
+      "defense": 1,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Pottery"
+      ],
+      "flags": [
+        "Settlers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "AddToCity",
+        "Capturable",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Workers",
+      "unit_class": "Small Land",
+      "cost": 20,
+      "attack": 0,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [],
+      "flags": [
+        "Settlers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "Fortress"
+      ],
+      "obsolete_by": "Engineers"
+    },
+    {
+      "name": "Engineers",
+      "unit_class": "Small Land",
+      "cost": 30,
+      "attack": 0,
+      "defense": 2,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Explosives"
+      ],
+      "flags": [
+        "Settlers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "Fortress",
+        "Transform"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Warriors",
+      "unit_class": "Land",
+      "cost": 10,
+      "attack": 1,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [],
+      "flags": [
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Musketeers"
+    },
+    {
+      "name": "Phalanx",
+      "unit_class": "Land",
+      "cost": 20,
+      "attack": 1,
+      "defense": 2,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Bronze Working"
+      ],
+      "flags": [
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Pikemen"
+    },
+    {
+      "name": "Archers",
+      "unit_class": "Land",
+      "cost": 20,
+      "attack": 3,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Warrior Code"
+      ],
+      "flags": [
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Musketeers"
+    },
+    {
+      "name": "Legion",
+      "unit_class": "Land",
+      "cost": 30,
+      "attack": 4,
+      "defense": 2,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Iron Working"
+      ],
+      "flags": [
+        "Marines",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Musketeers"
+    },
+    {
+      "name": "Pikemen",
+      "unit_class": "Land",
+      "cost": 30,
+      "attack": 2,
+      "defense": 3,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Feudalism"
+      ],
+      "flags": [
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Musketeers"
+    },
+    {
+      "name": "Musketeers",
+      "unit_class": "Land",
+      "cost": 40,
+      "attack": 3,
+      "defense": 3,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Gunpowder"
+      ],
+      "flags": [
+        "Marines",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Riflemen"
+    },
+    {
+      "name": "Riflemen",
+      "unit_class": "Land",
+      "cost": 50,
+      "attack": 5,
+      "defense": 4,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Conscription"
+      ],
+      "flags": [
+        "Marines",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": "Marines"
+    },
+    {
+      "name": "Alpine Troops",
+      "unit_class": "Land",
+      "cost": 60,
+      "attack": 7,
+      "defense": 4,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Tactics"
+      ],
+      "flags": [
+        "IgTer",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Partisan",
+      "unit_class": "Land",
+      "cost": 60,
+      "attack": 4,
+      "defense": 5,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Guerilla Warfare"
+      ],
+      "flags": [
+        "IgTer",
+        "IgZOC",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Fanatics",
+      "unit_class": "Land",
+      "cost": 20,
+      "attack": 5,
+      "defense": 5,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Guerilla Warfare"
+      ],
+      "flags": [
+        "Fanatic",
+        "AddToCity",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Marines",
+      "unit_class": "Land",
+      "cost": 60,
+      "attack": 8,
+      "defense": 5,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Amphibious Warfare"
+      ],
+      "flags": [
+        "Marines",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Paratroopers",
+      "unit_class": "Land",
+      "cost": 60,
+      "attack": 6,
+      "defense": 4,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Combined Arms"
+      ],
+      "flags": [
+        "Paratroopers",
+        "Capturer",
+        "Fortress"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Mech. Inf.",
+      "unit_class": "Big Land",
+      "cost": 70,
+      "attack": 6,
+      "defense": 6,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 3,
+      "req_techs": [
+        "Labor Union"
+      ],
+      "flags": [],
+      "obsolete_by": null
+    },
+    {
+      "name": "Horsemen",
+      "unit_class": "Land",
+      "cost": 20,
+      "attack": 2,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Horseback Riding"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Knights"
+    },
+    {
+      "name": "Chariot",
+      "unit_class": "Big Land",
+      "cost": 30,
+      "attack": 4,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "The Wheel"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Dragoons"
+    },
+    {
+      "name": "Elephants",
+      "unit_class": "Land",
+      "cost": 30,
+      "attack": 3,
+      "defense": 2,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Polytheism"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Dragoons"
+    },
+    {
+      "name": "Crusaders",
+      "unit_class": "Land",
+      "cost": 40,
+      "attack": 5,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Monotheism"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Dragoons"
+    },
+    {
+      "name": "Knights",
+      "unit_class": "Land",
+      "cost": 40,
+      "attack": 4,
+      "defense": 3,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Chivalry"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Dragoons"
+    },
+    {
+      "name": "Dragoons",
+      "unit_class": "Land",
+      "cost": 50,
+      "attack": 5,
+      "defense": 2,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Leadership"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Cavalry"
+    },
+    {
+      "name": "Cavalry",
+      "unit_class": "Land",
+      "cost": 60,
+      "attack": 8,
+      "defense": 3,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Tactics"
+      ],
+      "flags": [
+        "Capturer"
+      ],
+      "obsolete_by": "Armor"
+    },
+    {
+      "name": "Armor",
+      "unit_class": "Big Land",
+      "cost": 90,
+      "attack": 10,
+      "defense": 5,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 3,
+      "req_techs": [
+        "Mobile Warfare"
+      ],
+      "flags": [],
+      "obsolete_by": null
+    },
+    {
+      "name": "Catapult",
+      "unit_class": "Big Land",
+      "cost": 40,
+      "attack": 6,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Mathematics"
+      ],
+      "flags": [],
+      "obsolete_by": "Cannon"
+    },
+    {
+      "name": "Cannon",
+      "unit_class": "Big Land",
+      "cost": 50,
+      "attack": 8,
+      "defense": 1,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Metallurgy"
+      ],
+      "flags": [],
+      "obsolete_by": "Artillery"
+    },
+    {
+      "name": "Artillery",
+      "unit_class": "Big Land",
+      "cost": 60,
+      "attack": 10,
+      "defense": 2,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Machine Tools"
+      ],
+      "flags": [
+        "CityBuster"
+      ],
+      "obsolete_by": "Howitzer"
+    },
+    {
+      "name": "Howitzer",
+      "unit_class": "Big Land",
+      "cost": 80,
+      "attack": 12,
+      "defense": 2,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Robotics"
+      ],
+      "flags": [
+        "CityBuster"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Fighter",
+      "unit_class": "Air",
+      "cost": 60,
+      "attack": 4,
+      "defense": 4,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 10,
+      "req_techs": [
+        "Flight"
+      ],
+      "flags": [
+        "AirAttacker",
+        "HasNoZOC"
+      ],
+      "obsolete_by": "Stealth Fighter"
+    },
+    {
+      "name": "Bomber",
+      "unit_class": "Air",
+      "cost": 100,
+      "attack": 6,
+      "defense": 2,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 8,
+      "req_techs": [
+        "Advanced Flight"
+      ],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "AirAttacker",
+        "Bombarder",
+        "HasNoZOC"
+      ],
+      "obsolete_by": "Stealth Bomber"
+    },
+    {
+      "name": "Helicopter",
+      "unit_class": "Helicopter",
+      "cost": 70,
+      "attack": 5,
+      "defense": 3,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 6,
+      "req_techs": [
+        "Combined Arms"
+      ],
+      "flags": [
+        "OneAttack",
+        "AirAttacker",
+        "Bombarder",
+        "HasNoZOC",
+        "Provoking"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Stealth Fighter",
+      "unit_class": "Air",
+      "cost": 80,
+      "attack": 8,
+      "defense": 8,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 14,
+      "req_techs": [
+        "Stealth"
+      ],
+      "flags": [
+        "AirAttacker",
+        "HasNoZOC"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Stealth Bomber",
+      "unit_class": "Air",
+      "cost": 120,
+      "attack": 9,
+      "defense": 5,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 12,
+      "req_techs": [
+        "Stealth"
+      ],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "AirAttacker",
+        "Bombarder",
+        "HasNoZOC"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Trireme",
+      "unit_class": "Trireme",
+      "cost": 20,
+      "attack": 0,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 3,
+      "req_techs": [
+        "Map Making"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "HasNoZOC",
+        "Provoking",
+        "NonMil"
+      ],
+      "obsolete_by": "Transport"
+    },
+    {
+      "name": "Caravel",
+      "unit_class": "Sea",
+      "cost": 30,
+      "attack": 0,
+      "defense": 2,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 3,
+      "req_techs": [
+        "Magnetism"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Only_Native_Attack",
+        "HasNoZOC",
+        "Provoking",
+        "NonMil"
+      ],
+      "obsolete_by": "Galleon"
+    },
+    {
+      "name": "Galleon",
+      "unit_class": "Sea",
+      "cost": 40,
+      "attack": 0,
+      "defense": 2,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 4,
+      "req_techs": [
+        "Navigation"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "HasNoZOC",
+        "Provoking",
+        "NonMil"
+      ],
+      "obsolete_by": "Transport"
+    },
+    {
+      "name": "Frigate",
+      "unit_class": "Sea",
+      "cost": 40,
+      "attack": 3,
+      "defense": 2,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 4,
+      "req_techs": [
+        "Navigation"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": "Ironclad"
+    },
+    {
+      "name": "Ironclad",
+      "unit_class": "Sea",
+      "cost": 50,
+      "attack": 4,
+      "defense": 3,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 4,
+      "req_techs": [
+        "Steam Engine"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": "Destroyer"
+    },
+    {
+      "name": "Destroyer",
+      "unit_class": "Sea",
+      "cost": 60,
+      "attack": 4,
+      "defense": 4,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 6,
+      "req_techs": [
+        "Engineering"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Cruiser",
+      "unit_class": "Sea",
+      "cost": 80,
+      "attack": 6,
+      "defense": 6,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 5,
+      "req_techs": [
+        "Steel"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": "AEGIS Cruiser"
+    },
+    {
+      "name": "AEGIS Cruiser",
+      "unit_class": "Sea",
+      "cost": 100,
+      "attack": 8,
+      "defense": 8,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 5,
+      "req_techs": [
+        "Rocketry"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Battleship",
+      "unit_class": "Sea",
+      "cost": 160,
+      "attack": 12,
+      "defense": 12,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 4,
+      "req_techs": [
+        "Mass Production"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Submarine",
+      "unit_class": "Sea",
+      "cost": 70,
+      "attack": 12,
+      "defense": 5,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 5,
+      "req_techs": [
+        "Combustion"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Only_Native_Attack",
+        "Submarine",
+        "Provoking"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Carrier",
+      "unit_class": "Sea",
+      "cost": 150,
+      "attack": 0,
+      "defense": 9,
+      "hp": 40,
+      "firepower": 1,
+      "moves": 5,
+      "req_techs": [
+        "Advanced Flight"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "HasNoZOC",
+        "Provoking"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Transport",
+      "unit_class": "Sea",
+      "cost": 50,
+      "attack": 0,
+      "defense": 3,
+      "hp": 30,
+      "firepower": 1,
+      "moves": 5,
+      "req_techs": [
+        "Engineering"
+      ],
+      "flags": [
+        "Settlers",
+        "BadCityDefender",
+        "HasNoZOC",
+        "Provoking",
+        "NonMil"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Cruise Missile",
+      "unit_class": "Missile",
+      "cost": 50,
+      "attack": 18,
+      "defense": 0,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 16,
+      "req_techs": [
+        "Rocketry"
+      ],
+      "flags": [
+        "OneAttack",
+        "AirAttacker",
+        "CityBuster",
+        "HasNoZOC"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Nuclear",
+      "unit_class": "Missile",
+      "cost": 160,
+      "attack": 99,
+      "defense": 0,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 0,
+      "req_techs": [
+        "Nuclear Fission"
+      ],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "Nuclear",
+        "HasNoZOC"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Diplomat",
+      "unit_class": "Small Land",
+      "cost": 30,
+      "attack": 0,
+      "defense": 0,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "Alphabet"
+      ],
+      "flags": [
+        "Diplomat",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Provoking"
+      ],
+      "obsolete_by": "Spy"
+    },
+    {
+      "name": "Spy",
+      "unit_class": "Small Land",
+      "cost": 30,
+      "attack": 0,
+      "defense": 0,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 3,
+      "req_techs": [
+        "Espionage"
+      ],
+      "flags": [
+        "Diplomat",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Spy",
+        "Provoking"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Caravan",
+      "unit_class": "Merchant",
+      "cost": 50,
+      "attack": 0,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Trade"
+      ],
+      "flags": [
+        "TradeRoute",
+        "HelpWonder",
+        "NonMil",
+        "HasNoZOC",
+        "Capturable"
+      ],
+      "obsolete_by": "Freight"
+    },
+    {
+      "name": "Freight",
+      "unit_class": "Merchant",
+      "cost": 50,
+      "attack": 0,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 2,
+      "req_techs": [
+        "The Corporation"
+      ],
+      "flags": [
+        "TradeRoute",
+        "HelpWonder",
+        "NonMil",
+        "HasNoZOC",
+        "Capturable"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "Explorer",
+      "unit_class": "Small Land",
+      "cost": 30,
+      "attack": 0,
+      "defense": 1,
+      "hp": 10,
+      "firepower": 1,
+      "moves": 1,
+      "req_techs": [
+        "Seafaring"
+      ],
+      "flags": [
+        "IgTer",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Cant_Fortify"
+      ],
+      "obsolete_by": null
+    },
+    {
+      "name": "AWACS",
+      "unit_class": "Air",
+      "cost": 140,
+      "attack": 0,
+      "defense": 1,
+      "hp": 20,
+      "firepower": 1,
+      "moves": 16,
+      "req_techs": [
+        "Advanced Flight"
+      ],
+      "flags": [
+        "HasNoZOC"
+      ],
+      "obsolete_by": null
+    }
+  ],
+  "research": [
+    {
+      "name": "Advanced Flight",
+      "prerequisites": [
+        "Radio",
+        "Machine Tools"
+      ],
+      "unlocks_units": [
+        "Bomber",
+        "Carrier",
+        "AWACS"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Alphabet",
+      "prerequisites": [],
+      "unlocks_units": [
+        "Diplomat"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Amphibious Warfare",
+      "prerequisites": [
+        "Engineering",
+        "Tactics"
+      ],
+      "unlocks_units": [
+        "Marines"
+      ],
+      "unlocks_buildings": [
+        "Port Facility"
+      ]
+    },
+    {
+      "name": "Astronomy",
+      "prerequisites": [
+        "Mysticism",
+        "Mathematics"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Copernicus' Observatory"
+      ]
+    },
+    {
+      "name": "Atomic Theory",
+      "prerequisites": [
+        "Chemistry",
+        "Refrigeration"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Automobile",
+      "prerequisites": [
+        "Combustion",
+        "Steel"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Super Highways"
+      ]
+    },
+    {
+      "name": "Banking",
+      "prerequisites": [
+        "Trade",
+        "The Republic"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Bank"
+      ]
+    },
+    {
+      "name": "Bridge Building",
+      "prerequisites": [
+        "The Wheel",
+        "Construction"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Bronze Working",
+      "prerequisites": [],
+      "unlocks_units": [
+        "Phalanx"
+      ],
+      "unlocks_buildings": [
+        "Colossus"
+      ]
+    },
+    {
+      "name": "Ceremonial Burial",
+      "prerequisites": [],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Temple",
+        "Mausoleum of Mausolos"
+      ]
+    },
+    {
+      "name": "Chemistry",
+      "prerequisites": [
+        "University",
+        "Medicine"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Chivalry",
+      "prerequisites": [
+        "Feudalism",
+        "Horseback Riding"
+      ],
+      "unlocks_units": [
+        "Knights"
+      ],
+      "unlocks_buildings": [
+        "King Richard's Crusade"
+      ]
+    },
+    {
+      "name": "Code of Laws",
+      "prerequisites": [
+        "Alphabet"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Courthouse"
+      ]
+    },
+    {
+      "name": "Combined Arms",
+      "prerequisites": [
+        "Mobile Warfare",
+        "Advanced Flight"
+      ],
+      "unlocks_units": [
+        "Paratroopers",
+        "Helicopter"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Combustion",
+      "prerequisites": [
+        "Refining",
+        "Engineering"
+      ],
+      "unlocks_units": [
+        "Submarine"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Communism",
+      "prerequisites": [
+        "Theology",
+        "Industrialization"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Police Station",
+        "United Nations"
+      ]
+    },
+    {
+      "name": "Computers",
+      "prerequisites": [
+        "Miniaturization",
+        "Radio"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Research Lab",
+        "Internet"
+      ]
+    },
+    {
+      "name": "Conscription",
+      "prerequisites": [
+        "Democracy",
+        "Metallurgy"
+      ],
+      "unlocks_units": [
+        "Riflemen"
+      ],
+      "unlocks_buildings": [
+        "Women's Suffrage"
+      ]
+    },
+    {
+      "name": "Construction",
+      "prerequisites": [
+        "Masonry",
+        "Iron Working"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Colosseum",
+        "Great Wall"
+      ]
+    },
+    {
+      "name": "Currency",
+      "prerequisites": [
+        "Bronze Working"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Marketplace"
+      ]
+    },
+    {
+      "name": "Democracy",
+      "prerequisites": [
+        "Banking",
+        "Invention"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Statue of Liberty"
+      ]
+    },
+    {
+      "name": "Economics",
+      "prerequisites": [
+        "Banking",
+        "University"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Stock Exchange",
+        "A.Smith's Trading Co."
+      ]
+    },
+    {
+      "name": "Electricity",
+      "prerequisites": [
+        "Metallurgy",
+        "Theory of Gravity"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Electronics",
+      "prerequisites": [
+        "The Corporation",
+        "Electricity"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Hydro Plant",
+        "Hoover Dam"
+      ]
+    },
+    {
+      "name": "Engineering",
+      "prerequisites": [
+        "Electricity",
+        "Steam Engine"
+      ],
+      "unlocks_units": [
+        "Destroyer",
+        "Transport"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Environmentalism",
+      "prerequisites": [
+        "Recycling",
+        "Space Flight"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Solar Plant",
+        "Space Module"
+      ]
+    },
+    {
+      "name": "Espionage",
+      "prerequisites": [
+        "Communism",
+        "Democracy"
+      ],
+      "unlocks_units": [
+        "Spy"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Explosives",
+      "prerequisites": [
+        "Gunpowder",
+        "Chemistry"
+      ],
+      "unlocks_units": [
+        "Engineers"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Feudalism",
+      "prerequisites": [
+        "Iron Working",
+        "Monarchy"
+      ],
+      "unlocks_units": [
+        "Pikemen"
+      ],
+      "unlocks_buildings": [
+        "Sun Tzu's War Academy"
+      ]
+    },
+    {
+      "name": "Flight",
+      "prerequisites": [
+        "Combustion",
+        "Tactics"
+      ],
+      "unlocks_units": [
+        "Fighter"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Fusion Power",
+      "prerequisites": [
+        "Superconductors",
+        "Labor Union"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Genetic Engineering",
+      "prerequisites": [
+        "Refrigeration",
+        "The Corporation"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Cure For Cancer"
+      ]
+    },
+    {
+      "name": "Guerilla Warfare",
+      "prerequisites": [
+        "Communism",
+        "Tactics"
+      ],
+      "unlocks_units": [
+        "Partisan",
+        "Fanatics"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Gunpowder",
+      "prerequisites": [
+        "Invention",
+        "Feudalism"
+      ],
+      "unlocks_units": [
+        "Musketeers"
+      ],
+      "unlocks_buildings": [
+        "Barracks II"
+      ]
+    },
+    {
+      "name": "Horseback Riding",
+      "prerequisites": [],
+      "unlocks_units": [
+        "Horsemen"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Industrialization",
+      "prerequisites": [
+        "Railroad",
+        "Banking"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Factory"
+      ]
+    },
+    {
+      "name": "Invention",
+      "prerequisites": [
+        "Bridge Building",
+        "Literacy"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Leonardo's Workshop"
+      ]
+    },
+    {
+      "name": "Iron Working",
+      "prerequisites": [
+        "Bronze Working",
+        "Warrior Code"
+      ],
+      "unlocks_units": [
+        "Legion"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Labor Union",
+      "prerequisites": [
+        "Communism",
+        "Mobile Warfare"
+      ],
+      "unlocks_units": [
+        "Mech. Inf."
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Laser",
+      "prerequisites": [
+        "Computers",
+        "Nuclear Power"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "SDI Defense"
+      ]
+    },
+    {
+      "name": "Leadership",
+      "prerequisites": [
+        "Chivalry",
+        "Gunpowder"
+      ],
+      "unlocks_units": [
+        "Dragoons"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Literacy",
+      "prerequisites": [
+        "Writing",
+        "Code of Laws"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Great Library"
+      ]
+    },
+    {
+      "name": "Machine Tools",
+      "prerequisites": [
+        "Steel",
+        "Tactics"
+      ],
+      "unlocks_units": [
+        "Artillery"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Magnetism",
+      "prerequisites": [
+        "Seafaring",
+        "Astronomy"
+      ],
+      "unlocks_units": [
+        "Caravel"
+      ],
+      "unlocks_buildings": [
+        "Magellan's Expedition"
+      ]
+    },
+    {
+      "name": "Map Making",
+      "prerequisites": [
+        "Alphabet"
+      ],
+      "unlocks_units": [
+        "Trireme"
+      ],
+      "unlocks_buildings": [
+        "Lighthouse"
+      ]
+    },
+    {
+      "name": "Masonry",
+      "prerequisites": [],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "City Walls",
+        "Pyramids"
+      ]
+    },
+    {
+      "name": "Mass Production",
+      "prerequisites": [
+        "Automobile",
+        "The Corporation"
+      ],
+      "unlocks_units": [
+        "Battleship"
+      ],
+      "unlocks_buildings": [
+        "Mass Transit"
+      ]
+    },
+    {
+      "name": "Mathematics",
+      "prerequisites": [
+        "Alphabet",
+        "Masonry"
+      ],
+      "unlocks_units": [
+        "Catapult"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Medicine",
+      "prerequisites": [
+        "Philosophy",
+        "Trade"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Metallurgy",
+      "prerequisites": [
+        "Gunpowder",
+        "Mathematics"
+      ],
+      "unlocks_units": [
+        "Cannon"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Miniaturization",
+      "prerequisites": [
+        "Combustion",
+        "Electronics"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Offshore Platform"
+      ]
+    },
+    {
+      "name": "Mobile Warfare",
+      "prerequisites": [
+        "Automobile",
+        "Machine Tools"
+      ],
+      "unlocks_units": [
+        "Armor"
+      ],
+      "unlocks_buildings": [
+        "Barracks III"
+      ]
+    },
+    {
+      "name": "Monarchy",
+      "prerequisites": [
+        "Ceremonial Burial",
+        "Code of Laws"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Monotheism",
+      "prerequisites": [
+        "Astronomy",
+        "Polytheism"
+      ],
+      "unlocks_units": [
+        "Crusaders"
+      ],
+      "unlocks_buildings": [
+        "Cathedral",
+        "Michelangelo's Chapel"
+      ]
+    },
+    {
+      "name": "Mysticism",
+      "prerequisites": [
+        "Ceremonial Burial"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Temple of Artemis"
+      ]
+    },
+    {
+      "name": "Navigation",
+      "prerequisites": [
+        "Invention",
+        "Physics"
+      ],
+      "unlocks_units": [
+        "Galleon",
+        "Frigate"
+      ],
+      "unlocks_buildings": [
+        "Coastal Defense"
+      ]
+    },
+    {
+      "name": "Nuclear Fission",
+      "prerequisites": [
+        "Mass Production",
+        "Atomic Theory"
+      ],
+      "unlocks_units": [
+        "Nuclear"
+      ],
+      "unlocks_buildings": [
+        "Manhattan Project"
+      ]
+    },
+    {
+      "name": "Nuclear Power",
+      "prerequisites": [
+        "Nuclear Fission",
+        "Miniaturization"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Nuclear Plant"
+      ]
+    },
+    {
+      "name": "Philosophy",
+      "prerequisites": [
+        "Mysticism",
+        "Literacy"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Physics",
+      "prerequisites": [
+        "The Wheel",
+        "Magnetism"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Plastics",
+      "prerequisites": [
+        "Mass Production",
+        "Robotics"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Mfg. Plant"
+      ]
+    },
+    {
+      "name": "Polytheism",
+      "prerequisites": [
+        "Horseback Riding",
+        "Ceremonial Burial"
+      ],
+      "unlocks_units": [
+        "Elephants"
+      ],
+      "unlocks_buildings": [
+        "Statue of Zeus"
+      ]
+    },
+    {
+      "name": "Pottery",
+      "prerequisites": [],
+      "unlocks_units": [
+        "Migrants"
+      ],
+      "unlocks_buildings": [
+        "Granary",
+        "Hanging Gardens"
+      ]
+    },
+    {
+      "name": "Radio",
+      "prerequisites": [
+        "Flight",
+        "Electronics"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Airport"
+      ]
+    },
+    {
+      "name": "Railroad",
+      "prerequisites": [
+        "Steam Engine",
+        "Metallurgy"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Eiffel Tower"
+      ]
+    },
+    {
+      "name": "Recycling",
+      "prerequisites": [
+        "Mass Production",
+        "Sanitation"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Recycling Center"
+      ]
+    },
+    {
+      "name": "Refining",
+      "prerequisites": [
+        "Explosives",
+        "Industrialization"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Power Plant"
+      ]
+    },
+    {
+      "name": "Refrigeration",
+      "prerequisites": [
+        "Sanitation",
+        "Electricity"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Supermarket"
+      ]
+    },
+    {
+      "name": "Robotics",
+      "prerequisites": [
+        "Mobile Warfare",
+        "Computers"
+      ],
+      "unlocks_units": [
+        "Howitzer"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Rocketry",
+      "prerequisites": [
+        "Advanced Flight",
+        "Miniaturization"
+      ],
+      "unlocks_units": [
+        "AEGIS Cruiser",
+        "Cruise Missile"
+      ],
+      "unlocks_buildings": [
+        "SAM Battery"
+      ]
+    },
+    {
+      "name": "Sanitation",
+      "prerequisites": [
+        "Bridge Building",
+        "Medicine"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Sewer System",
+        "Shakespeare's Theatre"
+      ]
+    },
+    {
+      "name": "Seafaring",
+      "prerequisites": [
+        "Pottery",
+        "Map Making"
+      ],
+      "unlocks_units": [
+        "Explorer"
+      ],
+      "unlocks_buildings": [
+        "Harbour"
+      ]
+    },
+    {
+      "name": "Space Flight",
+      "prerequisites": [
+        "Computers",
+        "Rocketry"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Space Structural",
+        "Apollo Program"
+      ]
+    },
+    {
+      "name": "Stealth",
+      "prerequisites": [
+        "Plastics",
+        "Space Flight"
+      ],
+      "unlocks_units": [
+        "Stealth Fighter",
+        "Stealth Bomber"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Steam Engine",
+      "prerequisites": [
+        "Chemistry",
+        "Navigation"
+      ],
+      "unlocks_units": [
+        "Ironclad"
+      ],
+      "unlocks_buildings": [
+        "Darwin's Voyage"
+      ]
+    },
+    {
+      "name": "Steel",
+      "prerequisites": [
+        "Engineering",
+        "Industrialization"
+      ],
+      "unlocks_units": [
+        "Cruiser"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Superconductors",
+      "prerequisites": [
+        "Space Flight",
+        "Laser"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Space Component"
+      ]
+    },
+    {
+      "name": "Tactics",
+      "prerequisites": [
+        "Conscription",
+        "Leadership"
+      ],
+      "unlocks_units": [
+        "Alpine Troops",
+        "Cavalry"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "The Corporation",
+      "prerequisites": [
+        "Economics",
+        "Industrialization"
+      ],
+      "unlocks_units": [
+        "Freight"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "The Republic",
+      "prerequisites": [
+        "Code of Laws",
+        "Literacy"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "The Wheel",
+      "prerequisites": [
+        "Horseback Riding"
+      ],
+      "unlocks_units": [
+        "Chariot"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Theology",
+      "prerequisites": [
+        "Philosophy",
+        "Monotheism"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "J.S. Bach's Cathedral"
+      ]
+    },
+    {
+      "name": "Theory of Gravity",
+      "prerequisites": [
+        "Physics",
+        "University"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Isaac Newton's College"
+      ]
+    },
+    {
+      "name": "Trade",
+      "prerequisites": [
+        "Currency",
+        "Pottery"
+      ],
+      "unlocks_units": [
+        "Caravan"
+      ],
+      "unlocks_buildings": [
+        "Marco Polo's Embassy"
+      ]
+    },
+    {
+      "name": "University",
+      "prerequisites": [
+        "Mathematics",
+        "Philosophy"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "University"
+      ]
+    },
+    {
+      "name": "Warrior Code",
+      "prerequisites": [],
+      "unlocks_units": [
+        "Archers"
+      ],
+      "unlocks_buildings": []
+    },
+    {
+      "name": "Writing",
+      "prerequisites": [
+        "Alphabet"
+      ],
+      "unlocks_units": [],
+      "unlocks_buildings": [
+        "Library"
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "name": "Airport",
+      "cost": 120,
+      "req_techs": [
+        "Radio"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Aqueduct",
+      "cost": 60,
+      "req_techs": [],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Aqueduct, Lake",
+      "cost": 20,
+      "req_techs": [],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Aqueduct, River",
+      "cost": 20,
+      "req_techs": [],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Bank",
+      "cost": 80,
+      "req_techs": [
+        "Banking"
+      ],
+      "req_buildings": [
+        "Marketplace"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Barracks",
+      "cost": 30,
+      "req_techs": [],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": [
+        "Barracks"
+      ]
+    },
+    {
+      "name": "Barracks II",
+      "cost": 30,
+      "req_techs": [
+        "Gunpowder"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": [
+        "Barracks"
+      ]
+    },
+    {
+      "name": "Barracks III",
+      "cost": 30,
+      "req_techs": [
+        "Mobile Warfare"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": [
+        "Barracks"
+      ]
+    },
+    {
+      "name": "Cathedral",
+      "cost": 80,
+      "req_techs": [
+        "Monotheism"
+      ],
+      "req_buildings": [
+        "Temple"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "City Walls",
+      "cost": 30,
+      "req_techs": [
+        "Masonry"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": [
+        "VisibleByOthers"
+      ]
+    },
+    {
+      "name": "Coastal Defense",
+      "cost": 60,
+      "req_techs": [
+        "Navigation"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Colosseum",
+      "cost": 70,
+      "req_techs": [
+        "Construction"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Courthouse",
+      "cost": 60,
+      "req_techs": [
+        "Code of Laws"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Factory",
+      "cost": 140,
+      "req_techs": [
+        "Industrialization"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Granary",
+      "cost": 40,
+      "req_techs": [
+        "Pottery"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Harbour",
+      "cost": 40,
+      "req_techs": [
+        "Seafaring"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Hydro Plant",
+      "cost": 180,
+      "req_techs": [
+        "Electronics"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Library",
+      "cost": 60,
+      "req_techs": [
+        "Writing"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Marketplace",
+      "cost": 60,
+      "req_techs": [
+        "Currency"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Mass Transit",
+      "cost": 120,
+      "req_techs": [
+        "Mass Production"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Mfg. Plant",
+      "cost": 220,
+      "req_techs": [
+        "Plastics"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Nuclear Plant",
+      "cost": 240,
+      "req_techs": [
+        "Nuclear Power"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Offshore Platform",
+      "cost": 120,
+      "req_techs": [
+        "Miniaturization"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Palace",
+      "cost": 70,
+      "req_techs": [],
+      "req_buildings": [],
+      "genus": "SmallWonder",
+      "flags": [
+        "SaveSmallWonder"
+      ]
+    },
+    {
+      "name": "Police Station",
+      "cost": 50,
+      "req_techs": [
+        "Communism"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Port Facility",
+      "cost": 60,
+      "req_techs": [
+        "Amphibious Warfare"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Power Plant",
+      "cost": 130,
+      "req_techs": [
+        "Refining"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Recycling Center",
+      "cost": 140,
+      "req_techs": [
+        "Recycling"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Research Lab",
+      "cost": 120,
+      "req_techs": [
+        "Computers"
+      ],
+      "req_buildings": [
+        "University"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "SAM Battery",
+      "cost": 70,
+      "req_techs": [
+        "Rocketry"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "SDI Defense",
+      "cost": 140,
+      "req_techs": [
+        "Laser"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Sewer System",
+      "cost": 80,
+      "req_techs": [
+        "Sanitation"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Solar Plant",
+      "cost": 320,
+      "req_techs": [
+        "Environmentalism"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Space Component",
+      "cost": 300,
+      "req_techs": [
+        "Superconductors"
+      ],
+      "req_buildings": [
+        "Factory",
+        "Library",
+        "University",
+        "Research Lab"
+      ],
+      "genus": "Special",
+      "flags": []
+    },
+    {
+      "name": "Space Module",
+      "cost": 600,
+      "req_techs": [
+        "Environmentalism"
+      ],
+      "req_buildings": [
+        "Factory",
+        "Library",
+        "University",
+        "Research Lab"
+      ],
+      "genus": "Special",
+      "flags": []
+    },
+    {
+      "name": "Space Structural",
+      "cost": 150,
+      "req_techs": [
+        "Space Flight"
+      ],
+      "req_buildings": [
+        "Factory",
+        "Library",
+        "University",
+        "Research Lab"
+      ],
+      "genus": "Special",
+      "flags": []
+    },
+    {
+      "name": "Stock Exchange",
+      "cost": 120,
+      "req_techs": [
+        "Economics"
+      ],
+      "req_buildings": [
+        "Bank"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Super Highways",
+      "cost": 120,
+      "req_techs": [
+        "Automobile"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Supermarket",
+      "cost": 80,
+      "req_techs": [
+        "Refrigeration"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Temple",
+      "cost": 30,
+      "req_techs": [
+        "Ceremonial Burial"
+      ],
+      "req_buildings": [],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "University",
+      "cost": 120,
+      "req_techs": [
+        "University"
+      ],
+      "req_buildings": [
+        "Library"
+      ],
+      "genus": "Improvement",
+      "flags": []
+    },
+    {
+      "name": "Apollo Program",
+      "cost": 600,
+      "req_techs": [
+        "Space Flight"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "A.Smith's Trading Co.",
+      "cost": 400,
+      "req_techs": [
+        "Economics"
+      ],
+      "req_buildings": [
+        "Stock Exchange"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Colossus",
+      "cost": 200,
+      "req_techs": [
+        "Bronze Working"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Copernicus' Observatory",
+      "cost": 300,
+      "req_techs": [
+        "Astronomy"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Cure For Cancer",
+      "cost": 600,
+      "req_techs": [
+        "Genetic Engineering"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Darwin's Voyage",
+      "cost": 300,
+      "req_techs": [
+        "Steam Engine"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Eiffel Tower",
+      "cost": 300,
+      "req_techs": [
+        "Railroad"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Great Library",
+      "cost": 300,
+      "req_techs": [
+        "Literacy"
+      ],
+      "req_buildings": [
+        "Library"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Great Wall",
+      "cost": 300,
+      "req_techs": [
+        "Construction"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Hanging Gardens",
+      "cost": 200,
+      "req_techs": [
+        "Pottery"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Hoover Dam",
+      "cost": 600,
+      "req_techs": [
+        "Electronics"
+      ],
+      "req_buildings": [
+        "Factory"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Isaac Newton's College",
+      "cost": 400,
+      "req_techs": [
+        "Theory of Gravity"
+      ],
+      "req_buildings": [
+        "University"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "J.S. Bach's Cathedral",
+      "cost": 400,
+      "req_techs": [
+        "Theology"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "King Richard's Crusade",
+      "cost": 300,
+      "req_techs": [
+        "Chivalry"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Leonardo's Workshop",
+      "cost": 400,
+      "req_techs": [
+        "Invention"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Lighthouse",
+      "cost": 200,
+      "req_techs": [
+        "Map Making"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Magellan's Expedition",
+      "cost": 400,
+      "req_techs": [
+        "Magnetism"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Manhattan Project",
+      "cost": 600,
+      "req_techs": [
+        "Nuclear Fission"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Marco Polo's Embassy",
+      "cost": 200,
+      "req_techs": [
+        "Trade"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Michelangelo's Chapel",
+      "cost": 400,
+      "req_techs": [
+        "Monotheism"
+      ],
+      "req_buildings": [
+        "Cathedral"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Mausoleum of Mausolos",
+      "cost": 200,
+      "req_techs": [
+        "Ceremonial Burial"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Statue of Zeus",
+      "cost": 200,
+      "req_techs": [
+        "Polytheism"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Temple of Artemis",
+      "cost": 200,
+      "req_techs": [
+        "Mysticism"
+      ],
+      "req_buildings": [
+        "Temple"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Pyramids",
+      "cost": 200,
+      "req_techs": [
+        "Masonry"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Internet",
+      "cost": 600,
+      "req_techs": [
+        "Computers"
+      ],
+      "req_buildings": [
+        "Research Lab"
+      ],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Shakespeare's Theatre",
+      "cost": 300,
+      "req_techs": [
+        "Sanitation"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Statue of Liberty",
+      "cost": 400,
+      "req_techs": [
+        "Democracy"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Sun Tzu's War Academy",
+      "cost": 300,
+      "req_techs": [
+        "Feudalism"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "United Nations",
+      "cost": 600,
+      "req_techs": [
+        "Communism"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    },
+    {
+      "name": "Women's Suffrage",
+      "cost": 600,
+      "req_techs": [
+        "Conscription"
+      ],
+      "req_buildings": [],
+      "genus": "GreatWonder",
+      "flags": []
+    }
+  ],
+  "terrains": [
+    {
+      "name": "Inaccessible",
+      "identifier": "i",
+      "terrain_class": "Land",
+      "movement_cost": 0,
+      "defense_bonus": 0,
+      "food": 0,
+      "shield": 0,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [],
+      "flags": [
+        "NotGenerated",
+        "NoPollution",
+        "NoCities",
+        "UnsafeCoast",
+        "Frozen"
+      ]
+    },
+    {
+      "name": "Lake",
+      "identifier": "+",
+      "terrain_class": "Oceanic",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 2,
+      "shield": 0,
+      "trade": 2,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Fish"
+      ],
+      "flags": [
+        "NoCities",
+        "NoBarbs",
+        "NoPollution",
+        "FreshWater",
+        "NoZoc",
+        "NoFortify"
+      ]
+    },
+    {
+      "name": "Ocean",
+      "identifier": "",
+      "terrain_class": "Oceanic",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 1,
+      "shield": 0,
+      "trade": 2,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Fish",
+        "Whales"
+      ],
+      "flags": [
+        "NoCities",
+        "UnsafeCoast",
+        "NoZoc",
+        "NoFortify",
+        "Sea"
+      ]
+    },
+    {
+      "name": "Deep Ocean",
+      "identifier": ":",
+      "terrain_class": "Oceanic",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 1,
+      "shield": 0,
+      "trade": 2,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [],
+      "flags": [
+        "NoCities",
+        "NoPollution",
+        "UnsafeCoast",
+        "NoZoc",
+        "NoFortify",
+        "Sea"
+      ]
+    },
+    {
+      "name": "Glacier",
+      "identifier": "a",
+      "terrain_class": "Land",
+      "movement_cost": 2,
+      "defense_bonus": 0,
+      "food": 0,
+      "shield": 0,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 1,
+      "resources": [
+        "Ivory",
+        "Oil"
+      ],
+      "flags": [
+        "NoBarbs",
+        "NoCities",
+        "CanHaveRiver",
+        "Oil",
+        "Frozen"
+      ]
+    },
+    {
+      "name": "Desert",
+      "identifier": "d",
+      "terrain_class": "Land",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 0,
+      "shield": 1,
+      "trade": 0,
+      "irrigation_food_incr": 1,
+      "mining_shield_incr": 1,
+      "resources": [
+        "Oasis",
+        "Oil"
+      ],
+      "flags": [
+        "CanHaveRiver",
+        "Oil"
+      ]
+    },
+    {
+      "name": "Forest",
+      "identifier": "f",
+      "terrain_class": "Land",
+      "movement_cost": 2,
+      "defense_bonus": 25,
+      "food": 1,
+      "shield": 2,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Pheasant",
+        "Silk"
+      ],
+      "flags": [
+        "Starter",
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Grassland",
+      "identifier": "g",
+      "terrain_class": "Land",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 2,
+      "shield": 0,
+      "trade": 0,
+      "irrigation_food_incr": 1,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Resources"
+      ],
+      "flags": [
+        "Starter",
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Hills",
+      "identifier": "h",
+      "terrain_class": "Land",
+      "movement_cost": 2,
+      "defense_bonus": 50,
+      "food": 1,
+      "shield": 1,
+      "trade": 0,
+      "irrigation_food_incr": 1,
+      "mining_shield_incr": 2,
+      "resources": [
+        "Coal",
+        "Wine"
+      ],
+      "flags": [
+        "Starter",
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Jungle",
+      "identifier": "j",
+      "terrain_class": "Land",
+      "movement_cost": 2,
+      "defense_bonus": 25,
+      "food": 1,
+      "shield": 1,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Gems",
+        "Fruit"
+      ],
+      "flags": [
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Mountains",
+      "identifier": "m",
+      "terrain_class": "Land",
+      "movement_cost": 3,
+      "defense_bonus": 100,
+      "food": 0,
+      "shield": 1,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 2,
+      "resources": [
+        "Gold",
+        "Iron"
+      ],
+      "flags": [
+        "NoCities",
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Plains",
+      "identifier": "p",
+      "terrain_class": "Land",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 1,
+      "shield": 1,
+      "trade": 0,
+      "irrigation_food_incr": 1,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Buffalo",
+        "Wheat"
+      ],
+      "flags": [
+        "Starter",
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Swamp",
+      "identifier": "s",
+      "terrain_class": "Land",
+      "movement_cost": 2,
+      "defense_bonus": 25,
+      "food": 1,
+      "shield": 0,
+      "trade": 0,
+      "irrigation_food_incr": 1,
+      "mining_shield_incr": 0,
+      "resources": [
+        "Peat",
+        "Spice"
+      ],
+      "flags": [
+        "CanHaveRiver"
+      ]
+    },
+    {
+      "name": "Tundra",
+      "identifier": "t",
+      "terrain_class": "Land",
+      "movement_cost": 1,
+      "defense_bonus": 0,
+      "food": 1,
+      "shield": 0,
+      "trade": 0,
+      "irrigation_food_incr": 0,
+      "mining_shield_incr": 1,
+      "resources": [
+        "Game",
+        "Furs"
+      ],
+      "flags": [
+        "NoBarbs",
+        "CanHaveRiver"
+      ]
+    }
+  ]
+}

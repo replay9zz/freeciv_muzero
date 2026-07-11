@@ -1,0 +1,1009 @@
+[
+  {
+    "name": "Settlers",
+    "unit_class": "Small Land",
+    "cost": 30,
+    "attack": 0,
+    "defense": 1,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [],
+    "flags": [
+      "Settlers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "AddToCity",
+      "Cities",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Migrants",
+    "unit_class": "Small Land",
+    "cost": 10,
+    "attack": 0,
+    "defense": 1,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Pottery"
+    ],
+    "flags": [
+      "Settlers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "AddToCity",
+      "Capturable",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Workers",
+    "unit_class": "Small Land",
+    "cost": 20,
+    "attack": 0,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [],
+    "flags": [
+      "Settlers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "Fortress"
+    ],
+    "obsolete_by": "Engineers"
+  },
+  {
+    "name": "Engineers",
+    "unit_class": "Small Land",
+    "cost": 30,
+    "attack": 0,
+    "defense": 2,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Explosives"
+    ],
+    "flags": [
+      "Settlers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "Fortress",
+      "Transform"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Warriors",
+    "unit_class": "Land",
+    "cost": 10,
+    "attack": 1,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [],
+    "flags": [
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Musketeers"
+  },
+  {
+    "name": "Phalanx",
+    "unit_class": "Land",
+    "cost": 20,
+    "attack": 1,
+    "defense": 2,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Bronze Working"
+    ],
+    "flags": [
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Pikemen"
+  },
+  {
+    "name": "Archers",
+    "unit_class": "Land",
+    "cost": 20,
+    "attack": 3,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Warrior Code"
+    ],
+    "flags": [
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Musketeers"
+  },
+  {
+    "name": "Legion",
+    "unit_class": "Land",
+    "cost": 30,
+    "attack": 4,
+    "defense": 2,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Iron Working"
+    ],
+    "flags": [
+      "Marines",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Musketeers"
+  },
+  {
+    "name": "Pikemen",
+    "unit_class": "Land",
+    "cost": 30,
+    "attack": 2,
+    "defense": 3,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Feudalism"
+    ],
+    "flags": [
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Musketeers"
+  },
+  {
+    "name": "Musketeers",
+    "unit_class": "Land",
+    "cost": 40,
+    "attack": 3,
+    "defense": 3,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Gunpowder"
+    ],
+    "flags": [
+      "Marines",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Riflemen"
+  },
+  {
+    "name": "Riflemen",
+    "unit_class": "Land",
+    "cost": 50,
+    "attack": 5,
+    "defense": 4,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Conscription"
+    ],
+    "flags": [
+      "Marines",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": "Marines"
+  },
+  {
+    "name": "Alpine Troops",
+    "unit_class": "Land",
+    "cost": 60,
+    "attack": 7,
+    "defense": 4,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Tactics"
+    ],
+    "flags": [
+      "IgTer",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Partisan",
+    "unit_class": "Land",
+    "cost": 60,
+    "attack": 4,
+    "defense": 5,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Guerilla Warfare"
+    ],
+    "flags": [
+      "IgTer",
+      "IgZOC",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Fanatics",
+    "unit_class": "Land",
+    "cost": 20,
+    "attack": 5,
+    "defense": 5,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Guerilla Warfare"
+    ],
+    "flags": [
+      "Fanatic",
+      "AddToCity",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Marines",
+    "unit_class": "Land",
+    "cost": 60,
+    "attack": 8,
+    "defense": 5,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Amphibious Warfare"
+    ],
+    "flags": [
+      "Marines",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Paratroopers",
+    "unit_class": "Land",
+    "cost": 60,
+    "attack": 6,
+    "defense": 4,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Combined Arms"
+    ],
+    "flags": [
+      "Paratroopers",
+      "Capturer",
+      "Fortress"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Mech. Inf.",
+    "unit_class": "Big Land",
+    "cost": 70,
+    "attack": 6,
+    "defense": 6,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 3,
+    "req_techs": [
+      "Labor Union"
+    ],
+    "flags": [],
+    "obsolete_by": null
+  },
+  {
+    "name": "Horsemen",
+    "unit_class": "Land",
+    "cost": 20,
+    "attack": 2,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Horseback Riding"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Knights"
+  },
+  {
+    "name": "Chariot",
+    "unit_class": "Big Land",
+    "cost": 30,
+    "attack": 4,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "The Wheel"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Dragoons"
+  },
+  {
+    "name": "Elephants",
+    "unit_class": "Land",
+    "cost": 30,
+    "attack": 3,
+    "defense": 2,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Polytheism"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Dragoons"
+  },
+  {
+    "name": "Crusaders",
+    "unit_class": "Land",
+    "cost": 40,
+    "attack": 5,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Monotheism"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Dragoons"
+  },
+  {
+    "name": "Knights",
+    "unit_class": "Land",
+    "cost": 40,
+    "attack": 4,
+    "defense": 3,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Chivalry"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Dragoons"
+  },
+  {
+    "name": "Dragoons",
+    "unit_class": "Land",
+    "cost": 50,
+    "attack": 5,
+    "defense": 2,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Leadership"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Cavalry"
+  },
+  {
+    "name": "Cavalry",
+    "unit_class": "Land",
+    "cost": 60,
+    "attack": 8,
+    "defense": 3,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Tactics"
+    ],
+    "flags": [
+      "Capturer"
+    ],
+    "obsolete_by": "Armor"
+  },
+  {
+    "name": "Armor",
+    "unit_class": "Big Land",
+    "cost": 90,
+    "attack": 10,
+    "defense": 5,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 3,
+    "req_techs": [
+      "Mobile Warfare"
+    ],
+    "flags": [],
+    "obsolete_by": null
+  },
+  {
+    "name": "Catapult",
+    "unit_class": "Big Land",
+    "cost": 40,
+    "attack": 6,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Mathematics"
+    ],
+    "flags": [],
+    "obsolete_by": "Cannon"
+  },
+  {
+    "name": "Cannon",
+    "unit_class": "Big Land",
+    "cost": 50,
+    "attack": 8,
+    "defense": 1,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Metallurgy"
+    ],
+    "flags": [],
+    "obsolete_by": "Artillery"
+  },
+  {
+    "name": "Artillery",
+    "unit_class": "Big Land",
+    "cost": 60,
+    "attack": 10,
+    "defense": 2,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Machine Tools"
+    ],
+    "flags": [
+      "CityBuster"
+    ],
+    "obsolete_by": "Howitzer"
+  },
+  {
+    "name": "Howitzer",
+    "unit_class": "Big Land",
+    "cost": 80,
+    "attack": 12,
+    "defense": 2,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Robotics"
+    ],
+    "flags": [
+      "CityBuster"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Fighter",
+    "unit_class": "Air",
+    "cost": 60,
+    "attack": 4,
+    "defense": 4,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 10,
+    "req_techs": [
+      "Flight"
+    ],
+    "flags": [
+      "AirAttacker",
+      "HasNoZOC"
+    ],
+    "obsolete_by": "Stealth Fighter"
+  },
+  {
+    "name": "Bomber",
+    "unit_class": "Air",
+    "cost": 100,
+    "attack": 6,
+    "defense": 2,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 8,
+    "req_techs": [
+      "Advanced Flight"
+    ],
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "AirAttacker",
+      "Bombarder",
+      "HasNoZOC"
+    ],
+    "obsolete_by": "Stealth Bomber"
+  },
+  {
+    "name": "Helicopter",
+    "unit_class": "Helicopter",
+    "cost": 70,
+    "attack": 5,
+    "defense": 3,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 6,
+    "req_techs": [
+      "Combined Arms"
+    ],
+    "flags": [
+      "OneAttack",
+      "AirAttacker",
+      "Bombarder",
+      "HasNoZOC",
+      "Provoking"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Stealth Fighter",
+    "unit_class": "Air",
+    "cost": 80,
+    "attack": 8,
+    "defense": 8,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 14,
+    "req_techs": [
+      "Stealth"
+    ],
+    "flags": [
+      "AirAttacker",
+      "HasNoZOC"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Stealth Bomber",
+    "unit_class": "Air",
+    "cost": 120,
+    "attack": 9,
+    "defense": 5,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 12,
+    "req_techs": [
+      "Stealth"
+    ],
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "AirAttacker",
+      "Bombarder",
+      "HasNoZOC"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Trireme",
+    "unit_class": "Trireme",
+    "cost": 20,
+    "attack": 0,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 3,
+    "req_techs": [
+      "Map Making"
+    ],
+    "flags": [
+      "BadCityDefender",
+      "HasNoZOC",
+      "Provoking",
+      "NonMil"
+    ],
+    "obsolete_by": "Transport"
+  },
+  {
+    "name": "Caravel",
+    "unit_class": "Sea",
+    "cost": 30,
+    "attack": 0,
+    "defense": 2,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 3,
+    "req_techs": [
+      "Magnetism"
+    ],
+    "flags": [
+      "BadCityDefender",
+      "Only_Native_Attack",
+      "HasNoZOC",
+      "Provoking",
+      "NonMil"
+    ],
+    "obsolete_by": "Galleon"
+  },
+  {
+    "name": "Galleon",
+    "unit_class": "Sea",
+    "cost": 40,
+    "attack": 0,
+    "defense": 2,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 4,
+    "req_techs": [
+      "Navigation"
+    ],
+    "flags": [
+      "BadCityDefender",
+      "HasNoZOC",
+      "Provoking",
+      "NonMil"
+    ],
+    "obsolete_by": "Transport"
+  },
+  {
+    "name": "Frigate",
+    "unit_class": "Sea",
+    "cost": 40,
+    "attack": 3,
+    "defense": 2,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 4,
+    "req_techs": [
+      "Navigation"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": "Ironclad"
+  },
+  {
+    "name": "Ironclad",
+    "unit_class": "Sea",
+    "cost": 50,
+    "attack": 4,
+    "defense": 3,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 4,
+    "req_techs": [
+      "Steam Engine"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": "Destroyer"
+  },
+  {
+    "name": "Destroyer",
+    "unit_class": "Sea",
+    "cost": 60,
+    "attack": 4,
+    "defense": 4,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 6,
+    "req_techs": [
+      "Engineering"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Cruiser",
+    "unit_class": "Sea",
+    "cost": 80,
+    "attack": 6,
+    "defense": 6,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 5,
+    "req_techs": [
+      "Steel"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": "AEGIS Cruiser"
+  },
+  {
+    "name": "AEGIS Cruiser",
+    "unit_class": "Sea",
+    "cost": 100,
+    "attack": 8,
+    "defense": 8,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 5,
+    "req_techs": [
+      "Rocketry"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Battleship",
+    "unit_class": "Sea",
+    "cost": 160,
+    "attack": 12,
+    "defense": 12,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 4,
+    "req_techs": [
+      "Mass Production"
+    ],
+    "flags": [
+      "BadCityDefender"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Submarine",
+    "unit_class": "Sea",
+    "cost": 70,
+    "attack": 12,
+    "defense": 5,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 5,
+    "req_techs": [
+      "Combustion"
+    ],
+    "flags": [
+      "BadCityDefender",
+      "Only_Native_Attack",
+      "Submarine",
+      "Provoking"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Carrier",
+    "unit_class": "Sea",
+    "cost": 150,
+    "attack": 0,
+    "defense": 9,
+    "hp": 40,
+    "firepower": 1,
+    "moves": 5,
+    "req_techs": [
+      "Advanced Flight"
+    ],
+    "flags": [
+      "BadCityDefender",
+      "HasNoZOC",
+      "Provoking"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Transport",
+    "unit_class": "Sea",
+    "cost": 50,
+    "attack": 0,
+    "defense": 3,
+    "hp": 30,
+    "firepower": 1,
+    "moves": 5,
+    "req_techs": [
+      "Engineering"
+    ],
+    "flags": [
+      "Settlers",
+      "BadCityDefender",
+      "HasNoZOC",
+      "Provoking",
+      "NonMil"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Cruise Missile",
+    "unit_class": "Missile",
+    "cost": 50,
+    "attack": 18,
+    "defense": 0,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 16,
+    "req_techs": [
+      "Rocketry"
+    ],
+    "flags": [
+      "OneAttack",
+      "AirAttacker",
+      "CityBuster",
+      "HasNoZOC"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Nuclear",
+    "unit_class": "Missile",
+    "cost": 160,
+    "attack": 99,
+    "defense": 0,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 0,
+    "req_techs": [
+      "Nuclear Fission"
+    ],
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "Nuclear",
+      "HasNoZOC"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Diplomat",
+    "unit_class": "Small Land",
+    "cost": 30,
+    "attack": 0,
+    "defense": 0,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "Alphabet"
+    ],
+    "flags": [
+      "Diplomat",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Provoking"
+    ],
+    "obsolete_by": "Spy"
+  },
+  {
+    "name": "Spy",
+    "unit_class": "Small Land",
+    "cost": 30,
+    "attack": 0,
+    "defense": 0,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 3,
+    "req_techs": [
+      "Espionage"
+    ],
+    "flags": [
+      "Diplomat",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Spy",
+      "Provoking"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Caravan",
+    "unit_class": "Merchant",
+    "cost": 50,
+    "attack": 0,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Trade"
+    ],
+    "flags": [
+      "TradeRoute",
+      "HelpWonder",
+      "NonMil",
+      "HasNoZOC",
+      "Capturable"
+    ],
+    "obsolete_by": "Freight"
+  },
+  {
+    "name": "Freight",
+    "unit_class": "Merchant",
+    "cost": 50,
+    "attack": 0,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 2,
+    "req_techs": [
+      "The Corporation"
+    ],
+    "flags": [
+      "TradeRoute",
+      "HelpWonder",
+      "NonMil",
+      "HasNoZOC",
+      "Capturable"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "Explorer",
+    "unit_class": "Small Land",
+    "cost": 30,
+    "attack": 0,
+    "defense": 1,
+    "hp": 10,
+    "firepower": 1,
+    "moves": 1,
+    "req_techs": [
+      "Seafaring"
+    ],
+    "flags": [
+      "IgTer",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Cant_Fortify"
+    ],
+    "obsolete_by": null
+  },
+  {
+    "name": "AWACS",
+    "unit_class": "Air",
+    "cost": 140,
+    "attack": 0,
+    "defense": 1,
+    "hp": 20,
+    "firepower": 1,
+    "moves": 16,
+    "req_techs": [
+      "Advanced Flight"
+    ],
+    "flags": [
+      "HasNoZOC"
+    ],
+    "obsolete_by": null
+  }
+]

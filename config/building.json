@@ -1,0 +1,761 @@
+[
+  {
+    "name": "Airport",
+    "cost": 120,
+    "req_techs": [
+      "Radio"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Aqueduct",
+    "cost": 60,
+    "req_techs": [],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Aqueduct, Lake",
+    "cost": 20,
+    "req_techs": [],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Aqueduct, River",
+    "cost": 20,
+    "req_techs": [],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Bank",
+    "cost": 80,
+    "req_techs": [
+      "Banking"
+    ],
+    "req_buildings": [
+      "Marketplace"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Barracks",
+    "cost": 30,
+    "req_techs": [],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": [
+      "Barracks"
+    ]
+  },
+  {
+    "name": "Barracks II",
+    "cost": 30,
+    "req_techs": [
+      "Gunpowder"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": [
+      "Barracks"
+    ]
+  },
+  {
+    "name": "Barracks III",
+    "cost": 30,
+    "req_techs": [
+      "Mobile Warfare"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": [
+      "Barracks"
+    ]
+  },
+  {
+    "name": "Cathedral",
+    "cost": 80,
+    "req_techs": [
+      "Monotheism"
+    ],
+    "req_buildings": [
+      "Temple"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "City Walls",
+    "cost": 30,
+    "req_techs": [
+      "Masonry"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": [
+      "VisibleByOthers"
+    ]
+  },
+  {
+    "name": "Coastal Defense",
+    "cost": 60,
+    "req_techs": [
+      "Navigation"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Colosseum",
+    "cost": 70,
+    "req_techs": [
+      "Construction"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Courthouse",
+    "cost": 60,
+    "req_techs": [
+      "Code of Laws"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Factory",
+    "cost": 140,
+    "req_techs": [
+      "Industrialization"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Granary",
+    "cost": 40,
+    "req_techs": [
+      "Pottery"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Harbour",
+    "cost": 40,
+    "req_techs": [
+      "Seafaring"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Hydro Plant",
+    "cost": 180,
+    "req_techs": [
+      "Electronics"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Library",
+    "cost": 60,
+    "req_techs": [
+      "Writing"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Marketplace",
+    "cost": 60,
+    "req_techs": [
+      "Currency"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Mass Transit",
+    "cost": 120,
+    "req_techs": [
+      "Mass Production"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Mfg. Plant",
+    "cost": 220,
+    "req_techs": [
+      "Plastics"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Nuclear Plant",
+    "cost": 240,
+    "req_techs": [
+      "Nuclear Power"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Offshore Platform",
+    "cost": 120,
+    "req_techs": [
+      "Miniaturization"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Palace",
+    "cost": 70,
+    "req_techs": [],
+    "req_buildings": [],
+    "genus": "SmallWonder",
+    "flags": [
+      "SaveSmallWonder"
+    ]
+  },
+  {
+    "name": "Police Station",
+    "cost": 50,
+    "req_techs": [
+      "Communism"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Port Facility",
+    "cost": 60,
+    "req_techs": [
+      "Amphibious Warfare"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Power Plant",
+    "cost": 130,
+    "req_techs": [
+      "Refining"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Recycling Center",
+    "cost": 140,
+    "req_techs": [
+      "Recycling"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Research Lab",
+    "cost": 120,
+    "req_techs": [
+      "Computers"
+    ],
+    "req_buildings": [
+      "University"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "SAM Battery",
+    "cost": 70,
+    "req_techs": [
+      "Rocketry"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "SDI Defense",
+    "cost": 140,
+    "req_techs": [
+      "Laser"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Sewer System",
+    "cost": 80,
+    "req_techs": [
+      "Sanitation"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Solar Plant",
+    "cost": 320,
+    "req_techs": [
+      "Environmentalism"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Space Component",
+    "cost": 300,
+    "req_techs": [
+      "Superconductors"
+    ],
+    "req_buildings": [
+      "Factory",
+      "Library",
+      "University",
+      "Research Lab"
+    ],
+    "genus": "Special",
+    "flags": []
+  },
+  {
+    "name": "Space Module",
+    "cost": 600,
+    "req_techs": [
+      "Environmentalism"
+    ],
+    "req_buildings": [
+      "Factory",
+      "Library",
+      "University",
+      "Research Lab"
+    ],
+    "genus": "Special",
+    "flags": []
+  },
+  {
+    "name": "Space Structural",
+    "cost": 150,
+    "req_techs": [
+      "Space Flight"
+    ],
+    "req_buildings": [
+      "Factory",
+      "Library",
+      "University",
+      "Research Lab"
+    ],
+    "genus": "Special",
+    "flags": []
+  },
+  {
+    "name": "Stock Exchange",
+    "cost": 120,
+    "req_techs": [
+      "Economics"
+    ],
+    "req_buildings": [
+      "Bank"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Super Highways",
+    "cost": 120,
+    "req_techs": [
+      "Automobile"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Supermarket",
+    "cost": 80,
+    "req_techs": [
+      "Refrigeration"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Temple",
+    "cost": 30,
+    "req_techs": [
+      "Ceremonial Burial"
+    ],
+    "req_buildings": [],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "University",
+    "cost": 120,
+    "req_techs": [
+      "University"
+    ],
+    "req_buildings": [
+      "Library"
+    ],
+    "genus": "Improvement",
+    "flags": []
+  },
+  {
+    "name": "Apollo Program",
+    "cost": 600,
+    "req_techs": [
+      "Space Flight"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "A.Smith's Trading Co.",
+    "cost": 400,
+    "req_techs": [
+      "Economics"
+    ],
+    "req_buildings": [
+      "Stock Exchange"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Colossus",
+    "cost": 200,
+    "req_techs": [
+      "Bronze Working"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Copernicus' Observatory",
+    "cost": 300,
+    "req_techs": [
+      "Astronomy"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Cure For Cancer",
+    "cost": 600,
+    "req_techs": [
+      "Genetic Engineering"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Darwin's Voyage",
+    "cost": 300,
+    "req_techs": [
+      "Steam Engine"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Eiffel Tower",
+    "cost": 300,
+    "req_techs": [
+      "Railroad"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Great Library",
+    "cost": 300,
+    "req_techs": [
+      "Literacy"
+    ],
+    "req_buildings": [
+      "Library"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Great Wall",
+    "cost": 300,
+    "req_techs": [
+      "Construction"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Hanging Gardens",
+    "cost": 200,
+    "req_techs": [
+      "Pottery"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Hoover Dam",
+    "cost": 600,
+    "req_techs": [
+      "Electronics"
+    ],
+    "req_buildings": [
+      "Factory"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Isaac Newton's College",
+    "cost": 400,
+    "req_techs": [
+      "Theory of Gravity"
+    ],
+    "req_buildings": [
+      "University"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "J.S. Bach's Cathedral",
+    "cost": 400,
+    "req_techs": [
+      "Theology"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "King Richard's Crusade",
+    "cost": 300,
+    "req_techs": [
+      "Chivalry"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Leonardo's Workshop",
+    "cost": 400,
+    "req_techs": [
+      "Invention"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Lighthouse",
+    "cost": 200,
+    "req_techs": [
+      "Map Making"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Magellan's Expedition",
+    "cost": 400,
+    "req_techs": [
+      "Magnetism"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Manhattan Project",
+    "cost": 600,
+    "req_techs": [
+      "Nuclear Fission"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Marco Polo's Embassy",
+    "cost": 200,
+    "req_techs": [
+      "Trade"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Michelangelo's Chapel",
+    "cost": 400,
+    "req_techs": [
+      "Monotheism"
+    ],
+    "req_buildings": [
+      "Cathedral"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Mausoleum of Mausolos",
+    "cost": 200,
+    "req_techs": [
+      "Ceremonial Burial"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Statue of Zeus",
+    "cost": 200,
+    "req_techs": [
+      "Polytheism"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Temple of Artemis",
+    "cost": 200,
+    "req_techs": [
+      "Mysticism"
+    ],
+    "req_buildings": [
+      "Temple"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Pyramids",
+    "cost": 200,
+    "req_techs": [
+      "Masonry"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Internet",
+    "cost": 600,
+    "req_techs": [
+      "Computers"
+    ],
+    "req_buildings": [
+      "Research Lab"
+    ],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Shakespeare's Theatre",
+    "cost": 300,
+    "req_techs": [
+      "Sanitation"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Statue of Liberty",
+    "cost": 400,
+    "req_techs": [
+      "Democracy"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Sun Tzu's War Academy",
+    "cost": 300,
+    "req_techs": [
+      "Feudalism"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "United Nations",
+    "cost": 600,
+    "req_techs": [
+      "Communism"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  },
+  {
+    "name": "Women's Suffrage",
+    "cost": 600,
+    "req_techs": [
+      "Conscription"
+    ],
+    "req_buildings": [],
+    "genus": "GreatWonder",
+    "flags": []
+  }
+]

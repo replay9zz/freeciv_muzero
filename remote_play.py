@@ -556,6 +556,36 @@ def main() -> None:
     ap.add_argument("--num-simulations", type=int, default=50)
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument(
+        "--mcts-backup-operator",
+        default=os.getenv("MUZERO_MCTS_BACKUP_OPERATOR", "wasserstein"),
+        choices=("mean", "wasserstein", "w-mcts", "wmcts"),
+    )
+    ap.add_argument(
+        "--mcts-wasserstein-power",
+        type=float,
+        default=float(os.getenv("MUZERO_MCTS_WASSERSTEIN_POWER", "1.0")),
+    )
+    ap.add_argument(
+        "--mcts-wasserstein-selection",
+        default=os.getenv("MUZERO_MCTS_WASSERSTEIN_SELECTION", "optimistic"),
+        choices=("optimistic", "thompson"),
+    )
+    ap.add_argument(
+        "--mcts-wasserstein-uncertainty-coef",
+        type=float,
+        default=float(os.getenv("MUZERO_MCTS_WASSERSTEIN_UNCERTAINTY_COEF", "0.25")),
+    )
+    ap.add_argument(
+        "--mcts-wasserstein-min-std",
+        type=float,
+        default=float(os.getenv("MUZERO_MCTS_WASSERSTEIN_MIN_STD", "1e-6")),
+    )
+    ap.add_argument(
+        "--mcts-wasserstein-shift-epsilon",
+        type=float,
+        default=float(os.getenv("MUZERO_MCTS_WASSERSTEIN_SHIFT_EPSILON", "1e-6")),
+    )
+    ap.add_argument(
         "--prefer-unit-move",
         action="store_true",
         help="Prefer legal non-hold unit movement actions; useful for short movement recordings.",
@@ -808,6 +838,12 @@ def main() -> None:
             file=sys.stderr,
         )
     config.num_simulations = args.num_simulations
+    config.mcts_backup_operator = args.mcts_backup_operator
+    config.mcts_wasserstein_power = args.mcts_wasserstein_power
+    config.mcts_wasserstein_selection = args.mcts_wasserstein_selection
+    config.mcts_wasserstein_uncertainty_coef = args.mcts_wasserstein_uncertainty_coef
+    config.mcts_wasserstein_min_std = args.mcts_wasserstein_min_std
+    config.mcts_wasserstein_shift_epsilon = args.mcts_wasserstein_shift_epsilon
     native_obs_shape = config.observation_shape
     obs_adapter = None
     if checkpoint_channels is not None and checkpoint_channels != native_obs_shape[0]:

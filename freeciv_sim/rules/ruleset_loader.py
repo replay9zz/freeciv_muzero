@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+import dataclasses
+import json
 import os
 import re
 
@@ -40,11 +42,28 @@ class BuildingRule:
 
 
 @dataclass(frozen=True)
+class TerrainRule:
+    name: str
+    identifier: str
+    terrain_class: str
+    movement_cost: int
+    defense_bonus: int
+    food: int
+    shield: int
+    trade: int
+    irrigation_food_incr: int
+    mining_shield_incr: int
+    resources: List[str]
+    flags: List[str]
+
+
+@dataclass(frozen=True)
 class Civ2Civ3Ruleset:
     techs: Tuple[str, ...]
     tech_prereqs: Dict[str, List[str]]
     units: Tuple[UnitRule, ...]
     buildings: Tuple[BuildingRule, ...]
+    terrains: Tuple[TerrainRule, ...]
 
 
 _QUOTED_RE = re.compile(r"\"([^\"]+)\"")
@@ -316,7 +335,7 @@ def load_civ2civ3_buildings() -> Tuple[BuildingRule, ...]:
         if not name:
             continue
         genus = _extract_first_quoted(str(fields.get("genus", "")))
-        if genus == "GreatWonder" or name == "Ecclesiastical Palace":
+        if name == "Ecclesiastical Palace":
             continue
         flags = _QUOTED_RE.findall(str(fields.get("flags", "")))
         if genus == "Convert" or "Gold" in flags:
@@ -343,16 +362,91 @@ def load_civ2civ3_buildings() -> Tuple[BuildingRule, ...]:
     return tuple(rules)
 
 
+def _int_field(fields: Dict[str, object], name: str, default: int = 0) -> int:
+    try:
+        return int(float(str(fields.get(name, default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def load_civ2civ3_terrains() -> Tuple[TerrainRule, ...]:
+    terrain_path = _ruleset_dir() / "terrain.ruleset"
+    sections = _parse_ruleset_sections(terrain_path, "terrain_")
+    rules: List[TerrainRule] = []
+    for entry in sections:
+        fields = entry["fields"]
+        name = _normalize_name(
+            _extract_first_quoted(str(fields.get("rule_name", fields.get("name", ""))))
+        )
+        if not name:
+            continue
+        rules.append(
+            TerrainRule(
+                name=name,
+                identifier=_extract_first_quoted(str(fields.get("identifier", ""))),
+                terrain_class=_extract_first_quoted(str(fields.get("class", ""))),
+                movement_cost=_int_field(fields, "movement_cost", 1),
+                defense_bonus=_int_field(fields, "defense_bonus"),
+                food=_int_field(fields, "food"),
+                shield=_int_field(fields, "shield"),
+                trade=_int_field(fields, "trade"),
+                irrigation_food_incr=_int_field(fields, "irrigation_food_incr"),
+                mining_shield_incr=_int_field(fields, "mining_shield_incr"),
+                resources=_QUOTED_RE.findall(str(fields.get("resources", ""))),
+                flags=_QUOTED_RE.findall(str(fields.get("flags", ""))),
+            )
+        )
+    return tuple(rules)
+
+
 def load_civ2civ3_ruleset() -> Civ2Civ3Ruleset:
     techs, prereqs = load_civ2civ3_techs()
     units = load_civ2civ3_units()
     buildings = load_civ2civ3_buildings()
+    terrains = load_civ2civ3_terrains()
     return Civ2Civ3Ruleset(
         techs=techs,
         tech_prereqs=prereqs,
         units=units,
         buildings=buildings,
+        terrains=terrains,
     )
+
+
+def export_ruleset_config(output_dir: Path | str) -> None:
+    """Write the active ruleset as stable, human-readable NN input metadata."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ruleset = load_civ2civ3_ruleset()
+    units = [dataclasses.asdict(rule) for rule in ruleset.units]
+    buildings = [dataclasses.asdict(rule) for rule in ruleset.buildings]
+    terrains = [dataclasses.asdict(rule) for rule in ruleset.terrains]
+    research = [
+        {
+            "name": tech,
+            "prerequisites": ruleset.tech_prereqs.get(tech, []),
+            "unlocks_units": [u.name for u in ruleset.units if tech in u.req_techs],
+            "unlocks_buildings": [b.name for b in ruleset.buildings if tech in b.req_techs],
+        }
+        for tech in ruleset.techs
+    ]
+    values = {
+        "unit.json": units,
+        "research.json": research,
+        "building.json": buildings,
+        "terrain.json": terrains,
+        "ruleset.json": {
+            "units": units,
+            "research": research,
+            "buildings": buildings,
+            "terrains": terrains,
+        },
+    }
+    for filename, value in values.items():
+        (output_dir / filename).write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
 
 def load_civ2civ3_unlocks() -> List[Dict[str, object]]:

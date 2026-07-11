@@ -86,6 +86,10 @@ PRODUCTION_UNIT_NAMES: Tuple[str, ...] = tuple(rule.name for rule in _RULESET.un
 PRODUCTION_BUILDING_NAMES: Tuple[str, ...] = tuple(
     rule.name for rule in _RULESET.buildings
 )
+UNIT_TYPE_NAMES: Tuple[str, ...] = PRODUCTION_UNIT_NAMES
+UNIT_TYPE_INDEX: Dict[str, int] = {
+    name: idx for idx, name in enumerate(UNIT_TYPE_NAMES)
+}
 PRODUCTION_ITEM_NAMES: Tuple[Tuple[str, str], ...] = tuple(
     [("unit", name) for name in PRODUCTION_UNIT_NAMES]
     + [("building", name) for name in PRODUCTION_BUILDING_NAMES]
@@ -114,6 +118,18 @@ for rule in _RULESET.units:
     )
     UNIT_TECHS[rule.name] = list(rule.req_techs)
     UNIT_OBSOLETE_BY[rule.name] = rule.obsolete_by
+
+TERRAIN_SPECS = {rule.name.lower(): rule for rule in _RULESET.terrains}
+_MAX_UNIT_ATTACK = max((rule.attack for rule in _RULESET.units), default=1)
+_MAX_UNIT_DEFENSE = max((rule.defense for rule in _RULESET.units), default=1)
+_MAX_UNIT_HP = max((rule.hp for rule in _RULESET.units), default=1)
+_MAX_UNIT_FIREPOWER = max((rule.firepower for rule in _RULESET.units), default=1)
+_MAX_UNIT_MOVES = max((rule.moves for rule in _RULESET.units), default=1)
+_MAX_UNIT_COST = max((rule.cost for rule in _RULESET.units), default=1)
+_MAX_TERRAIN_FOOD = max((rule.food for rule in _RULESET.terrains), default=1)
+_MAX_TERRAIN_SHIELD = max((rule.shield for rule in _RULESET.terrains), default=1)
+_MAX_TERRAIN_TRADE = max((rule.trade for rule in _RULESET.terrains), default=1)
+_MAX_TERRAIN_MOVE = max((rule.movement_cost for rule in _RULESET.terrains), default=1)
 
 UNIT_GENERATION_CHAINS: Tuple[Tuple[str, ...], ...] = (
     (
@@ -601,37 +617,9 @@ class MultiheadState:
             if city_idx in acted_prod:
                 continue
             city = self.cities[player][city_idx]
-            unit_count = self._city_unit_count(player, city_idx)
-            garrison_count = sum(
-                1
-                for u in self.units[player]
-                if u.alive and u.x == city.x and u.y == city.y
-            )
-            min_units = int(getattr(self.cfg, "city_unit_min", 0))
-            free_units = int(getattr(self.cfg, "city_unit_free", 0))
-            queue_limit = getattr(self.cfg, "production_queue_max", 0)
-            if city.production_target and queue_limit > 0:
-                if len(city.production_queue) >= queue_limit:
-                    continue
             for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
                 if kind == "unit":
-                    if self._unit_is_excluded(name):
-                        continue
-                    settler_min_size = int(getattr(self.cfg, "settler_min_city_size", 1))
-                    if name == "Settlers" and city.size < settler_min_size:
-                        continue
-                    if (
-                        free_units > 0
-                        and unit_count >= free_units
-                        and garrison_count >= min_units
-                        and name != "Settlers"
-                    ):
-                        continue
-                    if self._city_unit_count(player, city_idx) >= self.cfg.city_unit_cap:
-                        continue
                     if not self._unit_unlocked(player, name):
-                        continue
-                    if self._unit_obsolete(player, name):
                         continue
                 else:
                     if (
@@ -644,33 +632,11 @@ class MultiheadState:
                         for queued_kind, queued_name in city.production_queue
                     ):
                         continue
-                    if min_units > 0 and unit_count < min_units:
-                        continue
                     if not self._building_unlocked(player, city, name):
                         continue
                 moves[
                     prod_offset + city_idx * self.PRODUCTION_ITEM_COUNT + item_idx
                 ] = 1
-        if self._player_has_worker_like(player):
-            for city_idx in range(min(len(self.cities[player]), self.max_cities)):
-                start = prod_offset + city_idx * self.PRODUCTION_ITEM_COUNT
-                end = min(start + self.PRODUCTION_ITEM_COUNT, len(moves))
-                if start >= len(moves) or not moves[start:end].any():
-                    continue
-                worker_actions = []
-                other_actions = []
-                for item_idx in range(self.PRODUCTION_ITEM_COUNT):
-                    action_idx = start + item_idx
-                    if action_idx >= len(moves) or not moves[action_idx]:
-                        continue
-                    kind, name = PRODUCTION_ITEM_NAMES[item_idx]
-                    if kind == "unit" and self._unit_is_worker_like(name):
-                        worker_actions.append(action_idx)
-                    else:
-                        other_actions.append(action_idx)
-                if other_actions and worker_actions:
-                    for action_idx in worker_actions:
-                        moves[action_idx] = 0
         # pass always valid
         moves[self.PASS_ACTION] = 1
         return moves
@@ -812,50 +778,38 @@ class MultiheadState:
                     queue_limit = getattr(self.cfg, "production_queue_max", 0)
                     queue_add = max(1, int(getattr(self.cfg, "production_queue_add", 1)))
                     add_count = 1 if kind == "building" else queue_add
-                    skip_unit = False
                     if kind == "unit":
-                        name = self._upgrade_unit_name(player, name)
-                        if self._unit_is_excluded(name):
-                            skip_unit = True
-                    if not skip_unit and city.production_target:
-                        if kind == "building":
+                        if self._unit_unlocked(player, name):
                             if (
-                                city.production_kind == "building"
-                                and city.production_target == name
+                                city.production_kind != "unit"
+                                or city.production_target != name
                             ):
-                                pass
-                            elif any(
-                                queued_kind == "building" and queued_name == name
-                                for queued_kind, queued_name in city.production_queue
-                            ):
-                                pass
-                            else:
-                                if queue_limit <= 0 or len(city.production_queue) < queue_limit:
-                                    city.production_queue.append((kind, name))
-                        else:
-                            for _ in range(add_count):
-                                if queue_limit > 0 and len(city.production_queue) >= queue_limit:
-                                    break
-                                city.production_queue.append((kind, name))
-                    elif not skip_unit:
-                        if kind == "unit":
-                            if self._unit_unlocked(player, name):
                                 city.production_kind = "unit"
                                 city.production_target = name
                                 city.production_progress = 0.0
-                                for _ in range(add_count - 1):
-                                    if queue_limit > 0 and len(city.production_queue) >= queue_limit:
-                                        break
-                                    city.production_queue.append((kind, name))
+                    elif city.production_target:
+                        if (
+                            city.production_kind == "building"
+                            and city.production_target == name
+                        ):
+                            pass
+                        elif any(
+                            queued_kind == "building" and queued_name == name
+                            for queued_kind, queued_name in city.production_queue
+                        ):
+                            pass
                         else:
-                            if self._building_unlocked(player, city, name):
-                                city.production_kind = "building"
-                                city.production_target = name
-                                city.production_progress = 0.0
-                                for _ in range(add_count - 1):
-                                    if queue_limit > 0 and len(city.production_queue) >= queue_limit:
-                                        break
-                                    city.production_queue.append((kind, name))
+                            if queue_limit <= 0 or len(city.production_queue) < queue_limit:
+                                city.production_queue.append((kind, name))
+                    else:
+                        if self._building_unlocked(player, city, name):
+                            city.production_kind = "building"
+                            city.production_target = name
+                            city.production_progress = 0.0
+                            for _ in range(add_count - 1):
+                                if queue_limit > 0 and len(city.production_queue) >= queue_limit:
+                                    break
+                                city.production_queue.append((kind, name))
                     self.acted_production_cities.setdefault(player, set()).add(city_slot)
         self._resolve_terminal()
         # Stay in the same turn unless we exceed the per-turn action cap.
@@ -1527,6 +1481,30 @@ class MultiheadState:
         channels: List[np.ndarray] = []
         channels.append((self.gt.au_map == 'A').astype(np.float32))
         channels.append((self.gt.au_map == 'U').astype(np.float32))
+        revealed = (self.gt.au_map != "U").astype(np.float32)
+        visited = self.visited.get(perspective)
+        channels.append(revealed)
+        channels.append(
+            visited.astype(np.float32)
+            if visited is not None
+            else np.zeros_like(channels[0])
+        )
+        terrain_food = np.zeros_like(channels[0])
+        terrain_shield = np.zeros_like(channels[0])
+        terrain_trade = np.zeros_like(channels[0])
+        terrain_move_cost = np.zeros_like(channels[0])
+        terrain_defense = np.zeros_like(channels[0])
+        if self.gt.terrain_map is not None:
+            for terrain_name, spec in TERRAIN_SPECS.items():
+                mask = np.char.lower(self.gt.terrain_map.astype(str)) == terrain_name
+                terrain_food[mask] = spec.food / max(1, _MAX_TERRAIN_FOOD)
+                terrain_shield[mask] = spec.shield / max(1, _MAX_TERRAIN_SHIELD)
+                terrain_trade[mask] = spec.trade / max(1, _MAX_TERRAIN_TRADE)
+                terrain_move_cost[mask] = spec.movement_cost / max(1, _MAX_TERRAIN_MOVE)
+                terrain_defense[mask] = spec.defense_bonus / 100.0
+        channels.extend(
+            [terrain_food, terrain_shield, terrain_trade, terrain_move_cost, terrain_defense]
+        )
         unit_me = np.zeros_like(channels[0])
         unit_opp = np.zeros_like(channels[0])
         hp_me = np.zeros_like(channels[0])
@@ -1557,14 +1535,32 @@ class MultiheadState:
         production_next_opp = [
             np.zeros_like(channels[0]) for _ in PRODUCTION_ITEM_NAMES
         ]
+        unit_type_me = [np.zeros_like(channels[0]) for _ in UNIT_TYPE_NAMES]
+        unit_type_opp = [np.zeros_like(channels[0]) for _ in UNIT_TYPE_NAMES]
+        unit_rule_me = [np.zeros_like(channels[0]) for _ in range(8)]
+        unit_rule_opp = [np.zeros_like(channels[0]) for _ in range(8)]
+        unit_reachable_me = [np.zeros_like(channels[0]) for _ in range(self.max_units)]
+        unit_city_site_reachable_me = [
+            np.zeros_like(channels[0]) for _ in range(self.max_units)
+        ]
         fatigue_turn = self.turn - 1
-        for u in self.units[me]:
+        for unit_slot, u in enumerate(self.units[me][: self.max_units]):
             if not u.alive:
                 continue
             unit_me[u.y, u.x] = 1.0
             hp_me[u.y, u.x] = u.hp / 20.0
             max_moves = max(1, self._unit_max_moves(u))
             moves_left_me[u.y, u.x] = min(1.0, float(u.moves_left) / float(max_moves))
+            unit_type_idx = UNIT_TYPE_INDEX.get(u.unit_type)
+            if unit_type_idx is not None:
+                unit_type_me[unit_type_idx][u.y, u.x] = 1.0
+            self._encode_unit_rule(u, unit_rule_me)
+            self._encode_unit_reachable(
+                me,
+                u,
+                unit_reachable_me[unit_slot],
+                unit_city_site_reachable_me[unit_slot],
+            )
             if self.turn > 0 and u.last_move_turn == fatigue_turn:
                 fatigue_me[u.y, u.x] = 1.0
         for u in self.units[opp]:
@@ -1574,6 +1570,10 @@ class MultiheadState:
             hp_opp[u.y, u.x] = u.hp / 20.0
             max_moves = max(1, self._unit_max_moves(u))
             moves_left_opp[u.y, u.x] = min(1.0, float(u.moves_left) / float(max_moves))
+            unit_type_idx = UNIT_TYPE_INDEX.get(u.unit_type)
+            if unit_type_idx is not None:
+                unit_type_opp[unit_type_idx][u.y, u.x] = 1.0
+            self._encode_unit_rule(u, unit_rule_opp)
             if self.turn > 0 and u.last_move_turn == fatigue_turn:
                 fatigue_opp[u.y, u.x] = 1.0
         for c in self.cities[me]:
@@ -1626,18 +1626,105 @@ class MultiheadState:
         channels.extend(production_current_opp)
         channels.extend(production_next_me)
         channels.extend(production_next_opp)
+        channels.extend(unit_type_me)
+        channels.extend(unit_type_opp)
+        channels.extend(unit_rule_me)
+        channels.extend(unit_rule_opp)
+        channels.extend(unit_reachable_me)
+        channels.extend(unit_city_site_reachable_me)
         # research planes
         for tech in self.RESEARCH_TECHS:
             tme = np.full_like(unit_me, 1.0 if self.research_done[me].get(tech, False) else 0.0)
             topp = np.full_like(unit_me, 1.0 if self.research_done[opp].get(tech, False) else 0.0)
             channels.append(tme)
             channels.append(topp)
+            prereqs = TECH_PREREQS.get(tech, [])
+            available_me = not self.research_done[me].get(tech, False) and all(
+                self.research_done[me].get(req, False) for req in prereqs
+            )
+            available_opp = not self.research_done[opp].get(tech, False) and all(
+                self.research_done[opp].get(req, False) for req in prereqs
+            )
+            channels.append(np.full_like(unit_me, float(available_me)))
+            channels.append(np.full_like(unit_me, float(available_opp)))
+        turn_plane = np.full_like(
+            unit_me,
+            min(float(self.turn) / float(max(1, self.cfg.max_turns)), 1.0),
+        )
+        channels.append(turn_plane)
         progress_plane = np.full_like(
             unit_me,
             min(self.num_actions / max(1, self.cfg.max_num_actions), 1.0),
         )
         channels.append(progress_plane)
         return np.stack(channels, axis=0)
+
+    def _encode_unit_rule(self, unit: MHUnit, planes: List[np.ndarray]) -> None:
+        spec = UNIT_SPECS.get(unit.unit_type)
+        if spec is None:
+            return
+        values = (
+            spec.atk / max(1, _MAX_UNIT_ATTACK),
+            spec.df / max(1, _MAX_UNIT_DEFENSE),
+            spec.hp / max(1, _MAX_UNIT_HP),
+            spec.firepower / max(1, _MAX_UNIT_FIREPOWER),
+            spec.moves / max(1, _MAX_UNIT_MOVES),
+            spec.cost / max(1, _MAX_UNIT_COST),
+            float(spec.can_build_city),
+            float(bool(spec.obsolete_by)),
+        )
+        for plane, value in zip(planes, values):
+            plane[unit.y, unit.x] = value
+
+    def _encode_unit_reachable(
+        self,
+        player: Player,
+        unit: MHUnit,
+        reachable_plane: np.ndarray,
+        city_site_plane: np.ndarray,
+    ) -> None:
+        if not unit.alive:
+            return
+        max_steps = max(0, int(unit.moves_left))
+        if max_steps <= 0:
+            reachable_plane[unit.y, unit.x] = 1.0
+            if unit.can_build_city and self._can_found_city_at(player, unit.x, unit.y):
+                city_site_plane[unit.y, unit.x] = 1.0
+            return
+
+        seen = {(unit.x, unit.y)}
+        frontier = [(unit.x, unit.y)]
+        reachable_plane[unit.y, unit.x] = 1.0
+        if unit.can_build_city and self._can_found_city_at(player, unit.x, unit.y):
+            city_site_plane[unit.y, unit.x] = 1.0
+        for _depth in range(max_steps):
+            next_frontier: list[Coord] = []
+            for x, y in frontier:
+                for nx, ny in self.movement.get_native_neighbors(x, y):
+                    if nx is None or ny is None or (nx, ny) in seen:
+                        continue
+                    if not (0 <= nx < self.cfg.map_w and 0 <= ny < self.cfg.map_h):
+                        continue
+                    if self.gt is not None and self.gt.au_map[ny, nx] != "A":
+                        continue
+                    own_city = self._city_at(nx, ny, player) is not None
+                    if self._unit_at(nx, ny, player) is not None and not own_city:
+                        continue
+                    seen.add((nx, ny))
+                    next_frontier.append((nx, ny))
+                    reachable_plane[ny, nx] = 1.0
+                    if unit.can_build_city and self._can_found_city_at(player, nx, ny):
+                        city_site_plane[ny, nx] = 1.0
+            frontier = next_frontier
+            if not frontier:
+                break
+
+    def _can_found_city_at(self, player: Player, x: int, y: int) -> bool:
+        if len(self.cities[player]) >= self.max_cities:
+            return False
+        if self._city_at(x, y, player) is not None:
+            return False
+        return self._city_spacing_ok(player, x, y)
 
     def _encode_city_production(
         self,

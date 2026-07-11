@@ -22,9 +22,14 @@ Coord = Tuple[int, int]
 class GroundTruth:
     au_map: np.ndarray  # str array with 'A' or 'U'
     enemy_map: np.ndarray  # bool array
+    terrain_map: np.ndarray | None = None  # visible/remembered terrain rule names
 
     def copy(self) -> "GroundTruth":
-        return GroundTruth(self.au_map.copy(), self.enemy_map.copy())
+        return GroundTruth(
+            self.au_map.copy(),
+            self.enemy_map.copy(),
+            None if self.terrain_map is None else self.terrain_map.copy(),
+        )
 
 
 class BaseProvider:

@@ -16,6 +16,7 @@ if str(ROOT_DIR) not in sys.path:
 from freeciv_sim.state.config import MapConfig
 from freeciv_sim.state.providers import RandomMapProvider
 from freeciv_sim.rules.research import TECH_PREREQS
+from freeciv_sim.rules.ruleset_loader import export_ruleset_config
 from freeciv_sim.state.multihead_state import (
     MultiheadState,
     PRODUCTION_UNIT_NAMES,
@@ -41,6 +42,16 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "y", "on")
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 def _make_map_config(max_turns: int | None = None) -> MapConfig:
     if max_turns is None:
         max_turns = _env_int("FREECIV_MAX_TURNS", 100)
@@ -63,6 +74,7 @@ def _make_map_config(max_turns: int | None = None) -> MapConfig:
 
 class MuZeroConfig:
     def __init__(self):
+        export_ruleset_config(pathlib.Path(__file__).resolve().parents[1] / "config")
         # fmt: off
         self.seed = 0
         self.max_num_gpus = 1
@@ -108,12 +120,20 @@ class MuZeroConfig:
         # UCB formula
         self.pb_c_base = 19652
         self.pb_c_init = 1.25
-        self.mcts_backup_operator = "mean"
-        self.mcts_wasserstein_power = 1.0
-        self.mcts_wasserstein_selection = "optimistic"
-        self.mcts_wasserstein_uncertainty_coef = 0.0
-        self.mcts_wasserstein_min_std = 1e-6
-        self.mcts_wasserstein_shift_epsilon = 1e-6
+        self.mcts_backup_operator = os.getenv("MUZERO_MCTS_BACKUP_OPERATOR", "wasserstein")
+        self.mcts_wasserstein_power = _env_float("MUZERO_MCTS_WASSERSTEIN_POWER", 1.0)
+        self.mcts_wasserstein_selection = os.getenv(
+            "MUZERO_MCTS_WASSERSTEIN_SELECTION", "optimistic"
+        )
+        self.mcts_wasserstein_uncertainty_coef = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_UNCERTAINTY_COEF", 0.25
+        )
+        self.mcts_wasserstein_min_std = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_MIN_STD", 1e-6
+        )
+        self.mcts_wasserstein_shift_epsilon = _env_float(
+            "MUZERO_MCTS_WASSERSTEIN_SHIFT_EPSILON", 1e-6
+        )
 
         ### Network
         self.network = "resnet"

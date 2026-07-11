@@ -646,7 +646,7 @@ class MuZero:
         self_play_worker = self_play.SelfPlay.options(
             num_cpus=0,
             num_gpus=num_gpus,
-        ).remote(self.checkpoint, self.Game, self.config, numpy.random.randint(10000))
+        ).remote(self.checkpoint, self.Game, self.config, self.config.seed)
         results = []
         for i in range(num_tests):
             print(f"Testing {i+1}/{num_tests}")

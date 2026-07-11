@@ -1,0 +1,289 @@
+[
+  {
+    "name": "Inaccessible",
+    "identifier": "i",
+    "terrain_class": "Land",
+    "movement_cost": 0,
+    "defense_bonus": 0,
+    "food": 0,
+    "shield": 0,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [],
+    "flags": [
+      "NotGenerated",
+      "NoPollution",
+      "NoCities",
+      "UnsafeCoast",
+      "Frozen"
+    ]
+  },
+  {
+    "name": "Lake",
+    "identifier": "+",
+    "terrain_class": "Oceanic",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 2,
+    "shield": 0,
+    "trade": 2,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Fish"
+    ],
+    "flags": [
+      "NoCities",
+      "NoBarbs",
+      "NoPollution",
+      "FreshWater",
+      "NoZoc",
+      "NoFortify"
+    ]
+  },
+  {
+    "name": "Ocean",
+    "identifier": "",
+    "terrain_class": "Oceanic",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 1,
+    "shield": 0,
+    "trade": 2,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Fish",
+      "Whales"
+    ],
+    "flags": [
+      "NoCities",
+      "UnsafeCoast",
+      "NoZoc",
+      "NoFortify",
+      "Sea"
+    ]
+  },
+  {
+    "name": "Deep Ocean",
+    "identifier": ":",
+    "terrain_class": "Oceanic",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 1,
+    "shield": 0,
+    "trade": 2,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [],
+    "flags": [
+      "NoCities",
+      "NoPollution",
+      "UnsafeCoast",
+      "NoZoc",
+      "NoFortify",
+      "Sea"
+    ]
+  },
+  {
+    "name": "Glacier",
+    "identifier": "a",
+    "terrain_class": "Land",
+    "movement_cost": 2,
+    "defense_bonus": 0,
+    "food": 0,
+    "shield": 0,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 1,
+    "resources": [
+      "Ivory",
+      "Oil"
+    ],
+    "flags": [
+      "NoBarbs",
+      "NoCities",
+      "CanHaveRiver",
+      "Oil",
+      "Frozen"
+    ]
+  },
+  {
+    "name": "Desert",
+    "identifier": "d",
+    "terrain_class": "Land",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 0,
+    "shield": 1,
+    "trade": 0,
+    "irrigation_food_incr": 1,
+    "mining_shield_incr": 1,
+    "resources": [
+      "Oasis",
+      "Oil"
+    ],
+    "flags": [
+      "CanHaveRiver",
+      "Oil"
+    ]
+  },
+  {
+    "name": "Forest",
+    "identifier": "f",
+    "terrain_class": "Land",
+    "movement_cost": 2,
+    "defense_bonus": 25,
+    "food": 1,
+    "shield": 2,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Pheasant",
+      "Silk"
+    ],
+    "flags": [
+      "Starter",
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Grassland",
+    "identifier": "g",
+    "terrain_class": "Land",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 2,
+    "shield": 0,
+    "trade": 0,
+    "irrigation_food_incr": 1,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Resources"
+    ],
+    "flags": [
+      "Starter",
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Hills",
+    "identifier": "h",
+    "terrain_class": "Land",
+    "movement_cost": 2,
+    "defense_bonus": 50,
+    "food": 1,
+    "shield": 1,
+    "trade": 0,
+    "irrigation_food_incr": 1,
+    "mining_shield_incr": 2,
+    "resources": [
+      "Coal",
+      "Wine"
+    ],
+    "flags": [
+      "Starter",
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Jungle",
+    "identifier": "j",
+    "terrain_class": "Land",
+    "movement_cost": 2,
+    "defense_bonus": 25,
+    "food": 1,
+    "shield": 1,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Gems",
+      "Fruit"
+    ],
+    "flags": [
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Mountains",
+    "identifier": "m",
+    "terrain_class": "Land",
+    "movement_cost": 3,
+    "defense_bonus": 100,
+    "food": 0,
+    "shield": 1,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 2,
+    "resources": [
+      "Gold",
+      "Iron"
+    ],
+    "flags": [
+      "NoCities",
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Plains",
+    "identifier": "p",
+    "terrain_class": "Land",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 1,
+    "shield": 1,
+    "trade": 0,
+    "irrigation_food_incr": 1,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Buffalo",
+      "Wheat"
+    ],
+    "flags": [
+      "Starter",
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Swamp",
+    "identifier": "s",
+    "terrain_class": "Land",
+    "movement_cost": 2,
+    "defense_bonus": 25,
+    "food": 1,
+    "shield": 0,
+    "trade": 0,
+    "irrigation_food_incr": 1,
+    "mining_shield_incr": 0,
+    "resources": [
+      "Peat",
+      "Spice"
+    ],
+    "flags": [
+      "CanHaveRiver"
+    ]
+  },
+  {
+    "name": "Tundra",
+    "identifier": "t",
+    "terrain_class": "Land",
+    "movement_cost": 1,
+    "defense_bonus": 0,
+    "food": 1,
+    "shield": 0,
+    "trade": 0,
+    "irrigation_food_incr": 0,
+    "mining_shield_incr": 1,
+    "resources": [
+      "Game",
+      "Furs"
+    ],
+    "flags": [
+      "NoBarbs",
+      "CanHaveRiver"
+    ]
+  }
+]
