@@ -1717,14 +1717,22 @@ class Game(AbstractGame):
             spec = UNIT_SPECS.get(unit_name or "") or UNIT_SPECS.get("Warriors")
             if spec is None:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else 10
-                moves_val = max(0, int(unit_moves)) if unit_moves is not None else 1
+                moves_val = (
+                    int(unit_moves)
+                    if unit_moves is not None and unit_moves > 0
+                    else 1
+                )
                 unit = MHUnit(
                     ux, uy, hp_val, 2, 1, 1, unit_name or "Warriors", True, False, None, moves_val
                 )
                 slot_label = (unit_name or unit_type or "Warriors").strip()
             else:
                 hp_val = unit_hp if unit_hp is not None and unit_hp > 0 else spec.hp
-                moves_val = max(0, int(unit_moves)) if unit_moves is not None else int(spec.moves)
+                moves_val = (
+                    int(unit_moves)
+                    if unit_moves is not None and unit_moves > 0
+                    else int(spec.moves)
+                )
                 unit = MHUnit(
                     ux,
                     uy,
@@ -3549,8 +3557,6 @@ class Game(AbstractGame):
 
         econ_idx = action - (board_state.MOVE_SIZE + board_state.ATTACK_SIZE)
         if 0 <= econ_idx < len(board_state.RESEARCH_TECHS):
-            if not owned_cities:
-                return
             tech_name = board_state.RESEARCH_TECHS[econ_idx]
             success = alpha_live.set_research_to_target(
                 self.client,
@@ -3633,9 +3639,11 @@ class Game(AbstractGame):
                     break
         self._apply_action(action, board_state, owned_cities)
         self._gameplay_started = True
-        # A unit may move repeatedly while Freeciv reports moves_left > 0.
-        # Attacks and city founding remain one-shot actions for the turn.
-        if board_state.MOVE_SIZE <= action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
+        # LuaRemote does not expose Unit.moves_left. Keep each unit action
+        # one-shot per turn so fallback movement points cannot cause retries.
+        if action < board_state.MOVE_SIZE:
+            self.acted_unit_slots.add(action // board_state.MOVE_PER_UNIT)
+        elif action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
             rel = action - board_state.MOVE_SIZE
             self.acted_unit_slots.add(rel // board_state.ATTACK_PER_UNIT)
         else:
@@ -4011,6 +4019,23 @@ class Game(AbstractGame):
         #     return forced_mask
         # valid = self._prefer_attack_actions(valid)
         # valid = self._apply_action_curriculum(valid)
+        if self.debug_actions:
+            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
+            build_end = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
+            production_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+            self._debug_action(
+                "legal "
+                f"move={numpy.count_nonzero(valid[:self._last_state.MOVE_SIZE])} "
+                f"attack={numpy.count_nonzero(valid[self._last_state.MOVE_SIZE:econ_offset])} "
+                f"research={numpy.count_nonzero(valid[econ_offset:research_end])} "
+                f"build_city={numpy.count_nonzero(valid[research_end:build_end])} "
+                f"production={numpy.count_nonzero(valid[build_end:production_end])} "
+                f"units={sum(uid is not None for uid in self.unit_slots)} "
+                f"controlled={self.controlled_units} status={len(self.unit_status)} "
+                f"cities={len(self.city_slots)} "
+                f"current_research={self.current_research!r}"
+            )
         non_pass = valid.copy()
         non_pass[self._last_state.PASS_ACTION] = 0
         if non_pass.any():
