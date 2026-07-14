@@ -440,21 +440,71 @@ class MuZero:
 
     def wait_for_training_end(self, start_time=None):
         """
-        Block until training completes when TensorBoard logging is disabled.
+        Block until training completes without a live test worker.
+
+        Training metrics are still written to TensorBoard unless explicitly
+        disabled, so long headless runs can be inspected after completion.
         """
         if start_time is None:
             start_time = time.time()
-        print("\nTraining (no TensorBoard)...\n")
-        keys = ["training_step", "num_played_games", "total_loss"]
+        tensorboard_enabled = os.getenv(
+            "MUZERO_TRAINING_TENSORBOARD", "1"
+        ).strip().lower() not in ("0", "false", "no", "off")
+        tensorboard_enabled = tensorboard_enabled and os.getenv(
+            "MUZERO_DISABLE_TENSORBOARD", ""
+        ).strip().lower() not in ("1", "true", "yes", "y", "on")
+        writer = SummaryWriter(self.config.results_path) if tensorboard_enabled else None
+        if writer is not None:
+            hp_table = [
+                f"| {key} | {value} |" for key, value in self.config.__dict__.items()
+            ]
+            writer.add_text(
+                "Hyperparameters",
+                "| Parameter | Value |\n|-------|-------|\n" + "\n".join(hp_table),
+            )
+            writer.add_text("Model summary", self.summary)
+            print(f"\nTraining (TensorBoard: {self.config.results_path})...\n")
+        else:
+            print("\nTraining (no TensorBoard)...\n")
+        keys = [
+            "training_step",
+            "num_played_games",
+            "num_played_steps",
+            "num_reanalysed_games",
+            "lr",
+            "total_loss",
+            "value_loss",
+            "reward_loss",
+            "policy_loss",
+        ]
+        counter = 0
         try:
             while True:
                 info = ray.get(self.shared_storage_worker.get_info.remote(keys))
                 self._emit_training_progress(info)
+                if writer is not None:
+                    step = int(info["training_step"])
+                    writer.add_scalar("2.Workers/1.Self_played_games", info["num_played_games"], step)
+                    writer.add_scalar("2.Workers/2.Training_steps", step, step)
+                    writer.add_scalar("2.Workers/3.Self_played_steps", info["num_played_steps"], step)
+                    writer.add_scalar("2.Workers/4.Reanalysed_games", info["num_reanalysed_games"], step)
+                    writer.add_scalar("2.Workers/6.Learning_rate", info["lr"], step)
+                    writer.add_scalar("3.Loss/1.Total_weighted_loss", info["total_loss"], step)
+                    writer.add_scalar("3.Loss/Value_loss", info["value_loss"], step)
+                    writer.add_scalar("3.Loss/Reward_loss", info["reward_loss"], step)
+                    writer.add_scalar("3.Loss/Policy_loss", info["policy_loss"], step)
+                    counter += 1
+                    if counter % 10 == 0:
+                        writer.flush()
                 if info["training_step"] >= self.config.training_steps:
                     break
                 time.sleep(1.0)
         except KeyboardInterrupt:
             pass
+        finally:
+            if writer is not None:
+                writer.flush()
+                writer.close()
         self._finalize_training(start_time=start_time)
 
     def _emit_training_progress(self, info, include_reward=False):

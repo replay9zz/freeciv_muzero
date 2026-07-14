@@ -247,8 +247,12 @@ format_elapsed() {
 drive_sync_should_list_file() {
   local file="$1"
   case "${file}" in
-    */belief_tensorboard/*|*.tfevents.*)
+    */belief_tensorboard/*)
       return 1
+      ;;
+    *.tfevents.*)
+      [ "${GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD:-1}" = "1" ]
+      return
       ;;
     */heatmaps/*)
       case "${file}" in
@@ -346,8 +350,10 @@ sync_results_to_drive() {
       --filter '+ heatmaps/videos/*.mp4'
       --filter '- heatmaps/**'
       --filter '- belief_tensorboard/**'
-      --filter '- *.tfevents.*'
     )
+    if [ "${GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD:-1}" != "1" ]; then
+      rclone_args+=(--filter '- *.tfevents.*')
+    fi
     if [ "${GOOGLE_DRIVE_RESULTS_VERBOSE:-0}" = "1" ]; then
       rclone_args+=(--progress --stats-one-line --log-level INFO)
     fi

@@ -234,14 +234,14 @@ class Game(AbstractGame):
 
     def _score_diff(self) -> float:
         return float(
-            self.state.civilization_score(1) - self.state.civilization_score(-1)
+            self.state.muzero_score(1) - self.state.muzero_score(-1)
         )
 
     def _observation(self):
         return self.state.encode(self.player)
 
     def step(self, action):
-        prev_score = float(self.state.civilization_score(self.player))
+        prev_score = float(self.state.muzero_score(self.player))
         visited_before = (
             int(self.state.visited[self.player].sum())
             if self.state.visited.get(self.player) is not None
@@ -251,7 +251,7 @@ class Game(AbstractGame):
         prev_turn = self.state.turn
         self.state.step(current_player, action)
         done = self.state.terminal_reason is not None
-        reward = float(self.state.civilization_score(current_player)) - prev_score
+        reward = float(self.state.muzero_score(current_player)) - prev_score
         if self.state.visited.get(current_player) is not None:
             visited_after = int(self.state.visited[current_player].sum())
             reward += (visited_after - visited_before) * self.config.move_reward
@@ -271,7 +271,7 @@ class Game(AbstractGame):
         player = self.player
         if not state.cities[player]:
             return valid
-        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_offset = state.ECON_OFFSET
         prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + state.ECON_PASS_OFFSET
         if prod_start >= len(valid):
@@ -360,7 +360,7 @@ class Game(AbstractGame):
         player = self.player
         if len(state.cities[player]) >= state.max_cities:
             return None
-        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_offset = state.ECON_OFFSET
         build_base = econ_offset + state.ECON_BUILD_CITY_OFFSET
         build_actions = []
         best_move = None
@@ -395,7 +395,7 @@ class Game(AbstractGame):
         if not legal:
             return []
         if not self.state.cities[self.player]:
-            econ_offset = self.state.MOVE_SIZE + self.state.ATTACK_SIZE
+            econ_offset = self.state.ECON_OFFSET
             build_start = econ_offset + self.state.ECON_BUILD_CITY_OFFSET
             build_end = econ_offset + self.state.ECON_PRODUCTION_OFFSET
             build_candidates = [
@@ -435,7 +435,13 @@ class Game(AbstractGame):
             unit_idx = rel // self.state.ATTACK_PER_UNIT
             dir_idx = rel % self.state.ATTACK_PER_UNIT
             return f"attack_u{unit_idx}_d{dir_idx}"
-        econ_idx = action_number - (self.state.MOVE_SIZE + self.state.ATTACK_SIZE)
+        if action_number < self.state.ECON_OFFSET:
+            rel = action_number - self.state.UNIT_ACTIVITY_OFFSET
+            unit_idx = rel // self.state.UNIT_ACTIVITY_PER_UNIT
+            activity_idx = rel % self.state.UNIT_ACTIVITY_PER_UNIT
+            activity_name = self.state.UNIT_ACTIVITY_NAMES[activity_idx]
+            return f"{activity_name}_u{unit_idx}"
+        econ_idx = action_number - self.state.ECON_OFFSET
         if 0 <= econ_idx < len(self.state.RESEARCH_TECHS):
             tech = self.state.RESEARCH_TECHS[econ_idx]
             return f"research_{tech}"
@@ -460,7 +466,7 @@ class Game(AbstractGame):
         if not legal:
             return state.PASS_ACTION
 
-        econ_base = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_base = state.ECON_OFFSET
         if not state.cities[player]:
             build_start = econ_base + state.ECON_BUILD_CITY_OFFSET
             build_end = econ_base + state.ECON_PRODUCTION_OFFSET

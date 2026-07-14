@@ -13,6 +13,7 @@ STEP_RE = re.compile(
     r"enemy_units=(?P<enemy_units>\d+) "
     r"enemy_cities=(?P<enemy_cities>\d+) "
     r"civ_score=(?P<civ_score>-?\d+(?:\.\d+)?)"
+    r"(?: muzero_score=(?P<muzero_score>-?\d+(?:\.\d+)?))?"
     r"(?: fc_score=(?P<fc_score>-?\d+(?:\.\d+)?))?"
     r"(?: fc_win=(?P<fc_win>\S+))?"
 )
@@ -33,6 +34,11 @@ def _read_steps(path: Path) -> list[dict]:
         item["enemy_units"] = int(item["enemy_units"])
         item["enemy_cities"] = int(item["enemy_cities"])
         item["civ_score"] = float(item["civ_score"])
+        item["muzero_score"] = (
+            float(item["muzero_score"])
+            if item.get("muzero_score") is not None
+            else None
+        )
         item["fc_score"] = (
             float(item["fc_score"]) if item.get("fc_score") is not None else None
         )
@@ -61,6 +67,7 @@ def _summarize_game(game_dir: Path) -> dict:
         "turn": last.get("turn"),
         "step": last.get("step"),
         "civ_score": last.get("civ_score"),
+        "muzero_score": last.get("muzero_score"),
         "fc_score": last.get("fc_score"),
         "fc_win": last.get("fc_win"),
         "final_enemy_units": last.get("enemy_units"),

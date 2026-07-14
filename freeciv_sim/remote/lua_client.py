@@ -2,7 +2,7 @@ import os
 import socket
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -304,6 +304,76 @@ class LuaRemoteClient:
         self._log_action("move_dir_id", lua)
         result = self.eval(lua)
         return any(x.strip() in ["__OK__ move", "**OK** move"] for x in result.lines)
+
+    def unit_activity(self, unit_id: int, activity_name: str) -> bool:
+        safe_name = self._quote_lua_string(activity_name)
+        lua = (
+            "do local ok=false; local res=false; "
+            f"local uid={int(unit_id)}; local activity={safe_name}; "
+            "if client and client.unit_activity then "
+            "  ok,res=pcall(function() return client.unit_activity(uid, activity) end) "
+            "end; "
+            "local msg = (ok and res) and '__OK__ unit_activity' or '__ERR__ unit_activity'; "
+            "log.normal(msg); chat.base(msg) end"
+        )
+        self._log_action("unit_activity", lua)
+        result = self.eval(lua)
+        return any(
+            x.strip() in ["__OK__ unit_activity", "**OK** unit_activity"]
+            for x in result.lines
+        )
+
+    def unit_activity_masks(
+        self,
+        unit_ids: List[int],
+        activity_names: List[str],
+    ) -> Dict[int, Tuple[int, int]]:
+        if not unit_ids or not activity_names:
+            return {}
+        ids = ",".join(str(int(unit_id)) for unit_id in unit_ids)
+        names = ",".join(self._quote_lua_string(name) for name in activity_names)
+        lua = (
+            "return (function() "
+            f"local ids={{{ids}}}; local activities={{{names}}}; local parts={{}}; "
+            "for _,uid in ipairs(ids) do "
+            "  local mask=0; "
+            "  for idx,activity in ipairs(activities) do "
+            "    local ok,res=pcall(function() "
+            "      if client and client.can_unit_activity then "
+            "        return client.can_unit_activity(uid, activity) "
+            "      end; return false "
+            "    end); "
+            "    if ok and res then mask=mask + 2^(idx-1) end "
+            "  end; "
+            "  local current=-1; "
+            "  local current_ok,current_res=pcall(function() "
+            "    if client and client.unit_activity_id then "
+            "      return client.unit_activity_id(uid) "
+            "    end; return -1 "
+            "  end); "
+            "  if current_ok and current_res then current=current_res end; "
+            "  table.insert(parts, string.format('%d:%d:%d', uid, mask, current)) "
+            "end; "
+            "return '__UNITACT__ '..table.concat(parts, ',') "
+            "end)()"
+        )
+        self._log_action("unit_activity_masks", lua)
+        try:
+            result = self.eval(lua)
+            value = result.last_return()
+        except Exception:
+            return {}
+        if not isinstance(value, str) or "__UNITACT__" not in value:
+            return {}
+        masks: Dict[int, Tuple[int, int]] = {}
+        payload = value.split("__UNITACT__", 1)[1].strip()
+        for item in payload.split(","):
+            try:
+                unit_id, mask, current = item.split(":", 2)
+                masks[int(unit_id)] = (int(mask), int(current))
+            except (TypeError, ValueError):
+                continue
+        return masks
 
     def build_city(self, unit_id: int) -> bool:
         lua = (

@@ -25,7 +25,9 @@ def _excluded(path):
         if "videos" in parts and path.suffix == ".mp4":
             return False
         return True
-    if ".tfevents." in path.name:
+    if ".tfevents." in path.name and not _env_bool(
+        "GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD", True
+    ):
         return True
     return False
 
@@ -124,9 +126,9 @@ def sync_path(source, dest_subdir=None, force=False):
             "- heatmaps/**",
             "--filter",
             "- belief_tensorboard/**",
-            "--filter",
-            "- *.tfevents.*",
         ]
+        if not _env_bool("GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD", True):
+            cmd.extend(["--filter", "- *.tfevents.*"])
         if verbose:
             cmd.extend(["--progress", "--stats-one-line", "--log-level", "INFO"])
     else:

@@ -448,12 +448,12 @@ def _city_score_data(game):
     return cities
 
 
-def _current_civ_score(game):
+def _current_muzero_score(game):
     state = getattr(game, "_last_state", None)
     if state is None:
         return None
     try:
-        return state.civilization_score(1)
+        return state.muzero_score(1)
     except Exception:
         return None
 
@@ -953,27 +953,29 @@ def main() -> None:
                 extra += f" enemy_units={len(enemy_units)}"
             if isinstance(enemy_cities, list):
                 extra += f" enemy_cities={len(enemy_cities)}"
-            civ_score = _current_civ_score(game)
+            muzero_score = _current_muzero_score(game)
             player_id = getattr(game, "player_id", None)
             scores = _query_player_scores(game.client)
-            fc_score, fc_winner = (None, None)
+            civ_score, civ_winner = (None, None)
             if isinstance(scores, dict) and player_id is not None:
-                fc_score, fc_winner, _name = scores.get(int(player_id), (None, None, ""))
-            if fc_score is None and fc_winner is None:
-                fc_score, fc_winner = _query_player_score(game.client, player_id)
+                civ_score, civ_winner, _name = scores.get(
+                    int(player_id), (None, None, "")
+                )
+            if civ_score is None and civ_winner is None:
+                civ_score, civ_winner = _query_player_score(game.client, player_id)
             score_parts = []
             if civ_score is not None:
                 score_parts.append(f"civ_score={civ_score:.2f}")
-            if fc_score is not None:
-                score_parts.append(f"fc_score={fc_score}")
-            if fc_winner is not None:
-                score_parts.append(f"fc_win={fc_winner}")
+            if muzero_score is not None:
+                score_parts.append(f"muzero_score={muzero_score:.2f}")
+            if civ_winner is True:
+                score_parts.append("civ_win=True")
             if isinstance(scores, dict) and scores:
                 score_parts.append(
-                    "scores=["
+                    "civ_scores=["
                     + ",".join(
-                        f"{pid}:{score}"
-                        for pid, (score, _win, _name) in sorted(scores.items())
+                        f"{pid}:{name}:{score}" if name else f"{pid}:{score}"
+                        for pid, (score, _win, name) in sorted(scores.items())
                     )
                     + "]"
                 )

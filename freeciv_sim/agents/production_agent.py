@@ -19,7 +19,7 @@ class ProductionAgent:
         if getattr(game, "_last_state", None) is None:
             return legal
         state = game._last_state
-        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_offset = state.ECON_OFFSET
         prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
         if len(state.cities[1]) < state.max_cities:
             live_settlers = sum(

@@ -226,8 +226,8 @@ class MultiheadState:
     tech_costs: Dict[str, float] = field(default_factory=lambda: dict(TECH_COSTS))
 
     # Action layout:
-    # For each unit slot: 6 directional moves + hold + 6 attacks = 13 actions
-    # After unit actions: research actions | pass
+    # Unit blocks: movement, directional attack, named unit activities.
+    # After unit actions: research, build city, production, pass.
     RESEARCH_TECHS: Tuple[str, ...] = RESEARCH_TECHS
     PRODUCTION_UNIT_NAMES: Tuple[str, ...] = PRODUCTION_UNIT_NAMES
     PRODUCTION_BUILDING_NAMES: Tuple[str, ...] = PRODUCTION_BUILDING_NAMES
@@ -237,12 +237,30 @@ class MultiheadState:
     HOLD_DIR = 6
     MOVE_PER_UNIT = MOVE_DIRECTIONS + 1
     ATTACK_PER_UNIT = 6
+    UNIT_ACTIVITY_NAMES: Tuple[str, ...] = (
+        "fortify",
+        "sentry",
+        "road",
+        "irrigate",
+        "mine",
+        "cultivate",
+        "plant",
+        "transform",
+        "clean",
+        "pillage",
+        "fortress",
+        "airbase",
+    )
+    UNIT_ACTIVITY_PER_UNIT = len(UNIT_ACTIVITY_NAMES)
 
     def __post_init__(self) -> None:
         self.movement = FreecivMovement(self.cfg.map_w, self.cfg.map_h)
         # Head sizes
         self.MOVE_SIZE = self.max_units * self.MOVE_PER_UNIT
         self.ATTACK_SIZE = self.max_units * self.ATTACK_PER_UNIT
+        self.UNIT_ACTIVITY_SIZE = self.max_units * self.UNIT_ACTIVITY_PER_UNIT
+        self.UNIT_ACTIVITY_OFFSET = self.MOVE_SIZE + self.ATTACK_SIZE
+        self.ECON_OFFSET = self.UNIT_ACTIVITY_OFFSET + self.UNIT_ACTIVITY_SIZE
         # Econ head contains research actions, build-city actions (per unit slot),
         # production actions (per city slot), and a pass/turn-end action.
         self.ECON_RESEARCH_OFFSET = 0
@@ -254,7 +272,7 @@ class MultiheadState:
             self.ECON_PRODUCTION_OFFSET + self.max_cities * self.PRODUCTION_ITEM_COUNT
         )
         self.ECON_SIZE = self.ECON_PASS_OFFSET + 1
-        self.ACTION_SIZE = self.MOVE_SIZE + self.ATTACK_SIZE + self.ECON_SIZE
+        self.ACTION_SIZE = self.ECON_OFFSET + self.ECON_SIZE
         self.PASS_ACTION = self.ACTION_SIZE - 1  # last index in econ head
         # Allow multiple actions within the same logical turn; cap to avoid stalling.
         if self.max_actions_per_turn <= 0:
@@ -520,8 +538,13 @@ class MultiheadState:
         new.PRODUCTION_ITEM_NAMES = self.PRODUCTION_ITEM_NAMES
         new.MOVE_PER_UNIT = self.MOVE_PER_UNIT
         new.ATTACK_PER_UNIT = self.ATTACK_PER_UNIT
+        new.UNIT_ACTIVITY_NAMES = self.UNIT_ACTIVITY_NAMES
+        new.UNIT_ACTIVITY_PER_UNIT = self.UNIT_ACTIVITY_PER_UNIT
         new.MOVE_SIZE = self.MOVE_SIZE
         new.ATTACK_SIZE = self.ATTACK_SIZE
+        new.UNIT_ACTIVITY_SIZE = self.UNIT_ACTIVITY_SIZE
+        new.UNIT_ACTIVITY_OFFSET = self.UNIT_ACTIVITY_OFFSET
+        new.ECON_OFFSET = self.ECON_OFFSET
         new.ECON_SIZE = self.ECON_SIZE
         new.ECON_RESEARCH_OFFSET = self.ECON_RESEARCH_OFFSET
         new.ECON_BUILD_CITY_OFFSET = self.ECON_BUILD_CITY_OFFSET
@@ -578,7 +601,7 @@ class MultiheadState:
                     ):
                         moves[atk_base + dir_idx] = 1
         # research actions (select current target)
-        offset = self.MOVE_SIZE + self.ATTACK_SIZE
+        offset = self.ECON_OFFSET
         current_target = self.research_target.get(player)
         if current_target and self.research_done[player].get(current_target, False):
             current_target = None
@@ -670,7 +693,16 @@ class MultiheadState:
         if action < self.MOVE_SIZE + self.ATTACK_SIZE:
             return "combat"
 
-        econ_idx = action - (self.MOVE_SIZE + self.ATTACK_SIZE)
+        if action < self.ECON_OFFSET:
+            rel = action - self.UNIT_ACTIVITY_OFFSET
+            unit_idx = rel // self.UNIT_ACTIVITY_PER_UNIT
+            activity_idx = rel % self.UNIT_ACTIVITY_PER_UNIT
+            activity_name = self.UNIT_ACTIVITY_NAMES[activity_idx]
+            if activity_name in ("fortify", "sentry", "pillage"):
+                return "combat"
+            return self.slot_agent_role(player, unit_idx)
+
+        econ_idx = action - self.ECON_OFFSET
         if 0 <= econ_idx < len(self.RESEARCH_TECHS):
             return "research"
         if self.ECON_BUILD_CITY_OFFSET <= econ_idx < self.ECON_PRODUCTION_OFFSET:
@@ -735,8 +767,14 @@ class MultiheadState:
                 self._handle_unit_action(player, unit_idx, dir_idx, is_attack=True)
                 self.units[player][unit_idx].moves_left = 0
                 self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
+        elif action < self.ECON_OFFSET:
+            rel = action - self.UNIT_ACTIVITY_OFFSET
+            unit_idx = rel // self.UNIT_ACTIVITY_PER_UNIT
+            if unit_idx < len(self.units[player]) and self.units[player][unit_idx].alive:
+                self.units[player][unit_idx].moves_left = 0
+                self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
         else:
-            econ_idx = action - (self.MOVE_SIZE + self.ATTACK_SIZE)
+            econ_idx = action - self.ECON_OFFSET
             # research
             if 0 <= econ_idx < len(self.RESEARCH_TECHS):
                 tech = self.RESEARCH_TECHS[econ_idx]
@@ -1429,7 +1467,12 @@ class MultiheadState:
             claimed.update(self._city_claim_tiles(city.x, city.y, radius))
         return len(claimed)
 
-    def civilization_score(self, player: Player) -> float:
+    def muzero_score(self, player: Player) -> float:
+        """Observable proxy for Freeciv's server-side civilization score.
+
+        Culture and spaceship state are not exposed in MultiheadState, so the
+        authoritative score must still come from Player:score_game().
+        """
         citizens = sum(city.size for city in self.cities[player])
         techs = sum(1 for done in self.research_done[player].values() if done)
         future = self.future_techs.get(player, 0)
@@ -1444,11 +1487,15 @@ class MultiheadState:
         return float(
             citizens
             + techs * 2
-            + future * 2.5
+            + future * 5
             + wonders * 5
-            + units_built / 10
-            + kills / 3
+            + units_built // 10
+            + kills // 3
         )
+
+    def civilization_score(self, player: Player) -> float:
+        """Backward-compatible alias for the MuZero proxy score."""
+        return self.muzero_score(player)
 
     def heuristic_score(self, player: Player) -> int:
         """

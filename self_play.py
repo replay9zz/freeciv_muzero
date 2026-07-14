@@ -202,18 +202,25 @@ class SelfPlay:
                 turn = getattr(self.game, "turns", None)
                 if turn is not None and turn != last_logged_turn:
                     last_logged_turn = turn
-                    civ_score = None
+                    muzero_score = None
                     state = getattr(self.game, "_last_state", None)
-                    if state is not None and hasattr(state, "civilization_score"):
+                    if state is not None and hasattr(state, "muzero_score"):
                         try:
-                            civ_score = state.civilization_score(1)
+                            muzero_score = state.muzero_score(1)
                         except Exception:
-                            civ_score = None
+                            muzero_score = None
                     score_line = f"[selfplay] turn={turn}"
-                    if civ_score is not None:
-                        score_line += f" civ_score={civ_score:.2f}"
                     player_scores = getattr(self.game, "player_scores", None)
                     if isinstance(player_scores, dict) and player_scores:
+                        player_id = getattr(self.game, "player_id", None)
+                        if player_id is not None:
+                            civ_score = player_scores.get(
+                                int(player_id), (None, None, "")
+                            )[0]
+                            if civ_score is not None:
+                                score_line += f" civ_score={civ_score:.2f}"
+                        if muzero_score is not None:
+                            score_line += f" muzero_score={muzero_score:.2f}"
                         parts = []
                         for pid in sorted(player_scores.keys()):
                             score, win, name = player_scores[pid]
@@ -224,10 +231,12 @@ class SelfPlay:
                                 tag += f":{score:.0f}"
                             if win is True:
                                 tag += ":W"
-                            elif win is False:
+                            elif done and win is False:
                                 tag += ":L"
                             parts.append(tag)
-                        score_line += " scores=[" + ",".join(parts) + "]"
+                        score_line += " civ_scores=[" + ",".join(parts) + "]"
+                    elif muzero_score is not None:
+                        score_line += f" muzero_score={muzero_score:.2f}"
                     print(score_line)
 
                 if render:

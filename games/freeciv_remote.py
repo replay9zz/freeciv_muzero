@@ -118,6 +118,9 @@ BELIEF_OBSERVATION_PLANES = (
     "territory",
 )
 
+# Freeciv unit_activity ids that should continue without a new MuZero order.
+BUSY_UNIT_ACTIVITY_IDS = frozenset({1, 2, 3, 6, 9, 10, 11, 12, 13, 15})
+
 
 class MuZeroConfig:
     def __init__(self):
@@ -429,6 +432,8 @@ class Game(AbstractGame):
         self.unit_slot_types = []
         self.unit_type_labels = {}
         self.unit_status: list[tuple[int, int, int, int, str, int, int]] = []
+        self.unit_activity_valid_masks: dict[int, int] = {}
+        self.unit_current_activities: dict[int, int] = {}
         self.city_slots = []
         self.city_sizes: dict[int, int] = {}
         self.production_queue: dict[int, list[tuple[str, str]]] = {}
@@ -766,6 +771,8 @@ class Game(AbstractGame):
         self._buildable_units = set()
         self._buildable_buildings = set()
         self.autosettler_units = set()
+        self.unit_activity_valid_masks = {}
+        self.unit_current_activities = {}
         self.gov_switch_sent = set()
         self.visible_enemy_units = []
         self.visible_enemy_cities = []
@@ -1030,6 +1037,7 @@ class Game(AbstractGame):
         if board_state is None:
             return {
                 "civ_score": 0.0,
+                "muzero_score": 0.0,
                 "city_count": 0,
                 "population": 0,
                 "settler_count": 0,
@@ -1040,11 +1048,19 @@ class Game(AbstractGame):
         settler_count = sum(1 for u in units if getattr(u, "can_build_city", False))
         population = sum(city.size for city in cities)
         try:
-            civ_score = float(board_state.civilization_score(player))
+            muzero_score = float(board_state.muzero_score(player))
         except Exception:
-            civ_score = 0.0
+            muzero_score = 0.0
+        civ_score = None
+        if self.player_id is not None:
+            entry = self.player_scores.get(int(self.player_id))
+            if entry is not None and entry[0] is not None:
+                civ_score = float(entry[0])
+        if civ_score is None:
+            civ_score = muzero_score
         return {
             "civ_score": civ_score,
+            "muzero_score": muzero_score,
             "city_count": len(cities),
             "population": population,
             "settler_count": settler_count,
@@ -1689,8 +1705,13 @@ class Game(AbstractGame):
         state.RESEARCH_TECHS = MultiheadState.RESEARCH_TECHS
         state.MOVE_PER_UNIT = MultiheadState.MOVE_PER_UNIT
         state.ATTACK_PER_UNIT = MultiheadState.ATTACK_PER_UNIT
+        state.UNIT_ACTIVITY_NAMES = MultiheadState.UNIT_ACTIVITY_NAMES
+        state.UNIT_ACTIVITY_PER_UNIT = MultiheadState.UNIT_ACTIVITY_PER_UNIT
         state.MOVE_SIZE = self.max_units * state.MOVE_PER_UNIT
         state.ATTACK_SIZE = self.max_units * state.ATTACK_PER_UNIT
+        state.UNIT_ACTIVITY_SIZE = self.max_units * state.UNIT_ACTIVITY_PER_UNIT
+        state.UNIT_ACTIVITY_OFFSET = state.MOVE_SIZE + state.ATTACK_SIZE
+        state.ECON_OFFSET = state.UNIT_ACTIVITY_OFFSET + state.UNIT_ACTIVITY_SIZE
         state.ECON_RESEARCH_OFFSET = 0
         state.ECON_BUILD_CITY_OFFSET = len(state.RESEARCH_TECHS)
         state.ECON_PRODUCTION_OFFSET = state.ECON_BUILD_CITY_OFFSET + self.max_units
@@ -1700,7 +1721,7 @@ class Game(AbstractGame):
             state.ECON_PRODUCTION_OFFSET + self.max_cities * state.PRODUCTION_ITEM_COUNT
         )
         state.ECON_SIZE = state.ECON_PASS_OFFSET + 1
-        state.ACTION_SIZE = state.MOVE_SIZE + state.ATTACK_SIZE + state.ECON_SIZE
+        state.ACTION_SIZE = state.ECON_OFFSET + state.ECON_SIZE
         state.PASS_ACTION = state.ACTION_SIZE - 1
 
         self.unit_slots = []
@@ -2127,7 +2148,7 @@ class Game(AbstractGame):
     ) -> None:
         if self._last_state is None or not self.city_slots:
             return
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         for city_slot, city_id in enumerate(self.city_slots):
             if city_slot >= len(self._last_state.cities[1]):
@@ -2386,7 +2407,7 @@ class Game(AbstractGame):
             return valid
         if not self._needs_expansion_settler():
             return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
         if prod_start >= len(valid):
@@ -2734,7 +2755,7 @@ class Game(AbstractGame):
         valid, applied_defense = self._prefer_defense_production_actions(valid)
         if applied_defense:
             return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
         if prod_start >= len(valid):
@@ -2827,7 +2848,7 @@ class Game(AbstractGame):
                     worker_count += count
         if worker_count <= 0:
             return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
         if prod_start >= len(valid):
@@ -2872,7 +2893,7 @@ class Game(AbstractGame):
         if defender_idx is None:
             return valid, False
         counts = self._combat_garrison_counts()
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
         applied = False
@@ -2898,7 +2919,7 @@ class Game(AbstractGame):
         masked, applied = self._prefer_defense_production_actions(valid.copy())
         if not applied:
             return None
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
         prod_end = min(econ_offset + self._last_state.ECON_PASS_OFFSET, len(masked))
         actions = [
@@ -2913,7 +2934,7 @@ class Game(AbstractGame):
             return valid
         if self.current_research:
             return valid
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
         research_candidates = []
         for action_idx in range(econ_offset, min(research_end, len(valid))):
@@ -3004,7 +3025,7 @@ class Game(AbstractGame):
         if self._last_state is None or not self.autosettler_units:
             return valid
         threats = self._enemy_threats()
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         for slot_idx, unit_id in enumerate(self.unit_slots):
             if unit_id is None or unit_id not in self.autosettler_units:
                 continue
@@ -3015,8 +3036,14 @@ class Game(AbstractGame):
             move_end = move_start + self._last_state.MOVE_PER_UNIT
             atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
             atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+            activity_start = (
+                self._last_state.UNIT_ACTIVITY_OFFSET
+                + slot_idx * self._last_state.UNIT_ACTIVITY_PER_UNIT
+            )
+            activity_end = activity_start + self._last_state.UNIT_ACTIVITY_PER_UNIT
             valid[move_start:move_end] = 0
             valid[atk_start:atk_end] = 0
+            valid[activity_start:activity_end] = 0
             build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
             if 0 <= build_idx < len(valid):
                 valid[build_idx] = 0
@@ -3131,7 +3158,7 @@ class Game(AbstractGame):
         player = 1
         if len(self._last_state.cities[player]) >= self._expansion_city_target():
             return None
-        econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+        econ_offset = self._last_state.ECON_OFFSET
         build_base = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
         build_actions = []
         best_move = None
@@ -3448,6 +3475,23 @@ class Game(AbstractGame):
         self._log_belief_tensorboard()
         self.autosettler_units.intersection_update(set(self.unit_slots))
         self._maybe_enable_autosettlers()
+        try:
+            active_unit_ids = [
+                int(unit_id) for unit_id in self.unit_slots if unit_id is not None
+            ]
+            activity_statuses = self.client.unit_activity_masks(
+                active_unit_ids,
+                list(self._last_state.UNIT_ACTIVITY_NAMES),
+            )
+            self.unit_activity_valid_masks = {
+                unit_id: status[0] for unit_id, status in activity_statuses.items()
+            }
+            self.unit_current_activities = {
+                unit_id: status[1] for unit_id, status in activity_statuses.items()
+            }
+        except Exception:
+            self.unit_activity_valid_masks = {}
+            self.unit_current_activities = {}
         self._refresh_production_queues()
         self._apply_production_snapshot_to_state(self._last_state)
         self.current_research = None
@@ -3555,7 +3599,24 @@ class Game(AbstractGame):
             )
             return
 
-        econ_idx = action - (board_state.MOVE_SIZE + board_state.ATTACK_SIZE)
+        if action < board_state.ECON_OFFSET:
+            rel = action - board_state.UNIT_ACTIVITY_OFFSET
+            unit_idx = rel // board_state.UNIT_ACTIVITY_PER_UNIT
+            activity_idx = rel % board_state.UNIT_ACTIVITY_PER_UNIT
+            if unit_idx >= len(self.unit_slots):
+                return
+            unit_id = self.unit_slots[unit_idx]
+            if unit_id is None or activity_idx >= len(board_state.UNIT_ACTIVITY_NAMES):
+                return
+            activity_name = board_state.UNIT_ACTIVITY_NAMES[activity_idx]
+            success = self.client.unit_activity(unit_id, activity_name)
+            self._debug_action(
+                f"unit_activity action={action} unit_slot={unit_idx} "
+                f"unit_id={unit_id} activity={activity_name} success={success}"
+            )
+            return
+
+        econ_idx = action - board_state.ECON_OFFSET
         if 0 <= econ_idx < len(board_state.RESEARCH_TECHS):
             tech_name = board_state.RESEARCH_TECHS[econ_idx]
             success = alpha_live.set_research_to_target(
@@ -3630,7 +3691,7 @@ class Game(AbstractGame):
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         valid_actions = board_state.valid_moves(1)
         if not owned_cities:
-            econ_offset = board_state.MOVE_SIZE + board_state.ATTACK_SIZE
+            econ_offset = board_state.ECON_OFFSET
             build_offset = econ_offset + board_state.ECON_BUILD_CITY_OFFSET
             for unit_idx in range(self.max_units):
                 action_idx = build_offset + unit_idx
@@ -3646,8 +3707,11 @@ class Game(AbstractGame):
         elif action < board_state.MOVE_SIZE + board_state.ATTACK_SIZE:
             rel = action - board_state.MOVE_SIZE
             self.acted_unit_slots.add(rel // board_state.ATTACK_PER_UNIT)
+        elif action < board_state.ECON_OFFSET:
+            rel = action - board_state.UNIT_ACTIVITY_OFFSET
+            self.acted_unit_slots.add(rel // board_state.UNIT_ACTIVITY_PER_UNIT)
         else:
-            econ_idx = action - (board_state.MOVE_SIZE + board_state.ATTACK_SIZE)
+            econ_idx = action - board_state.ECON_OFFSET
             if board_state.ECON_BUILD_CITY_OFFSET <= econ_idx < board_state.ECON_PRODUCTION_OFFSET:
                 self.acted_unit_slots.add(econ_idx - board_state.ECON_BUILD_CITY_OFFSET)
         self.actions_this_turn += 1
@@ -3727,6 +3791,7 @@ class Game(AbstractGame):
                 "research",
                 "production",
                 "attack",
+                "unit_activity",
                 "pass",
             },
             "combat": {
@@ -3735,6 +3800,7 @@ class Game(AbstractGame):
                 "research",
                 "production",
                 "attack",
+                "unit_activity",
                 "pass",
             },
             "attack": {
@@ -3743,6 +3809,7 @@ class Game(AbstractGame):
                 "research",
                 "production",
                 "attack",
+                "unit_activity",
                 "pass",
             },
         }
@@ -3757,13 +3824,18 @@ class Game(AbstractGame):
 
         allowed = numpy.zeros_like(valid)
         state = self._last_state
-        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_offset = state.ECON_OFFSET
 
         if "move" in groups:
             allowed[: min(state.MOVE_SIZE, len(allowed))] = 1
         if "attack" in groups:
             start = state.MOVE_SIZE
             end = min(start + state.ATTACK_SIZE, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "unit_activity" in groups:
+            start = state.UNIT_ACTIVITY_OFFSET
+            end = min(start + state.UNIT_ACTIVITY_SIZE, len(allowed))
             if start < len(allowed):
                 allowed[start:end] = 1
         if "research" in groups:
@@ -3799,12 +3871,52 @@ class Game(AbstractGame):
             except Exception:
                 return None
         valid = self._last_state.valid_moves(1)
+        activity_start = self._last_state.UNIT_ACTIVITY_OFFSET
+        activity_end = activity_start + self._last_state.UNIT_ACTIVITY_SIZE
+        valid[activity_start:activity_end] = 0
+        for slot_idx, unit_id in enumerate(self.unit_slots):
+            if unit_id is None:
+                continue
+            mask = self.unit_activity_valid_masks.get(int(unit_id), 0)
+            base = activity_start + slot_idx * self._last_state.UNIT_ACTIVITY_PER_UNIT
+            for activity_idx in range(self._last_state.UNIT_ACTIVITY_PER_UNIT):
+                action_idx = base + activity_idx
+                if action_idx >= activity_end or action_idx >= len(valid):
+                    break
+                if mask & (1 << activity_idx):
+                    valid[action_idx] = 1
+        for slot_idx, unit_id in enumerate(self.unit_slots):
+            if unit_id is None:
+                continue
+            if self.unit_current_activities.get(int(unit_id)) not in BUSY_UNIT_ACTIVITY_IDS:
+                continue
+            move_start = slot_idx * self._last_state.MOVE_PER_UNIT
+            move_end = move_start + self._last_state.MOVE_PER_UNIT
+            atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
+            atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+            unit_activity_start = (
+                self._last_state.UNIT_ACTIVITY_OFFSET
+                + slot_idx * self._last_state.UNIT_ACTIVITY_PER_UNIT
+            )
+            unit_activity_end = (
+                unit_activity_start + self._last_state.UNIT_ACTIVITY_PER_UNIT
+            )
+            valid[move_start:move_end] = 0
+            valid[atk_start:atk_end] = 0
+            valid[unit_activity_start:unit_activity_end] = 0
+            build_idx = (
+                self._last_state.ECON_OFFSET
+                + self._last_state.ECON_BUILD_CITY_OFFSET
+                + slot_idx
+            )
+            if 0 <= build_idx < len(valid):
+                valid[build_idx] = 0
         for slot_idx in range(self.max_units):
             hold_idx = slot_idx * self._last_state.MOVE_PER_UNIT + self._last_state.HOLD_DIR
             if 0 <= hold_idx < len(valid):
                 valid[hold_idx] = 0
         if not self.city_slots:
-            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            econ_offset = self._last_state.ECON_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
             build_start = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -3822,11 +3934,11 @@ class Game(AbstractGame):
             #         forced[idx] = 1
             #     valid = forced
         if self.current_research:
-            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            econ_offset = self._last_state.ECON_OFFSET
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             valid[econ_offset:research_end] = 0
         if self.city_slots:
-            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            econ_offset = self._last_state.ECON_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             free_units = int(getattr(self.config, "city_unit_free", 0))
             for city_slot, city_id in enumerate(self.city_slots):
@@ -3979,7 +4091,7 @@ class Game(AbstractGame):
         # valid = self._prefer_research_actions(valid)
         # valid = self._deprioritize_worker_production(valid)
         if self.acted_unit_slots:
-            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            econ_offset = self._last_state.ECON_OFFSET
             for slot_idx in self.acted_unit_slots:
                 if slot_idx < 0 or slot_idx >= self.max_units:
                     continue
@@ -3987,8 +4099,14 @@ class Game(AbstractGame):
                 move_end = move_start + self._last_state.MOVE_PER_UNIT
                 atk_start = self._last_state.MOVE_SIZE + slot_idx * self._last_state.ATTACK_PER_UNIT
                 atk_end = atk_start + self._last_state.ATTACK_PER_UNIT
+                activity_start = (
+                    self._last_state.UNIT_ACTIVITY_OFFSET
+                    + slot_idx * self._last_state.UNIT_ACTIVITY_PER_UNIT
+                )
+                activity_end = activity_start + self._last_state.UNIT_ACTIVITY_PER_UNIT
                 valid[move_start:move_end] = 0
                 valid[atk_start:atk_end] = 0
+                valid[activity_start:activity_end] = 0
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
@@ -4020,14 +4138,15 @@ class Game(AbstractGame):
         # valid = self._prefer_attack_actions(valid)
         # valid = self._apply_action_curriculum(valid)
         if self.debug_actions:
-            econ_offset = self._last_state.MOVE_SIZE + self._last_state.ATTACK_SIZE
+            econ_offset = self._last_state.ECON_OFFSET
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             build_end = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             production_end = econ_offset + self._last_state.ECON_PASS_OFFSET
             self._debug_action(
                 "legal "
                 f"move={numpy.count_nonzero(valid[:self._last_state.MOVE_SIZE])} "
-                f"attack={numpy.count_nonzero(valid[self._last_state.MOVE_SIZE:econ_offset])} "
+                f"attack={numpy.count_nonzero(valid[self._last_state.MOVE_SIZE:self._last_state.UNIT_ACTIVITY_OFFSET])} "
+                f"unit_activity={numpy.count_nonzero(valid[self._last_state.UNIT_ACTIVITY_OFFSET:econ_offset])} "
                 f"research={numpy.count_nonzero(valid[econ_offset:research_end])} "
                 f"build_city={numpy.count_nonzero(valid[research_end:build_end])} "
                 f"production={numpy.count_nonzero(valid[build_end:production_end])} "
@@ -4132,7 +4251,13 @@ class Game(AbstractGame):
             unit_idx = rel // tmp_state.ATTACK_PER_UNIT
             dir_idx = rel % tmp_state.ATTACK_PER_UNIT
             return f"attack_u{unit_idx}_d{dir_idx}"
-        econ_idx = action_number - (tmp_state.MOVE_SIZE + tmp_state.ATTACK_SIZE)
+        if action_number < tmp_state.ECON_OFFSET:
+            rel = action_number - tmp_state.UNIT_ACTIVITY_OFFSET
+            unit_idx = rel // tmp_state.UNIT_ACTIVITY_PER_UNIT
+            activity_idx = rel % tmp_state.UNIT_ACTIVITY_PER_UNIT
+            activity_name = tmp_state.UNIT_ACTIVITY_NAMES[activity_idx]
+            return f"{activity_name}_u{unit_idx}"
+        econ_idx = action_number - tmp_state.ECON_OFFSET
         if 0 <= econ_idx < len(tmp_state.RESEARCH_TECHS):
             tech = tmp_state.RESEARCH_TECHS[econ_idx]
             return f"research_{tech}"

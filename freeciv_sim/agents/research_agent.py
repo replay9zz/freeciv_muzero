@@ -18,7 +18,7 @@ class ResearchAgent:
         state = getattr(game, "_last_state", None)
         if not legal or state is None:
             return legal
-        econ_offset = state.MOVE_SIZE + state.ATTACK_SIZE
+        econ_offset = state.ECON_OFFSET
         valued = []
         for action in legal:
             tech_idx = action - econ_offset
