@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import os
 import pathlib
 import shlex
@@ -401,7 +402,13 @@ class Game(AbstractGame):
         self.take_player = os.getenv("FREECIV_TAKE_PLAYER")
         self.take_command = os.getenv("FREECIV_TAKE_COMMAND")
         self.take_wait = _env_float("FREECIV_TAKE_WAIT", 0.5)
-        self.take_retries = _env_int("FREECIV_TAKE_RETRIES", 6)
+        default_take_retries = max(
+            1,
+            int(math.ceil(self.client_start_timeout / max(self.take_wait, 0.05))),
+        )
+        self.take_retries = _env_int(
+            "FREECIV_TAKE_RETRIES", default_take_retries
+        )
         self.start_after_take = _env_bool("FREECIV_START_AFTER_TAKE", False)
         self.start_command = os.getenv("FREECIV_START_COMMAND")
         self.start_wait = _env_float("FREECIV_START_WAIT", self.take_wait)
@@ -541,6 +548,11 @@ class Game(AbstractGame):
         freeciv_data = project_root / "freeciv" / "data"
         freeciv_scenarios = freeciv_data / "scenarios"
         env = os.environ.copy()
+        locale_name = env.get("LC_ALL") or env.get("LANG")
+        if not locale_name or locale_name.upper() in {"C", "POSIX"}:
+            env["LANG"] = "C.UTF-8"
+            env["LC_ALL"] = "C.UTF-8"
+        env.setdefault("PYTHONUTF8", "1")
         env.setdefault(
             "FREECIV_DATA_PATH",
             f"{pathlib.Path.home() / '.freeciv' / '3.2'}:{freeciv_data}",
@@ -617,6 +629,7 @@ class Game(AbstractGame):
                 start_new_session=True,
                 cwd=cwd,
                 env=self._build_freeciv_env(),
+                stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
             )
@@ -899,9 +912,14 @@ class Game(AbstractGame):
             print(
                 f"[player] target_player_id={self.take_player_id} resolved_name={resolved!r}",
                 file=sys.stderr,
+                flush=True,
             )
-            if resolved:
-                self.take_player = resolved
+            if not resolved:
+                raise RuntimeError(
+                    "Timed out waiting for Freeciv player "
+                    f"id={self.take_player_id} after {self.take_retries} attempts."
+                )
+            self.take_player = resolved
         if not cmd and self.take_player:
             cmd = f'/take "{self.take_player}"'
         if not cmd:
