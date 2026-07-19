@@ -129,6 +129,41 @@ prepare_server_rc_template() {
       }
     ' "${tmp}" >"${target}"
     rm -f "${tmp}"
+    if [ -n "${FREECIV_SEED:-}" ]; then
+      tmp="${target}.tmp"
+      awk -v seed="${FREECIV_SEED}" '
+        /^[[:space:]]*set[[:space:]]+mapseed([[:space:]]|$)/ {
+          print "set mapseed " seed
+          mapseed_inserted = 1
+          next
+        }
+        /^[[:space:]]*set[[:space:]]+gameseed([[:space:]]|$)/ {
+          print "set gameseed " seed
+          gameseed_inserted = 1
+          next
+        }
+        /^[[:space:]]*start([[:space:]]|$)/ {
+          if (!mapseed_inserted) {
+            print "set mapseed " seed
+            mapseed_inserted = 1
+          }
+          if (!gameseed_inserted) {
+            print "set gameseed " seed
+            gameseed_inserted = 1
+          }
+        }
+        { print }
+        END {
+          if (!mapseed_inserted) {
+            print "set mapseed " seed
+          }
+          if (!gameseed_inserted) {
+            print "set gameseed " seed
+          }
+        }
+      ' "${target}" >"${tmp}"
+      mv "${tmp}" "${target}"
+    fi
     if [ -n "${FREECIV_AIFILL:-}" ]; then
       tmp="${target}.tmp"
       awk -v aifill="${FREECIV_AIFILL}" '

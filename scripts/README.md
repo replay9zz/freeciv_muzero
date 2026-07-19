@@ -32,6 +32,7 @@ Archive candidates:
 - `eval_headless_dual_agents.sh`: Two-checkpoint / two-agent comparison.
 - `train_gui.sh`: Training with GUI display.
 - `train_action_curriculum.sh`: Staged action-curriculum training.
+- `run_mcts_ablation.sh`: Trains and tests the four Wasserstein/stochastic MCTS combinations.
 - `register_model.sh`: Checkpoint registry helper.
 - `inspect_checkpoint.sh`: Checkpoint inspection helper.
 - `freeciv_headless.sh`: Standalone Freeciv headless runner.
@@ -64,6 +65,10 @@ Common examples:
 MUZERO_STOCHASTIC=1 USE_GPU=0 TRAINING_STEPS=1 MUZERO_CHECKPOINT_INTERVAL=1 \
 NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 
+# four-condition MCTS ablation; outputs summary.tsv under results/mcts_ablation
+TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
+  ./scripts/run_mcts_ablation.sh
+
 # record one evaluation
 ./scripts/eval_record_dual_view.sh results/freeciv_remote/.../model.checkpoint
 
@@ -71,3 +76,8 @@ NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 GAMES=20 GPU_LIST=0,1,2,3,4 ./scripts/eval_record_dual_parallel.sh \
   results/freeciv_remote/.../model.checkpoint
 ```
+
+The ablation runner defaults to `gdrive:freeciv_muzero/results`. Checkpoints,
+replay buffers, and TensorBoard event files are synced together under the same
+relative experiment directory. Override `GOOGLE_DRIVE_RESULTS` to use another
+remote or mounted Drive path.
