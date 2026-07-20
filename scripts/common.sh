@@ -279,6 +279,80 @@ format_elapsed() {
   printf '%02d:%02d:%02d' "${hours}" "${minutes}" "${seconds}"
 }
 
+email_notification_enabled() {
+  [ -n "${NOTIFY_EMAIL_TO:-}" ]
+}
+
+send_run_email_notification() {
+  local run_name="$1"
+  local status="$2"
+  local elapsed="$3"
+  local log_path="${4:-}"
+  local recipient="${NOTIFY_EMAIL_TO:-}"
+
+  [ -n "${recipient}" ] || return 0
+  case "${recipient}" in
+    *$'\n'*|*$'\r'*)
+      echo "Email notification skipped: NOTIFY_EMAIL_TO contains a newline." >&2
+      return 1
+      ;;
+  esac
+
+  local outcome outcome_lower host subject_prefix subject result_path checkpoint
+  if [ "${status}" -eq 0 ]; then
+    case "${NOTIFY_EMAIL_ON_SUCCESS:-1}" in
+      0|false|False|FALSE|no|No|NO|off|Off|OFF) return 0 ;;
+    esac
+    outcome="SUCCESS"
+    outcome_lower="succeeded"
+  else
+    case "${NOTIFY_EMAIL_ON_FAILURE:-1}" in
+      0|false|False|FALSE|no|No|NO|off|Off|OFF) return 0 ;;
+    esac
+    outcome="FAILED"
+    outcome_lower="failed"
+  fi
+
+  if ! command -v msmtp >/dev/null 2>&1; then
+    echo "Email notification skipped: msmtp not found." >&2
+    return 1
+  fi
+
+  host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf 'unknown')"
+  subject_prefix="${NOTIFY_EMAIL_SUBJECT_PREFIX:-[freeciv-muzero]}"
+  subject="${subject_prefix} ${outcome}: ${run_name} on ${host}"
+  result_path="${MUZERO_RESULTS_PATH:-<unset>}"
+  checkpoint="<unset>"
+  if [ -n "${MUZERO_RESULTS_PATH:-}" ] && [ -f "${MUZERO_RESULTS_PATH}/model.checkpoint" ]; then
+    checkpoint="${MUZERO_RESULTS_PATH}/model.checkpoint"
+  fi
+
+  if {
+    printf 'To: %s\n' "${recipient}"
+    if [ -n "${NOTIFY_EMAIL_FROM:-}" ]; then
+      printf 'From: %s\n' "${NOTIFY_EMAIL_FROM}"
+    fi
+    printf 'Subject: %s\n' "${subject}"
+    printf 'Date: %s\n' "$(date -R)"
+    printf 'Content-Type: text/plain; charset=UTF-8\n'
+    printf '\n'
+    printf 'Run %s.\n\n' "${outcome_lower}"
+    printf 'Run: %s\n' "${run_name}"
+    printf 'Host: %s\n' "${host}"
+    printf 'Exit status: %s\n' "${status}"
+    printf 'Elapsed: %s (%ss)\n' "$(format_elapsed "${elapsed}")" "${elapsed}"
+    printf 'Results: %s\n' "${result_path}"
+    printf 'Checkpoint: %s\n' "${checkpoint}"
+    printf 'Log: %s\n' "${log_path:-<disabled>}"
+  } | msmtp -t; then
+    echo "Email notification sent: ${recipient}" >&2
+    return 0
+  fi
+
+  echo "Email notification failed: ${recipient}" >&2
+  return 1
+}
+
 drive_sync_should_list_file() {
   local file="$1"
   case "${file}" in
@@ -502,6 +576,9 @@ run_with_timing_and_log() {
     printf 'Exit status: %s\n' "${status}"
     printf 'Elapsed: %s (%ss)\n' "$(format_elapsed "${elapsed}")" "${elapsed}"
   fi
+
+  send_run_email_notification \
+    "${run_name}" "${status}" "${elapsed}" "${log_path}" || true
 
   return "${status}"
 }

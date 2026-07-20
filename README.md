@@ -135,6 +135,57 @@ Training and evaluation wrappers print elapsed time at the end and save logs
 under `results/logs/` by default. Set `RUN_LOG=/path/to/run.log` to choose the
 log path, or `SAVE_RUN_LOG=0` to disable wrapper logging.
 
+## Gmail completion notification
+
+Training and evaluation wrappers send a completion email when
+`NOTIFY_EMAIL_TO` is set. The message includes success/failure, elapsed time,
+host, result directory, checkpoint, and log path. Sending failure is reported
+to stderr but does not change the run's exit status.
+
+Install and configure `msmtp` once on each machine:
+
+```bash
+sudo apt install msmtp msmtp-mta ca-certificates
+```
+
+Example `~/.msmtprc` (use a Gmail app password, not the normal account
+password). Gmail displays app passwords in four-character groups; remove the
+spaces and enter the resulting 16 characters. Never commit the real password
+to this repository:
+
+```text
+defaults
+auth on
+tls on
+tls_starttls on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+
+account gmail
+host smtp.gmail.com
+port 587
+from sender@gmail.com
+user sender@gmail.com
+password YOUR_GMAIL_APP_PASSWORD
+
+account default : gmail
+```
+
+Protect the configuration after creating it:
+
+```bash
+chmod 600 ~/.msmtprc
+```
+
+Send a test, then train:
+
+```bash
+NOTIFY_EMAIL_TO=destination@example.com ./scripts/send_test_email.sh
+NOTIFY_EMAIL_TO=destination@example.com ./scripts/train_headless.sh
+```
+
+Optional variables: `NOTIFY_EMAIL_FROM`, `NOTIFY_EMAIL_SUBJECT_PREFIX`,
+`NOTIFY_EMAIL_ON_SUCCESS=0`, and `NOTIFY_EMAIL_ON_FAILURE=0`.
+
 ## Google Drive sync
 
 Set `GOOGLE_DRIVE_RESULTS` to mirror `results/` while training or evaluating.
