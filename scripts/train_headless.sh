@@ -75,6 +75,7 @@ MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
 MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
 MUZERO_REANALYSE_ON_GPU="${MUZERO_REANALYSE_ON_GPU:-true}"
 MUZERO_BATCH_SIZE="${MUZERO_BATCH_SIZE:-128}"
+MUZERO_REPLAY_BUFFER_SIZE="${MUZERO_REPLAY_BUFFER_SIZE:-1}"
 MUZERO_CHANNELS="${MUZERO_CHANNELS:-32}"
 MUZERO_BLOCKS="${MUZERO_BLOCKS:-2}"
 MUZERO_NUM_UNROLL_STEPS="${MUZERO_NUM_UNROLL_STEPS:-20}"
@@ -166,6 +167,7 @@ run_with_timing_and_log train_headless python muzero.py freeciv_remote "{
   \"selfplay_gpu_ids\": \"${MUZERO_SELFPLAY_GPU_IDS:-}\",
   \"reanalyse_gpu_id\": \"${MUZERO_REANALYSE_GPU_ID:-}\",
   \"batch_size\": ${MUZERO_BATCH_SIZE},
+  \"replay_buffer_size\": ${MUZERO_REPLAY_BUFFER_SIZE},
   \"channels\": ${MUZERO_CHANNELS},
   \"blocks\": ${MUZERO_BLOCKS},
   \"num_unroll_steps\": ${MUZERO_NUM_UNROLL_STEPS},

@@ -65,6 +65,10 @@ Common examples:
 MUZERO_STOCHASTIC=1 USE_GPU=0 TRAINING_STEPS=1 MUZERO_CHECKPOINT_INTERVAL=1 \
 NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 
+# retain up to 10 completed games in the replay buffer
+MUZERO_REPLAY_BUFFER_SIZE=10 TRAINING_STEPS=10000 \
+  ./scripts/train_headless.sh
+
 # four-condition MCTS ablation; outputs summary.tsv under results/mcts_ablation
 TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
   ./scripts/run_mcts_ablation.sh
