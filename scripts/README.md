@@ -69,8 +69,18 @@ NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
   ./scripts/run_mcts_ablation.sh
 
+# optimize reward weights; resumes from a SQLite study
+.venv/bin/python scripts/optimize_rewards.py \
+  --study-name wmcts-rewards --trials 20 --seeds 0,1,2
+# use a new study name when changing seeds or train/test budgets
+tensorboard --logdir results/reward_optuna/wmcts-rewards
+
 # record one evaluation
 ./scripts/eval_record_dual_view.sh results/freeciv_remote/.../model.checkpoint
+
+# use NVIDIA hardware encoding; VIDEO_ENCODER=auto enables fallback to libx264
+VIDEO_ENCODER=h264_nvenc ./scripts/eval_record_dual_view.sh \
+  results/freeciv_remote/.../model.checkpoint
 
 # optional: record 20 evaluations in parallel
 GAMES=20 GPU_LIST=0,1,2,3,4 ./scripts/eval_record_dual_parallel.sh \

@@ -59,6 +59,9 @@ class City:
     production_kind: Optional[str] = None  # "unit" or "building"
     production_target: Optional[str] = None
     production_progress: float = 0.0
+    production_cost: int = 0
+    production_per_turn: int = 0
+    production_turns: int = 0
     production_queue: list[tuple[str, str]] = field(default_factory=list)
     has_city_walls: bool = False
     buildings: set[str] = field(default_factory=set)
@@ -494,6 +497,9 @@ class MultiheadState:
                     production_kind=c.production_kind,
                     production_target=c.production_target,
                     production_progress=c.production_progress,
+                    production_cost=c.production_cost,
+                    production_per_turn=c.production_per_turn,
+                    production_turns=c.production_turns,
                     production_queue=list(c.production_queue),
                     has_city_walls=c.has_city_walls,
                     buildings=set(c.buildings),

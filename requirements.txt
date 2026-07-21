@@ -4,6 +4,7 @@
 gym==0.26.2
 nevergrad
 numpy<2
+optuna>=4,<5
 ray>=2,<3
 seaborn
 setuptools<81

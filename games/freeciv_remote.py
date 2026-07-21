@@ -445,6 +445,11 @@ class Game(AbstractGame):
         self.city_sizes: dict[int, int] = {}
         self.production_queue: dict[int, list[tuple[str, str]]] = {}
         self.production_current: dict[int, tuple[str, str] | None] = {}
+        self.production_estimates = {}
+        self._production_estimate_cache_key = None
+        self.production_estimates_enabled = _env_bool(
+            "FREECIV_PRODUCTION_ESTIMATES", False
+        )
         self.max_production_queue = _env_int("FREECIV_PRODUCTION_QUEUE_MAX", 3)
         self.production_queue_add = _env_int("FREECIV_PRODUCTION_QUEUE_ADD", 1)
         self.config.production_queue_max = self.max_production_queue
@@ -775,6 +780,8 @@ class Game(AbstractGame):
         self.forced_settler_move_slots.clear()
         self.production_queue.clear()
         self.production_current.clear()
+        self.production_estimates.clear()
+        self._production_estimate_cache_key = None
         self._city_buildings.clear()
         self._city_unit_counts.clear()
         self._city_adjacent_water.clear()
@@ -1910,6 +1917,12 @@ class Game(AbstractGame):
             if current is not None:
                 city.production_kind = current[0]
                 city.production_target = current[1]
+                estimate = self.production_estimates.get(city_id)
+                if estimate is not None:
+                    city.production_progress = float(estimate.shield_stock)
+                    city.production_cost = int(estimate.cost)
+                    city.production_per_turn = int(estimate.shield_surplus)
+                    city.production_turns = int(estimate.turns)
                 if queue and queue[0] == current:
                     city.production_queue = queue[1:]
                 else:
@@ -1917,7 +1930,45 @@ class Game(AbstractGame):
             else:
                 city.production_kind = None
                 city.production_target = None
+                city.production_progress = 0.0
+                city.production_cost = 0
+                city.production_per_turn = 0
+                city.production_turns = 0
                 city.production_queue = queue
+
+    def _refresh_production_estimates(self) -> None:
+        if self.client is None or not self.production_estimates_enabled:
+            return
+        targets = []
+        for city_id in self.city_slots:
+            target = self.production_current.get(city_id)
+            if target is None:
+                queue = self.production_queue.get(city_id, [])
+                target = queue[0] if queue else None
+            targets.append((city_id, target))
+        targets = tuple(targets)
+        cache_key = (self.turns, targets)
+        if cache_key == self._production_estimate_cache_key:
+            return
+        self._production_estimate_cache_key = cache_key
+        self.production_estimates = {}
+        for city_id in self.city_slots:
+            current = self.production_current.get(city_id)
+            if current is None:
+                queue = self.production_queue.get(city_id, [])
+                current = queue[0] if queue else None
+            if current is None:
+                continue
+            kind, name = current
+            api_kind = "UnitType" if kind == "unit" else "Building"
+            try:
+                estimate = self.client.city_production_info(
+                    city_id, api_kind, name, include_shield_stock=True
+                )
+            except Exception:
+                estimate = None
+            if estimate is not None:
+                self.production_estimates[city_id] = estimate
 
     def _unit_slot_label(self, slot_idx: int) -> str:
         if 0 <= slot_idx < len(self.unit_slot_types):
@@ -3511,6 +3562,7 @@ class Game(AbstractGame):
             self.unit_activity_valid_masks = {}
             self.unit_current_activities = {}
         self._refresh_production_queues()
+        self._refresh_production_estimates()
         self._apply_production_snapshot_to_state(self._last_state)
         self.current_research = None
         if (

@@ -14,6 +14,8 @@ HOST="${HOST:-127.0.0.1}"
 RUN_STAMP="${RUN_STAMP:-$(date +%Y%m%d-%H%M%S)-eval-dual}"
 RECORD_DIR="${RECORD_DIR:-${ROOT_DIR}/results/evals/${RUN_STAMP}}"
 RECORD_FPS="${RECORD_FPS:-30}"
+VIDEO_ENCODER="${VIDEO_ENCODER:-libx264}"
+VIDEO_QUALITY="${VIDEO_QUALITY:-20}"
 DISPLAY_SIZE="${DISPLAY_SIZE:-1920x1080}"
 OBSERVER_DISPLAY_SIZE="${OBSERVER_DISPLAY_SIZE:-${DISPLAY_SIZE}}"
 DISPLAY_DEPTH="${DISPLAY_DEPTH:-24}"
@@ -84,6 +86,65 @@ if ! command -v ffprobe >/dev/null 2>&1; then
   exit 1
 fi
 
+VIDEO_ENCODER_RESOLVED=""
+VIDEO_ENCODER_ARGS=()
+
+nvenc_available() {
+  ffmpeg \
+    -hide_banner \
+    -loglevel error \
+    -f lavfi \
+    -i "color=c=black:s=256x256:d=0.1" \
+    -frames:v 1 \
+    -c:v h264_nvenc \
+    -f null - >/dev/null 2>&1
+}
+
+select_video_encoder() {
+  case "${VIDEO_ENCODER}" in
+    auto)
+      if nvenc_available; then
+        VIDEO_ENCODER_RESOLVED="h264_nvenc"
+      else
+        VIDEO_ENCODER_RESOLVED="libx264"
+      fi
+      ;;
+    h264_nvenc)
+      if ! nvenc_available; then
+        echo "VIDEO_ENCODER=h264_nvenc requested but NVENC is unavailable." >&2
+        exit 1
+      fi
+      VIDEO_ENCODER_RESOLVED="h264_nvenc"
+      ;;
+    libx264)
+      VIDEO_ENCODER_RESOLVED="libx264"
+      ;;
+    *)
+      echo "Unsupported VIDEO_ENCODER=${VIDEO_ENCODER}; use auto, h264_nvenc, or libx264." >&2
+      exit 2
+      ;;
+  esac
+
+  if [ "${VIDEO_ENCODER_RESOLVED}" = "h264_nvenc" ]; then
+    VIDEO_ENCODER_ARGS=(
+      -c:v h264_nvenc
+      -preset p4
+      -rc vbr
+      -cq "${VIDEO_QUALITY}"
+      -b:v 0
+    )
+  else
+    VIDEO_ENCODER_ARGS=(
+      -c:v libx264
+      -preset veryfast
+      -crf "${VIDEO_QUALITY}"
+    )
+  fi
+  echo "Video encoder: ${VIDEO_ENCODER_RESOLVED} (requested=${VIDEO_ENCODER})"
+}
+
+select_video_encoder
+
 mkdir -p "${RECORD_DIR}"
 if [ "${HEATMAPS}" = "1" ]; then
   mkdir -p "${HEATMAP_TB_DIR}" "${HEATMAP_FRAME_DIR}" "${HEATMAP_VIDEO_DIR}"
@@ -133,6 +194,8 @@ write_run_info() {
     printf 'client_resolution: %s\n' "${CLIENT_RESOLUTION}"
     printf 'record_fps: %s\n' "${RECORD_FPS}"
     printf 'record_size: %s\n' "${RECORD_SIZE}"
+    printf 'video_encoder: %s\n' "${VIDEO_ENCODER_RESOLVED}"
+    printf 'video_quality: %s\n' "${VIDEO_QUALITY}"
     printf 'heatmap_tags: %s\n' "${HEATMAP_TAGS}"
     printf 'heatmap_tile_shape: %s\n' "${HEATMAP_TILE_SHAPE}"
     printf 'heatmap_map_width: %s\n' "${HEATMAP_MAP_WIDTH}"
@@ -544,8 +607,7 @@ start_ffmpeg() {
     -video_size "${RECORD_SIZE}" \
     -framerate "${RECORD_FPS}" \
     -i "${display_num}" \
-    -c:v libx264 \
-    -preset veryfast \
+    "${VIDEO_ENCODER_ARGS[@]}" \
     -pix_fmt yuv420p \
     "${output_file}" &
 }
@@ -590,9 +652,7 @@ render_map_only_video() {
     -i "${input_file}" \
     -vf "${crop_filter}" \
     -an \
-    -c:v libx264 \
-    -preset veryfast \
-    -crf 20 \
+    "${VIDEO_ENCODER_ARGS[@]}" \
     -pix_fmt yuv420p \
     "${output_file}"; then
     echo "Rendered map-only view to ${output_file}"
@@ -776,8 +836,7 @@ if [ "${HEATMAPS}" = "1" ]; then
       -vf "scale=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:force_original_aspect_ratio=decrease,pad=${HEATMAP_PANEL_WIDTH}:${HEATMAP_PANEL_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setpts=PTS-STARTPTS,tpad=start_duration=${HEATMAP_START_DELAY}:start_mode=clone" \
       -an \
       -r "${RECORD_FPS}" \
-      -c:v libx264 \
-      -preset veryfast \
+      "${VIDEO_ENCODER_ARGS[@]}" \
       -pix_fmt yuv420p \
       "${output_file}"
   }

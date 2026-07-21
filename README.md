@@ -105,6 +105,12 @@ FREECIV_ACTION_CURRICULUM_STAGE=4 ./scripts/train_headless.sh  # + attack
 FREECIV_ACTION_CURRICULUM_STAGE=full ./scripts/train_headless.sh
 ```
 
+Set `FREECIV_PRODUCTION_ESTIMATES=1` to query Freeciv's city shield stock,
+shield surplus, effective build cost, and turns-to-completion through the
+client Lua API. This populates the existing production-progress observation
+and city production metadata. Leave it disabled when evaluating older
+checkpoints that were trained without live production estimates.
+
 Use `FREECIV_ACTION_CURRICULUM_GROUPS=move,build_city,research` for an explicit
 group set. The current remote training environment still controls one MuZero
 player in a Freeciv server; built-in AIs remain the external benchmark unless

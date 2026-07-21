@@ -22,6 +22,14 @@ class EvalResult:
         return self.errors[-1] if self.errors else None
 
 
+@dataclass(frozen=True)
+class CityProductionInfo:
+    cost: int
+    shield_stock: int
+    shield_surplus: int
+    turns: int
+
+
 class LuaRemoteClient:
     """
     Minimal client for Freeciv GTK LuaRemote (ENABLE_LUAREMOTE), listening on 127.0.0.1:PORT.
@@ -440,6 +448,46 @@ class LuaRemoteClient:
         self._log_action("queue_city_production", lua)
         result = self.eval(lua)
         return any(x.strip() in ["__OK__ city_queue", "**OK** city_queue"] for x in result.lines)
+
+    def city_production_info(
+        self,
+        city_id: int,
+        kind: str,
+        rule_name: str,
+        *,
+        include_shield_stock: bool = True,
+    ) -> Optional[CityProductionInfo]:
+        """Return Freeciv's exact current-state production estimate."""
+        safe_kind = self._quote_lua_string(kind or "UnitType")
+        safe_name = self._quote_lua_string(rule_name or "")
+        include_stock = "true" if include_shield_stock else "false"
+        lua = (
+            "return (function() "
+            f"local cid={int(city_id)}; local kind={safe_kind}; local uname={safe_name}; "
+            "if not client or not client.city_production_cost "
+            "or not client.city_production_turns or not client.city_shield_stock "
+            "or not client.city_shield_surplus then return '__NO_CITY_PROD_INFO__' end; "
+            "local ok1,cost=pcall(function() return client.city_production_cost(cid,kind,uname) end); "
+            "local ok2,stock=pcall(function() return client.city_shield_stock(cid) end); "
+            "local ok3,surplus=pcall(function() return client.city_shield_surplus(cid) end); "
+            f"local ok4,turns=pcall(function() return client.city_production_turns(cid,kind,uname,{include_stock}) end); "
+            "if not (ok1 and ok2 and ok3 and ok4) then return '__ERR_CITY_PROD_INFO__' end; "
+            "return string.format('%d|%d|%d|%d',cost,stock,surplus,turns) end)()"
+        )
+        result = self.eval(lua)
+        payload = result.last_return()
+        if not payload or payload.startswith("__") or payload.startswith("**"):
+            return None
+        parts = payload.split("|")
+        if len(parts) != 4:
+            return None
+        try:
+            cost, stock, surplus, turns = (int(value) for value in parts)
+        except ValueError:
+            return None
+        if cost < 0 or stock < 0 or turns < 0:
+            return None
+        return CityProductionInfo(cost, stock, surplus, turns)
 
     def attack_dir_id(self, unit_id: int, dir_id: int) -> bool:
         lua = (
