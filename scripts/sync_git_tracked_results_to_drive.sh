@@ -3,13 +3,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-DEST="${GOOGLE_DRIVE_RESULTS:-gdrive:freeciv_muzero/results}"
+DEST="${GOOGLE_DRIVE_RESULTS:-}"
 DRY_RUN="${DRY_RUN:-0}"
 INCLUDE_MEDIA="${INCLUDE_MEDIA:-0}"
 INCLUDE_LOGS="${INCLUDE_LOGS:-0}"
 MEDIA_ONLY="${MEDIA_ONLY:-0}"
 VERBOSE="${VERBOSE:-1}"
 YES="${YES:-0}"
+
+if [ -z "${DEST}" ]; then
+  echo "Set GOOGLE_DRIVE_RESULTS to an explicit rclone destination." >&2
+  exit 2
+fi
 
 if ! command -v rclone >/dev/null 2>&1; then
   echo "rclone not found." >&2

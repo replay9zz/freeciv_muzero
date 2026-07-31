@@ -251,6 +251,19 @@ class SelfPlay:
                 game_history.reward_history.append(reward)
                 game_history.to_play_history.append(self.game.to_play())
 
+        outcome = getattr(self.game, "last_outcome", None)
+        if outcome is not None:
+            own_score = "" if outcome.own_score is None else f"{outcome.own_score:.6f}"
+            opponent_score = (
+                "" if outcome.opponent_score is None else f"{outcome.opponent_score:.6f}"
+            )
+            print(
+                "[selfplay-result] "
+                f"outcome={outcome.value:.9f} win_point={outcome.win_point:.1f} "
+                f"own_score={own_score} opponent_score={opponent_score} "
+                f"decided_by={outcome.decided_by}",
+                flush=True,
+            )
         return game_history
 
     def close_game(self):

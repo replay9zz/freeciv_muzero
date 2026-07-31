@@ -65,19 +65,23 @@ Common examples:
 MUZERO_STOCHASTIC=1 USE_GPU=0 TRAINING_STEPS=1 MUZERO_CHECKPOINT_INTERVAL=1 \
 NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 
-# retain up to 10 completed games in the replay buffer
-MUZERO_REPLAY_BUFFER_SIZE=10 TRAINING_STEPS=10000 \
+# retain up to 20 completed games instead of the default 10
+MUZERO_REPLAY_BUFFER_SIZE=20 TRAINING_STEPS=10000 \
   ./scripts/train_headless.sh
 
 # four-condition MCTS ablation; outputs summary.tsv under results/mcts_ablation
 TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
   ./scripts/run_mcts_ablation.sh
 
-# optimize reward weights; resumes from a SQLite study
-.venv/bin/python scripts/optimize_rewards.py \
-  --study-name wmcts-rewards --trials 20 --seeds 0,1,2
-# use a new study name when changing seeds or train/test budgets
-tensorboard --logdir results/reward_optuna/wmcts-rewards
+# pretrain the policy from built-in AI actions
+./scripts/collect_easy_ai_trajectories.sh
+./scripts/train_imitation.sh --samples results/imitation/.../imitation_samples.jsonl \
+  --snapshots results/imitation/.../snapshots.jsonl
+
+# tune learning settings using held-out wins and native Freeciv score margins
+.venv/bin/python scripts/optimize_outcomes.py \
+  --study-name wmcts-outcomes --trials 20 \
+  --imitation-checkpoint results/imitation_pretrain/.../model.checkpoint
 
 # record one evaluation
 ./scripts/eval_record_dual_view.sh results/freeciv_remote/.../model.checkpoint
@@ -91,7 +95,6 @@ GAMES=20 GPU_LIST=0,1,2,3,4 ./scripts/eval_record_dual_parallel.sh \
   results/freeciv_remote/.../model.checkpoint
 ```
 
-The ablation runner defaults to `gdrive:freeciv_muzero/results`. Checkpoints,
-replay buffers, and TensorBoard event files are synced together under the same
-relative experiment directory. Override `GOOGLE_DRIVE_RESULTS` to use another
-remote or mounted Drive path.
+The ablation runner keeps results local by default. Set `GOOGLE_DRIVE_RESULTS`
+explicitly to sync checkpoints, replay buffers, and TensorBoard event files to
+an rclone remote or mounted Drive path.

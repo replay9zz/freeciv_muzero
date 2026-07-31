@@ -12,7 +12,7 @@ SEEDS="${ABLATION_SEEDS:-1}"
 TRAINING_STEPS="${TRAINING_STEPS:-10000}"
 NUM_TESTS="${NUM_TESTS:-10}"
 SUMMARY_PATH="${OUTPUT_ROOT}/summary.tsv"
-GOOGLE_DRIVE_RESULTS="${GOOGLE_DRIVE_RESULTS:-gdrive:freeciv_muzero/results}"
+GOOGLE_DRIVE_RESULTS="${GOOGLE_DRIVE_RESULTS:-}"
 GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD="${GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD:-1}"
 GOOGLE_DRIVE_RESULTS_BACKGROUND="${GOOGLE_DRIVE_RESULTS_BACKGROUND:-0}"
 export GOOGLE_DRIVE_RESULTS GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD
@@ -22,7 +22,7 @@ conditions=(baseline wasserstein stochastic wasserstein_stochastic)
 mkdir -p "${OUTPUT_ROOT}"
 printf 'condition\tseed\twasserstein\tstochastic\ttrain_status\ttest_status\taverage_reward\tcheckpoint\n' >"${SUMMARY_PATH}"
 echo "[ablation] note: current stochastic search uses one fixed chance outcome (0)."
-echo "[ablation] drive=${GOOGLE_DRIVE_RESULTS} tensorboard=${GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD}"
+echo "[ablation] drive=${GOOGLE_DRIVE_RESULTS:-disabled} tensorboard=${GOOGLE_DRIVE_RESULTS_INCLUDE_TENSORBOARD}"
 
 IFS=',' read -r -a seed_values <<<"${SEEDS}"
 overall_status=0

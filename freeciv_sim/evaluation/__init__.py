@@ -1,4 +1,4 @@
-"""Strategic evaluation helpers for reward shaping and role agents."""
+"""Outcome evaluation and optional strategic helpers for role agents."""
 
 from .strategic_value import (
     StrategicBreakdown,
@@ -8,6 +8,7 @@ from .strategic_value import (
     research_completion_value,
     strategic_potential,
 )
+from .outcome import GameOutcome, game_outcome, normalized_score_margin, optuna_objective
 
 __all__ = [
     "StrategicBreakdown",
@@ -16,4 +17,8 @@ __all__ = [
     "production_asset_value",
     "research_completion_value",
     "strategic_potential",
+    "GameOutcome",
+    "game_outcome",
+    "normalized_score_margin",
+    "optuna_objective",
 ]

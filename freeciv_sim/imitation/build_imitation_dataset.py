@@ -100,7 +100,8 @@ def _action_index_from_actionlog(
 
     move_size = config.max_units * MultiheadState.MOVE_PER_UNIT
     attack_size = config.max_units * MultiheadState.ATTACK_PER_UNIT
-    econ_offset = move_size + attack_size
+    activity_size = config.max_units * MultiheadState.UNIT_ACTIVITY_PER_UNIT
+    econ_offset = move_size + attack_size + activity_size
     production_offset = (
         econ_offset + len(MultiheadState.RESEARCH_TECHS) + config.max_units
     )

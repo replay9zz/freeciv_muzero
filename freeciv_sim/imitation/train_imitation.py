@@ -198,7 +198,8 @@ def _infer_action(config: MuZeroConfig, prev: dict[str, Any], event: dict[str, A
     event_type = event.get("type")
     move_size = config.max_units * MultiheadState.MOVE_PER_UNIT
     attack_size = config.max_units * MultiheadState.ATTACK_PER_UNIT
-    econ_offset = move_size + attack_size
+    activity_size = config.max_units * MultiheadState.UNIT_ACTIVITY_PER_UNIT
+    econ_offset = move_size + attack_size + activity_size
 
     if event_type == "unit_moved":
         player_id = int(event.get("owner"))

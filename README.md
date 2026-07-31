@@ -220,17 +220,34 @@ The sync runs in the background by default and is rate-limited to once every 300
 seconds. Override with `GOOGLE_DRIVE_RESULTS_INTERVAL=60`, or set
 `GOOGLE_DRIVE_RESULTS_BACKGROUND=0` to wait for each sync.
 
-Optional strategic reward shaping:
+## Outcome-only learning and AI imitation
+
+Freeciv training has no hand-authored rewards for settlers, cities, population,
+exploration, production, or research. Intermediate rewards are zero. A finished
+game returns `+1` for a win, `-1` for a loss, and `0` for a draw. At the fixed
+turn horizon, an unfinished game uses the normalized native Freeciv score
+margin against the strongest AI opponent.
+
+Collect built-in AI games and pretrain the MuZero policy before outcome-only
+training:
 
 ```bash
-FREECIV_REWARD_POTENTIAL=0.1 ./scripts/train.sh
+./scripts/collect_easy_ai_trajectories.sh
+./scripts/train_imitation.sh \
+  --samples results/imitation/RUN/imitation_samples.jsonl \
+  --snapshots results/imitation/RUN/snapshots.jsonl \
+  --output-dir results/imitation_pretrain/RUN
+
+IMITATION_CHECKPOINT=results/imitation_pretrain/RUN/model.checkpoint \
+  ./scripts/train_headless.sh
 ```
 
-This adds a potential-based term computed from cities, population, land,
-military strength, research unlocks, production pipeline, exploration, and
-city safety. To log reward components beside belief heatmaps, set
-`FREECIV_REWARD_TENSORBOARD=1` or enable `FREECIV_BELIEF_TENSORBOARD=1`.
-To append the belief tracker planes to the model observation, set
+The default replay buffer retains ten completed games. `optimize_outcomes.py`
+tunes learning settings with disjoint training and evaluation seeds. Its
+objective ranks win rate first and uses normalized Freeciv score margin only as
+a bounded tie-break signal. It never tunes reward weights.
+
+To append belief tracker planes to the observation, set
 `FREECIV_OBSERVE_BELIEF=1`.
 
 ## Test
@@ -294,11 +311,9 @@ git push
 ## Results
 
 Training checkpoints, replay buffers, evaluation videos, and other generated
-artifacts under `results/` can be stored in Google Drive with
-`GOOGLE_DRIVE_RESULTS`, as described above. Google Drive is the preferred
-long-term store for these large files; they do not need to be committed to Git
-or Git LFS after a successful sync. Keep only small summaries or deliberately
-selected artifacts in the repository.
+artifacts stay under `results/` by default. Set `GOOGLE_DRIVE_RESULTS`
+explicitly to copy them to Google Drive, as described above. Keep only small
+summaries or deliberately selected artifacts in the repository.
 
 Example:
 

@@ -1,5 +1,4 @@
 import datetime
-import json
 import math
 import os
 import pathlib
@@ -13,7 +12,6 @@ from collections import deque
 from typing import Optional
 
 import numpy
-import torch
 from PIL import Image, ImageDraw
 from torch.utils.tensorboard import SummaryWriter
 
@@ -52,17 +50,14 @@ from freeciv_sim.state.multihead_state import (
     TERRAIN_SPECS,
 )
 from freeciv_sim.evaluation import (
-    potential_shaping_reward,
+    GameOutcome,
+    game_outcome,
     production_asset_value,
     research_completion_value,
-    strategic_potential,
 )
 from freeciv_sim.rules.research import TECH_PREREQS, build_tech_costs
 from freeciv_sim.state.providers import GroundTruth, RandomMapProvider
-from freeciv_sim.remote.lua_actions import (
-    auto_settler as lua_auto_settler,
-    set_government as lua_set_government,
-)
+from freeciv_sim.remote.lua_actions import auto_settler as lua_auto_settler
 from freeciv_sim.remote.lua_queries import (
     list_city_adjacent_water,
     list_city_buildings,
@@ -263,7 +258,7 @@ class MuZeroConfig:
         self.momentum = 0.9
 
         # Exponential learning rate schedule
-        self.lr_init = 0.02
+        self.lr_init = _env_float("MUZERO_LR_INIT", 0.02)
         self.lr_decay_rate = 0.8
         self.lr_decay_steps = 1000
 
@@ -351,15 +346,6 @@ class Game(AbstractGame):
         )
         self.auto_settlers = _env_bool("FREECIV_AUTO_SETTLERS", False)
         self.sleep = _env_float("FREECIV_SLEEP", 0.1)
-        self.reward_explore = _env_float("FREECIV_REWARD_EXPLORE", 1.0)
-        self.reward_civ_score = _env_float("FREECIV_REWARD_CIV_SCORE", 0.25)
-        self.reward_city = _env_float("FREECIV_REWARD_CITY", 12.0)
-        self.reward_population = _env_float("FREECIV_REWARD_POPULATION", 2.0)
-        self.reward_settler = _env_float("FREECIV_REWARD_SETTLER", 3.0)
-        self.reward_potential = _env_float("FREECIV_REWARD_POTENTIAL", 0.0)
-        self.reward_potential_discount = _env_float(
-            "FREECIV_REWARD_POTENTIAL_DISCOUNT", 1.0
-        )
         self.action_curriculum_stage = os.getenv(
             "FREECIV_ACTION_CURRICULUM_STAGE", ""
         ).strip()
@@ -464,7 +450,6 @@ class Game(AbstractGame):
         self._buildable_units: set[str] = set()
         self._buildable_buildings: set[str] = set()
         self.autosettler_units: set[int] = set()
-        self.gov_switch_sent: set[str] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
         self.visible_enemy_cities: list[tuple[int, int]] = []
         self.visible_enemy_city_ids: dict[tuple[int, int], int] = {}
@@ -504,14 +489,10 @@ class Game(AbstractGame):
             "FREECIV_BELIEF_TENSORBOARD_HEX",
             self.belief_tb_enabled,
         )
-        self.reward_tb_enabled = _env_bool(
-            "FREECIV_REWARD_TENSORBOARD",
-            self.belief_tb_enabled,
-        )
         self._gameplay_started = False
         self._belief_last_logged_turn = None
-        self._reward_last_logged_step = None
         self.episode_index = 0
+        self.last_outcome = GameOutcome(0.0, 0.5, None, None, "unavailable")
         self.final_save_requested = False
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
@@ -774,7 +755,7 @@ class Game(AbstractGame):
         self._belief_planes = {}
         self._gameplay_started = False
         self._belief_last_logged_turn = None
-        self._reward_last_logged_step = None
+        self.last_outcome = GameOutcome(0.0, 0.5, None, None, "unavailable")
         self.acted_unit_slots.clear()
         self.acted_production_cities.clear()
         self.forced_settler_move_slots.clear()
@@ -793,7 +774,6 @@ class Game(AbstractGame):
         self.autosettler_units = set()
         self.unit_activity_valid_masks = {}
         self.unit_current_activities = {}
-        self.gov_switch_sent = set()
         self.visible_enemy_units = []
         self.visible_enemy_cities = []
         self.visible_enemy_city_ids = {}
@@ -1058,41 +1038,8 @@ class Game(AbstractGame):
         self.controlled_units = sorted(controlled)
         self.unit_id = self.controlled_units[0]
 
-    def _reward_metrics(self, board_state):
-        if board_state is None:
-            return {
-                "civ_score": 0.0,
-                "muzero_score": 0.0,
-                "city_count": 0,
-                "population": 0,
-                "settler_count": 0,
-            }
-        player = 1
-        cities = list(board_state.cities[player])
-        units = [u for u in board_state.units[player] if getattr(u, "alive", False)]
-        settler_count = sum(1 for u in units if getattr(u, "can_build_city", False))
-        population = sum(city.size for city in cities)
-        try:
-            muzero_score = float(board_state.muzero_score(player))
-        except Exception:
-            muzero_score = 0.0
-        civ_score = None
-        if self.player_id is not None:
-            entry = self.player_scores.get(int(self.player_id))
-            if entry is not None and entry[0] is not None:
-                civ_score = float(entry[0])
-        if civ_score is None:
-            civ_score = muzero_score
-        return {
-            "civ_score": civ_score,
-            "muzero_score": muzero_score,
-            "city_count": len(cities),
-            "population": population,
-            "settler_count": settler_count,
-        }
-
     def _ensure_belief_writer(self) -> Optional[SummaryWriter]:
-        if not (self.belief_tb_enabled or self.reward_tb_enabled):
+        if not self.belief_tb_enabled:
             return None
         if self._belief_writer is not None:
             return self._belief_writer
@@ -1394,88 +1341,6 @@ class Game(AbstractGame):
             )
         writer.flush()
         self._belief_last_logged_turn = self.turns
-
-    def _reward_components(
-        self,
-        prev_visited: int,
-        new_visited: int,
-        prev_metrics: dict,
-        next_metrics: dict,
-        prev_state,
-        next_state,
-    ) -> dict[str, float]:
-        components = {
-            "explore": float(new_visited - prev_visited) * self.reward_explore,
-            "civ_score": (
-                next_metrics["civ_score"] - prev_metrics["civ_score"]
-            )
-            * self.reward_civ_score,
-            "city": (
-                next_metrics["city_count"] - prev_metrics["city_count"]
-            )
-            * self.reward_city,
-            "population": (
-                next_metrics["population"] - prev_metrics["population"]
-            )
-            * self.reward_population,
-            "settler": (
-                next_metrics["settler_count"] - prev_metrics["settler_count"]
-            )
-            * self.reward_settler,
-        }
-        if self.reward_potential:
-            components["strategic_potential"] = (
-                self.reward_potential
-                * potential_shaping_reward(
-                    prev_state,
-                    next_state,
-                    player=1,
-                    discount=self.reward_potential_discount,
-                )
-            )
-        return components
-
-    def _log_reward_tensorboard(
-        self,
-        reward_components: dict[str, float],
-        prev_state,
-        next_state,
-    ) -> None:
-        if not self.reward_tb_enabled:
-            return
-        writer = self._ensure_belief_writer()
-        if writer is None:
-            return
-        step = self.turns * max(1, self.max_actions_per_turn) + self.actions_this_turn
-        if self._reward_last_logged_step == step:
-            return
-        prefix = f"reward/episode_{self.episode_index:03d}"
-        total = float(sum(reward_components.values()))
-        writer.add_scalar(f"{prefix}/total", total, step)
-        for name, value in sorted(reward_components.items()):
-            writer.add_scalar(f"{prefix}/{name}", float(value), step)
-        if prev_state is not None or next_state is not None:
-            before = strategic_potential(prev_state, 1)
-            after = strategic_potential(next_state, 1)
-            writer.add_scalar(f"{prefix}/potential/before", before.total, step)
-            writer.add_scalar(f"{prefix}/potential/after", after.total, step)
-            for field in (
-                "cities",
-                "population",
-                "land",
-                "military",
-                "research",
-                "production",
-                "exploration",
-                "safety",
-            ):
-                writer.add_scalar(
-                    f"{prefix}/potential_delta/{field}",
-                    float(getattr(after, field) - getattr(before, field)),
-                    step,
-                )
-        writer.flush()
-        self._reward_last_logged_step = step
 
     def _belief_observation_planes(self) -> list[numpy.ndarray]:
         zeros = numpy.zeros(
@@ -1992,10 +1857,10 @@ class Game(AbstractGame):
         return (spec.unit_class or "").lower() in SEA_UNIT_CLASSES
 
     def _production_is_excluded(self, name: str) -> bool:
-        if not getattr(self.config, "allow_sea_units", True) and self._production_is_sea(name):
-            return True
-        label = (name or "").lower()
-        return any(tag in label for tag in ("diplomat", "explorer"))
+        return bool(
+            not getattr(self.config, "allow_sea_units", True)
+            and self._production_is_sea(name)
+        )
 
     def _worker_unit_count(self) -> int:
         for label in self.unit_slot_types:
@@ -2606,17 +2471,10 @@ class Game(AbstractGame):
         if self.max_production_queue > 0 and len(queue) >= self.max_production_queue:
             return 0
         if kind == "unit":
-            name = self._upgrade_unit_name(name)
             if self._production_is_excluded(name):
                 return 0
             if self.client is not None and self.player_id is not None:
                 if not self._player_can_build_unit(name):
-                    return 0
-            if self._production_is_worker_like(name) and self._worker_unit_count() > 0:
-                return 0
-            if name == "Settlers":
-                size = int(self.city_sizes.get(int(city_id), 1))
-                if size < self._settler_min_city_size():
                     return 0
         if kind == "building":
             if not self._building_allowed_by_water(city_id, name):
@@ -2772,50 +2630,6 @@ class Game(AbstractGame):
             if self.pending_research_target in completed:
                 self.pending_research_target = None
             self._log_production_options(reason="research")
-        for city_id, queue in self.production_queue.items():
-            if not queue and self.production_current.get(city_id) is None:
-                continue
-            updated: list[tuple[str, str]] = []
-            changed = False
-            for idx, (kind, name) in enumerate(queue):
-                if idx == 0:
-                    updated.append((kind, name))
-                    continue
-                if kind == "unit":
-                    upgraded = self._upgrade_unit_name(name)
-                    if upgraded != name:
-                        name = upgraded
-                        changed = True
-                updated.append((kind, name))
-            if changed:
-                self.production_queue[city_id] = updated
-            current = self.production_current.get(city_id)
-            if current is None and self.production_queue.get(city_id):
-                current = self.production_queue[city_id][0]
-            if not current:
-                continue
-            kind, name = current
-            if kind != "unit":
-                continue
-            upgraded = self._upgrade_unit_name(name)
-            if upgraded == name:
-                continue
-            existing_units = {
-                queued_name
-                for queued_kind, queued_name in self.production_queue.get(city_id, [])
-                if queued_kind == "unit"
-            }
-            if upgraded in existing_units:
-                continue
-            if self.max_production_queue > 0:
-                if len(self.production_queue.get(city_id, [])) >= self.max_production_queue:
-                    continue
-            added = self._queue_city_production(city_id, "unit", upgraded, count=1)
-            if added:
-                print(
-                    f"[production] city={city_id} queued unit {upgraded} after research",
-                    file=sys.stderr,
-                )
 
     def _prefer_production_actions(self, valid):
         if self._last_state is None or not self.city_slots:
@@ -3042,23 +2856,6 @@ class Game(AbstractGame):
             valid[econ_offset:research_end] = 0
             valid[action_idx] = 1
         return valid
-
-    def _maybe_switch_government(self, research_flags: dict[str, bool]) -> None:
-        if not research_flags:
-            return
-        target = None
-        if research_flags.get("Democracy", False) and "Democracy" not in self.gov_switch_sent:
-            target = "Democracy"
-        elif research_flags.get("Monarchy", False) and "Monarchy" not in self.gov_switch_sent:
-            target = "Monarchy"
-        if target is None:
-            return
-        try:
-            ok = lua_set_government(self.client, target)
-        except Exception:
-            ok = False
-        if ok:
-            self.gov_switch_sent.add(target)
 
     def _maybe_enable_autosettlers(self) -> None:
         if not self.auto_settlers:
@@ -3506,7 +3303,6 @@ class Game(AbstractGame):
                     )
         self.visited_tiles.add(snapshot.player_pos)
         self._last_snapshot = snapshot
-        self._maybe_switch_government(snapshot.research_flags)
         self._try_refresh_controlled_units()
         self._refresh_unit_status()
         self._refresh_player_scores()
@@ -3748,26 +3544,15 @@ class Game(AbstractGame):
             return
 
     def step(self, action):
-        prev_visited = len(self.known_tiles)
         try:
             board_state = self._sync_state()
         except Exception:
             if self.restart_on_reset and self.client_cmd:
                 self._shutdown_client_for_restart()
-            return self.reset(), 0.0, True
-        prev_state = board_state
-        prev_metrics = self._reward_metrics(board_state)
-
+            observation = self.reset()
+            self.last_outcome = GameOutcome(-1.0, 0.0, None, None, "error")
+            return observation, -1.0, True
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
-        valid_actions = board_state.valid_moves(1)
-        if not owned_cities:
-            econ_offset = board_state.ECON_OFFSET
-            build_offset = econ_offset + board_state.ECON_BUILD_CITY_OFFSET
-            for unit_idx in range(self.max_units):
-                action_idx = build_offset + unit_idx
-                if 0 <= action_idx < len(valid_actions) and valid_actions[action_idx]:
-                    action = action_idx
-                    break
         self._apply_action(action, board_state, owned_cities)
         self._gameplay_started = True
         # LuaRemote does not expose Unit.moves_left. Keep each unit action
@@ -3811,23 +3596,16 @@ class Game(AbstractGame):
         except Exception:
             done = True
             board_state = self._last_state
+        if any(winner is True for _score, winner, _name in self.player_scores.values()):
+            done = True
+        reward = 0.0
         if done:
+            player_id = int(self.player_id) if self.player_id is not None else 0
+            self.last_outcome = game_outcome(self.player_scores, player_id)
+            reward = self.last_outcome.value
             self._save_on_exit_if_enabled()
         if done and self.restart_on_reset and self.client_cmd:
             self._shutdown_client_for_restart()
-
-        new_visited = len(self.known_tiles)
-        next_metrics = self._reward_metrics(board_state)
-        reward_components = self._reward_components(
-            prev_visited,
-            new_visited,
-            prev_metrics,
-            next_metrics,
-            prev_state,
-            board_state,
-        )
-        reward = float(sum(reward_components.values()))
-        self._log_reward_tensorboard(reward_components, prev_state, board_state)
         observation = self._encode_observation(board_state)
         return observation, reward, done
 
@@ -3989,20 +3767,7 @@ class Game(AbstractGame):
             econ_offset = self._last_state.ECON_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
-            build_start = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
-            build_end = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
             valid[prod_start:prod_end] = 0
-            build_candidates = [
-                idx
-                for idx in range(build_start, build_end)
-                if 0 <= idx < len(valid) and valid[idx]
-            ]
-            # Disabled heuristic forcing: let MCTS decide whether to found the first city.
-            # if build_candidates:
-            #     forced = numpy.zeros_like(valid)
-            #     for idx in build_candidates:
-            #         forced[idx] = 1
-            #     valid = forced
         if self.current_research:
             econ_offset = self._last_state.ECON_OFFSET
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -4010,156 +3775,31 @@ class Game(AbstractGame):
         if self.city_slots:
             econ_offset = self._last_state.ECON_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            free_units = int(getattr(self.config, "city_unit_free", 0))
             for city_slot, city_id in enumerate(self.city_slots):
-                if city_id in self.acted_production_cities:
-                    start = (
-                        prod_start
-                        + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                    )
-                    end = start + self._last_state.PRODUCTION_ITEM_COUNT
-                    if start < len(valid):
-                        valid[start:min(end, len(valid))] = 0
+                start = prod_start + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
+                end = min(start + self._last_state.PRODUCTION_ITEM_COUNT, len(valid))
+                if start >= len(valid):
+                    break
+                if (
+                    city_id in self.acted_production_cities
+                    or self.production_current.get(city_id) is not None
+                    or bool(self.production_queue.get(city_id))
+                ):
+                    valid[start:end] = 0
                     continue
-                unit_count = sum(
-                    self._city_unit_counts.get(city_id, {}).values()
-                )
-                garrison_count = 0
-                queued_buildings = {
-                    queued_name
-                    for queued_kind, queued_name in self.production_queue.get(city_id, [])
-                    if queued_kind == "building"
-                }
-                current_prod = self.production_current.get(city_id)
-                if current_prod and current_prod[0] == "building":
-                    queued_buildings.add(current_prod[1])
-                if (
-                    self._last_state is not None
-                    and city_slot < len(self._last_state.cities[1])
-                ):
-                    city = self._last_state.cities[1][city_slot]
-                    tile_count = sum(
-                        1
-                        for unit_idx, u in enumerate(self._last_state.units[1])
-                        if (
-                            self._unit_is_combat_garrison(u, unit_idx)
-                            and u.x == city.x
-                            and u.y == city.y
-                        )
-                    )
-                    garrison_count = tile_count
-                    if tile_count > unit_count:
-                        unit_count = tile_count
-                city_size = None
-                if (
-                    self._last_state is not None
-                    and city_slot < len(self._last_state.cities[1])
-                ):
-                    city_size = self._last_state.cities[1][city_slot].size
-                target_units = self._city_defense_target(city_slot)
                 for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
-                    if kind != "unit":
-                        continue
-                    if self._production_is_excluded(name):
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
+                    action_idx = start + item_idx
+                    if action_idx >= end:
+                        break
+                    if kind == "unit":
+                        if self._production_is_excluded(name):
                             valid[action_idx] = 0
                     elif (
-                        name == "Settlers"
-                        and city_size is not None
-                        and city_size < self._settler_min_city_size()
+                        not self._building_allowed_by_water(city_id, name)
+                        or not self._building_allowed_by_requirements(city_id, name)
+                        or name in self._city_buildings.get(city_id, set())
                     ):
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
-                for item_idx, (kind, name) in enumerate(PRODUCTION_ITEM_NAMES):
-                    if kind != "building":
-                        continue
-                    if not self._building_allowed_by_water(city_id, name):
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
-                    elif not self._building_allowed_by_requirements(city_id, name):
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
-                    elif name in queued_buildings:
-                        action_idx = (
-                            prod_start
-                            + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                            + item_idx
-                        )
-                        if 0 <= action_idx < len(valid):
-                            valid[action_idx] = 0
-                    # Disabled heuristic forcing: do not block buildings just to fill garrisons.
-                    # elif target_units > 0 and garrison_count < target_units:
-                    #     action_idx = (
-                    #         prod_start
-                    #         + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                    #         + item_idx
-                    #     )
-                    #     if 0 <= action_idx < len(valid):
-                    #         valid[action_idx] = 0
-                if (
-                    free_units > 0
-                    and unit_count >= free_units
-                    and garrison_count >= target_units
-                ):
-                    # Disabled heuristic forcing: do not cap non-settler unit choices.
-                    # for item_idx, (kind, _name) in enumerate(PRODUCTION_ITEM_NAMES):
-                    #     if kind != "unit":
-                    #         continue
-                    #     if (
-                    #         _name == "Settlers"
-                    #         and city_size is not None
-                    #         and city_size >= self._settler_min_city_size()
-                    #     ):
-                    #         continue
-                    #     action_idx = (
-                    #         prod_start
-                    #         + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                    #         + item_idx
-                    #     )
-                    #     if 0 <= action_idx < len(valid):
-                    #         valid[action_idx] = 0
-                    pass
-            if self.max_production_queue > 0:
-                prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
-                for city_slot, city_id in enumerate(self.city_slots):
-                    queue = self.production_queue.get(city_id, [])
-                    if len(queue) < self.max_production_queue:
-                        continue
-                    start = (
-                        prod_start
-                        + city_slot * self._last_state.PRODUCTION_ITEM_COUNT
-                    )
-                    end = start + self._last_state.PRODUCTION_ITEM_COUNT
-                    if start >= len(valid):
-                        break
-                    end = min(end, len(valid), prod_end)
-                    valid[start:end] = 0
-            # Disabled heuristic forcing: production expansion restriction.
-            # valid = self._restrict_expansion_production(valid)
-        # Disabled heuristic forcing: production/research preferences.
-        # valid = self._prefer_production_actions(valid)
-        # valid = self._prefer_research_actions(valid)
-        # valid = self._deprioritize_worker_production(valid)
+                        valid[action_idx] = 0
         if self.acted_unit_slots:
             econ_offset = self._last_state.ECON_OFFSET
             for slot_idx in self.acted_unit_slots:
@@ -4180,33 +3820,6 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
-        # Disabled heuristic forcing: garrison locking, worker evasion, autosettler masks.
-        # valid = self._protect_city_garrisons(valid)
-        # valid = self._prefer_worker_evasion(valid)
-        # valid = self._mask_autosettler_actions(valid)
-        # forced = self._force_city_defense_actions(valid)
-        # if forced:
-        #     forced_mask = numpy.zeros_like(valid)
-        #     for idx in forced:
-        #         if 0 <= idx < len(forced_mask):
-        #             forced_mask[idx] = 1
-        #     return forced_mask
-        # forced = self._force_defense_production_actions(valid)
-        # if forced:
-        #     forced_mask = numpy.zeros_like(valid)
-        #     for idx in forced:
-        #         if 0 <= idx < len(forced_mask):
-        #             forced_mask[idx] = 1
-        #     return forced_mask
-        # forced = self._force_settler_city_actions(valid)
-        # if forced:
-        #     forced_mask = numpy.zeros_like(valid)
-        #     for idx in forced:
-        #         if 0 <= idx < len(forced_mask):
-        #             forced_mask[idx] = 1
-        #     return forced_mask
-        # valid = self._prefer_attack_actions(valid)
-        # valid = self._apply_action_curriculum(valid)
         if self.debug_actions:
             econ_offset = self._last_state.ECON_OFFSET
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
@@ -4225,10 +3838,6 @@ class Game(AbstractGame):
                 f"cities={len(self.city_slots)} "
                 f"current_research={self.current_research!r}"
             )
-        non_pass = valid.copy()
-        non_pass[self._last_state.PASS_ACTION] = 0
-        if non_pass.any():
-            valid[self._last_state.PASS_ACTION] = 0
         return valid
 
     def legal_actions(self):
