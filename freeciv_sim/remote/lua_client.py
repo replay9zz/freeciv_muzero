@@ -1,6 +1,8 @@
 import os
 import socket
+import sys
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -30,6 +32,15 @@ class CityProductionInfo:
     turns: int
 
 
+@dataclass(frozen=True)
+class PlayerEconomy:
+    tax: int
+    luxury: int
+    science: int
+    max_rate: int
+    gold: int
+
+
 class LuaRemoteClient:
     """
     Minimal client for Freeciv GTK LuaRemote (ENABLE_LUAREMOTE), listening on 127.0.0.1:PORT.
@@ -43,6 +54,18 @@ class LuaRemoteClient:
         self.timeout = timeout
         self._sock: Optional[socket.socket] = None
         self._remote_ready = False
+        self._profile_enabled = os.getenv("FREECIV_LUA_PROFILE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        self._profile_interval = max(
+            0, int(os.getenv("FREECIV_LUA_PROFILE_INTERVAL", "100") or "100")
+        )
+        self._profile_started = time.perf_counter()
+        self._profile_durations: Dict[str, List[float]] = defaultdict(list)
+        self._profile_last_reported_count = 0
 
     def connect(self) -> None:
         if self._sock is not None:
@@ -70,7 +93,33 @@ class LuaRemoteClient:
             self._sock = None
             self._remote_ready = False
 
-    def eval(self, lua_code: str, end_marker: Optional[str] = "__END__") -> EvalResult:
+        self.print_profile_summary(final=True)
+
+    def eval(
+        self,
+        lua_code: str,
+        end_marker: Optional[str] = "__END__",
+        profile_label: Optional[str] = None,
+    ) -> EvalResult:
+        """Execute Lua and optionally record synchronous round-trip latency."""
+        if not self._profile_enabled:
+            return self._eval_impl(lua_code, end_marker)
+
+        if profile_label is None:
+            try:
+                profile_label = sys._getframe(1).f_code.co_name
+            except (AttributeError, ValueError):
+                profile_label = "unknown"
+        started = time.perf_counter()
+        try:
+            return self._eval_impl(lua_code, end_marker)
+        finally:
+            self._profile_durations[profile_label].append(time.perf_counter() - started)
+            call_count = sum(len(values) for values in self._profile_durations.values())
+            if self._profile_interval and call_count % self._profile_interval == 0:
+                self.print_profile_summary()
+
+    def _eval_impl(self, lua_code: str, end_marker: Optional[str]) -> EvalResult:
         """
         Execute a Lua one-liner in the client and capture console output until marker.
         Uses chat.base to guarantee mirrored output lines.
@@ -131,6 +180,58 @@ class LuaRemoteClient:
                 if deadline is not None and time.monotonic() >= deadline:
                     return EvalResult(lines=lines, returns=returns, errors=errors)
                 continue
+
+    @staticmethod
+    def _percentile(values: List[float], fraction: float) -> float:
+        if not values:
+            return 0.0
+        ordered = sorted(values)
+        index = min(len(ordered) - 1, max(0, int((len(ordered) - 1) * fraction)))
+        return ordered[index]
+
+    def print_profile_summary(self, final: bool = False) -> None:
+        """Print aggregate LuaRemote RPC timings when profiling is enabled."""
+        if not self._profile_enabled:
+            return
+        all_values = [
+            duration
+            for values in self._profile_durations.values()
+            for duration in values
+        ]
+        count = len(all_values)
+        if not count or (final and count == self._profile_last_reported_count):
+            return
+        total = sum(all_values)
+        wall = max(0.0, time.perf_counter() - self._profile_started)
+        mean = total / count
+        print(
+            "[LuaRemoteProfile] "
+            f"{'final' if final else 'progress'} calls={count} "
+            f"rpc_total_s={total:.3f} wall_s={wall:.3f} "
+            f"rpc_wall_ratio={total / wall if wall else 0.0:.3f} "
+            f"mean_ms={mean * 1000:.2f} "
+            f"p50_ms={self._percentile(all_values, 0.50) * 1000:.2f} "
+            f"p95_ms={self._percentile(all_values, 0.95) * 1000:.2f} "
+            f"max_ms={max(all_values) * 1000:.2f}",
+            file=sys.stderr,
+            flush=True,
+        )
+        for label, values in sorted(
+            self._profile_durations.items(),
+            key=lambda item: sum(item[1]),
+            reverse=True,
+        )[:20]:
+            label_total = sum(values)
+            print(
+                "[LuaRemoteProfile] "
+                f"label={label} calls={len(values)} total_s={label_total:.3f} "
+                f"mean_ms={label_total / len(values) * 1000:.2f} "
+                f"p95_ms={self._percentile(values, 0.95) * 1000:.2f} "
+                f"max_ms={max(values) * 1000:.2f}",
+                file=sys.stderr,
+                flush=True,
+            )
+        self._profile_last_reported_count = count
 
     @staticmethod
     def _quote_lua_string(text: str) -> str:
@@ -302,6 +403,187 @@ class LuaRemoteClient:
         self._log_action("move_dir", lua)
         result = self.eval(lua)
         return any(x.strip() in ["__OK__ move", "**OK** move"] for x in result.lines)
+
+    def action_id(self, rule_name: str) -> Optional[int]:
+        safe_name = self._quote_lua_string(rule_name)
+        result = self.eval(
+            "return (function() "
+            f"if not client or not client.action_id then return -1 end; "
+            f"return client.action_id({safe_name}) end)()"
+        )
+        try:
+            value = int(result.last_return() or -1)
+        except (TypeError, ValueError):
+            return None
+        return value if value >= 0 else None
+
+    def action_target_kind(self, action_id: int) -> Optional[int]:
+        result = self.eval(
+            "return (function() "
+            "if not client or not client.action_target_kind then return -1 end; "
+            f"return client.action_target_kind({int(action_id)}) end)()"
+        )
+        try:
+            value = int(result.last_return() or -1)
+        except (TypeError, ValueError):
+            return None
+        return value if value >= 0 else None
+
+    def can_action(
+        self,
+        action_id: int,
+        actor_id: int,
+        target_id: int,
+        sub_target_id: int = -1,
+    ) -> bool:
+        lua = (
+            "return (function() "
+            "if not client or not client.can_action then return false end; "
+            f"return client.can_action({int(action_id)},{int(actor_id)},"
+            f"{int(target_id)},{int(sub_target_id)}) end)()"
+        )
+        result = self.eval(lua)
+        return (result.last_return() or "").strip().lower() == "true"
+
+    def do_action(
+        self,
+        action_id: int,
+        actor_id: int,
+        target_id: int,
+        sub_target_id: int = -1,
+        name: str = "",
+    ) -> bool:
+        safe_name = self._quote_lua_string(name)
+        lua = (
+            "do local ok=false; local res=false; "
+            "if client and client.do_action then "
+            f"ok,res=pcall(function() return client.do_action({int(action_id)},"
+            f"{int(actor_id)},{int(target_id)},{int(sub_target_id)},{safe_name}) end) "
+            "end; local msg=(ok and res) and '__OK__ action' or '__ERR__ action'; "
+            "log.normal(msg); chat.base(msg) end"
+        )
+        self._log_action("do_action", lua)
+        result = self.eval(lua)
+        return any(
+            line.strip() in ("__OK__ action", "**OK** action")
+            for line in result.lines
+        )
+
+    def player_economy(self) -> Optional[PlayerEconomy]:
+        lua = (
+            "return (function() "
+            "if not client or not client.tax_rate or not client.luxury_rate "
+            "or not client.science_rate or not client.max_rate or not client.gold "
+            "then return '__NO_ECONOMY__' end; "
+            "return string.format('%d|%d|%d|%d|%d',client.tax_rate(),"
+            "client.luxury_rate(),client.science_rate(),client.max_rate(),"
+            "client.gold()) end)()"
+        )
+        result = self.eval(lua)
+        payload = result.last_return()
+        if not payload or payload.startswith("__") or payload.startswith("**"):
+            return None
+        try:
+            values = [int(value) for value in payload.split("|")]
+        except ValueError:
+            return None
+        if len(values) != 5:
+            return None
+        return PlayerEconomy(*values)
+
+    def set_rates(self, tax: int, luxury: int, science: int) -> bool:
+        lua = (
+            "do local ok=false; local res=false; "
+            "if client and client.set_rates then "
+            f"ok,res=pcall(function() return client.set_rates({int(tax)},"
+            f"{int(luxury)},{int(science)}) end) end; "
+            "local msg=(ok and res) and '__OK__ rates' or '__ERR__ rates'; "
+            "log.normal(msg); chat.base(msg) end"
+        )
+        self._log_action("set_rates", lua)
+        result = self.eval(lua)
+        return any(
+            line.strip() in ("__OK__ rates", "**OK** rates")
+            for line in result.lines
+        )
+
+    def player_buildable_names(
+        self, player_id: int, kind: str, names: List[str]
+    ) -> set[str]:
+        """Return directly buildable unit/building names in one Lua round trip."""
+        if kind not in ("unit", "building") or not names:
+            return set()
+        values = ",".join(self._quote_lua_string(name) for name in names)
+        finder = "unit_type" if kind == "unit" else "building_type"
+        lua = (
+            "return (function() "
+            f"local pl=find.player and find.player({int(player_id)}); "
+            "if not pl or not pl.can_build_direct then return '' end; "
+            f"local names={{{values}}}; local out={{}}; "
+            "for i,name in ipairs(names) do "
+            f"local obj=find.{finder} and find.{finder}(name); "
+            "if obj then local ok,res=pcall(function() return pl:can_build_direct(obj) end); "
+            "if ok and res then table.insert(out,tostring(i)) end end end; "
+            "return table.concat(out,',') end)()"
+        )
+        result = self.eval(lua)
+        payload = result.last_return() or ""
+        indices: set[int] = set()
+        for raw in payload.split(","):
+            try:
+                indices.add(int(raw) - 1)
+            except ValueError:
+                continue
+        return {name for index, name in enumerate(names) if index in indices}
+
+    def city_buy(self, city_id: int) -> bool:
+        return self._boolean_client_action("city_buy", int(city_id))
+
+    def city_sell(self, city_id: int, building_name: str) -> bool:
+        return self._boolean_client_action(
+            "city_sell", int(city_id), building_name
+        )
+
+    def city_toggle_worker(self, city_id: int, city_x: int, city_y: int) -> bool:
+        return self._boolean_client_action(
+            "city_toggle_worker", int(city_id), int(city_x), int(city_y)
+        )
+
+    def city_change_specialist(
+        self, city_id: int, from_name: str, to_name: str
+    ) -> bool:
+        return self._boolean_client_action(
+            "city_change_specialist", int(city_id), from_name, to_name
+        )
+
+    def city_rename(self, city_id: int, name: str) -> bool:
+        return self._boolean_client_action("city_rename", int(city_id), name)
+
+    def _boolean_client_action(self, method: str, *args: object) -> bool:
+        safe_method = "".join(ch for ch in method if ch.isalnum() or ch == "_")
+        if safe_method != method:
+            raise ValueError("invalid client method")
+        encoded = []
+        for arg in args:
+            if isinstance(arg, str):
+                encoded.append(self._quote_lua_string(arg))
+            else:
+                encoded.append(str(int(arg)))
+        lua = (
+            "do local ok=false; local res=false; "
+            f"if client and client.{safe_method} then "
+            f"ok,res=pcall(function() return client.{safe_method}("
+            + ",".join(encoded)
+            + ") end) end; "
+            f"local msg=(ok and res) and '__OK__ {safe_method}' or '__ERR__ {safe_method}'; "
+            "log.normal(msg); chat.base(msg) end"
+        )
+        self._log_action(safe_method, lua)
+        result = self.eval(lua)
+        return any(
+            line.strip() in (f"__OK__ {safe_method}", f"**OK** {safe_method}")
+            for line in result.lines
+        )
 
     def move_dir_id(self, unit_id: int, dir_id: int) -> bool:
         lua = (

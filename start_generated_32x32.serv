@@ -3,7 +3,9 @@ set scorelog enabled
 set scoreloglevel all
 set scorefile "freeciv-score-single.log"
 set autosaves ""
-set victories "ALLIED"
+# Conquest is always available. Keep optional victories disabled until
+# diplomacy is part of the agent action space.
+set victories ""
 set barbarians DISABLED
 set huts 0
 set sciencebox 50

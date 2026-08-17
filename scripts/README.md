@@ -3,6 +3,9 @@
 Direct entrypoints:
 
 - `train_headless.sh`: Main training entrypoint. Runs Xvfb, Freeciv server/client, and Ray MuZero training.
+- `train_simulator.sh`: Trains the schema-compatible in-process Freeciv simulator.
+- `run_sim_to_real.sh`: Runs simulator pretraining, zero-shot real evaluation, real fine-tuning, and transfer auditing.
+- `audit_sim_transfer.py`: Verifies strict network loading, checkpoint lineage, and Phase 2 weight changes.
 - `eval_record_dual_view.sh`: Main recorded evaluation entrypoint. Produces one game with agent view, global observer view, map-only videos, and heatmap videos.
 
 Required dependencies:
@@ -69,6 +72,21 @@ NUM_SIMULATIONS=1 MAX_TURNS=1 ./scripts/train_headless.sh
 MUZERO_REPLAY_BUFFER_SIZE=20 TRAINING_STEPS=10000 \
   ./scripts/train_headless.sh
 
+# simulator pretraining -> real Freeciv fine-tuning; scale Ray across GPUs/workers
+# FREECIV_AIFILL=3 means MuZero + two AI nations. Phase 1 represents the two
+# AI nations as one aggregate opponent; Phase 2 runs three real Freeciv nations.
+PHASE1_STEPS=1000 PHASE2_STEPS=200 \
+PHASE1_GPUS=4 PHASE1_WORKERS=12 PHASE2_GPUS=2 PHASE2_WORKERS=2 \
+FREECIV_AIFILL=3 \
+  ./scripts/run_sim_to_real.sh
+
+# minimal end-to-end transfer smoke
+PHASE1_STEPS=1 PHASE2_STEPS=1 PHASE1_WORKERS=1 PHASE2_WORKERS=1 \
+NUM_SIMULATIONS=1 MAX_TURNS=1 MAX_ACTIONS_PER_TURN=1 \
+SIM_EVAL_GAMES=1 REAL_EVAL_GAMES=1 MUZERO_BATCH_SIZE=1 \
+MUZERO_NUM_UNROLL_STEPS=1 MUZERO_CHECKPOINT_INTERVAL=1 \
+  ./scripts/run_sim_to_real.sh
+
 # four-condition MCTS ablation; outputs summary.tsv under results/mcts_ablation
 TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
   ./scripts/run_mcts_ablation.sh
@@ -85,6 +103,11 @@ TRAINING_STEPS=10000 NUM_TESTS=10 ABLATION_SEEDS=1,2,3 \
 
 # record one evaluation
 ./scripts/eval_record_dual_view.sh results/freeciv_remote/.../model.checkpoint
+
+# profile synchronous LuaRemote RPC latency; 0 prints only the final summary
+FREECIV_LUA_PROFILE=1 FREECIV_LUA_PROFILE_INTERVAL=0 \
+  CHECKPOINT_PATH=results/freeciv_remote/.../model.checkpoint \
+  ./scripts/test_headless.sh
 
 # use NVIDIA hardware encoding; VIDEO_ENCODER=auto enables fallback to libx264
 VIDEO_ENCODER=h264_nvenc ./scripts/eval_record_dual_view.sh \

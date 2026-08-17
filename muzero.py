@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib
 import json
 import math
@@ -34,6 +35,14 @@ def _actor_runtime_env_for_gpu(gpu_id):
     return {"env_vars": {"CUDA_VISIBLE_DEVICES": str(gpu_id).strip()}}
 
 
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with pathlib.Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class MuZero:
     """
     Main class to manage MuZero.
@@ -54,15 +63,9 @@ class MuZero:
 
     def __init__(self, game_name, config=None, split_resources_in=1):
         self.game_name = game_name
-        # Load the game and the config from the module with the game name
-        try:
-            game_module = importlib.import_module("games." + game_name)
-        except ModuleNotFoundError as err:
-            print(
-                f'{game_name} is not a supported game name, try "cartpole" or refer to the documentation for adding a new game.'
-            )
-            raise err
-
+        # Game modules load ruleset-derived constants at import time. Apply
+        # environment overrides first so the driver and Ray actors build the
+        # same observation/action schema.
         if isinstance(config, dict):
             env_overrides = config.pop("env", None)
             if env_overrides is not None:
@@ -73,6 +76,15 @@ class MuZero:
                         os.environ.pop(str(key), None)
                     else:
                         os.environ[str(key)] = str(value)
+
+        # Load the game and the config from the module with the game name
+        try:
+            game_module = importlib.import_module("games." + game_name)
+        except ModuleNotFoundError as err:
+            print(
+                f'{game_name} is not a supported game name, try "cartpole" or refer to the documentation for adding a new game.'
+            )
+            raise err
 
         self.Game = game_module.Game
         self.config = game_module.MuZeroConfig()
@@ -741,7 +753,18 @@ class MuZero:
         if checkpoint_path:
             checkpoint_path = pathlib.Path(checkpoint_path)
             self.checkpoint = torch.load(checkpoint_path)
+            checkpoint_hash = _file_sha256(checkpoint_path)
+            self.checkpoint["parent_checkpoint"] = str(checkpoint_path.resolve())
+            self.checkpoint["parent_checkpoint_sha256"] = checkpoint_hash
+            self.checkpoint["parent_training_step"] = int(
+                self.checkpoint.get("training_step", 0)
+            )
             print(f"\nUsing checkpoint from {checkpoint_path}")
+            print(
+                "[transfer] "
+                f"parent_checkpoint_sha256={checkpoint_hash} "
+                f"parent_training_step={self.checkpoint['parent_training_step']}"
+            )
 
         # Load replay buffer
         if replay_buffer_path:

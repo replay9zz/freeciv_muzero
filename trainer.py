@@ -93,28 +93,31 @@ class Trainer:
                 # Save new priorities in the replay buffer (See https://arxiv.org/abs/1803.00933)
                 replay_buffer.update_priorities.remote(priorities, index_batch)
 
-            # Save to the shared storage
-            if self.training_step % self.config.checkpoint_interval == 0:
-                shared_storage.set_info.remote(
-                    {
-                        "weights": copy.deepcopy(self.model.get_weights()),
-                        "optimizer_state": copy.deepcopy(
-                            models.dict_to_cpu(self.optimizer.state_dict())
-                        ),
-                    }
+            # Save metrics and the matching training step atomically with weights.
+            checkpoint_update = {
+                "training_step": self.training_step,
+                "lr": self.optimizer.param_groups[0]["lr"],
+                "total_loss": total_loss,
+                "value_loss": value_loss,
+                "reward_loss": reward_loss,
+                "policy_loss": policy_loss,
+            }
+            should_checkpoint = (
+                self.training_step % self.config.checkpoint_interval == 0
+                or self.training_step >= self.config.training_steps
+            )
+            if should_checkpoint:
+                checkpoint_update.update(
+                    weights=copy.deepcopy(self.model.get_weights()),
+                    optimizer_state=copy.deepcopy(
+                        models.dict_to_cpu(self.optimizer.state_dict())
+                    ),
                 )
+                shared_storage.set_info.remote(checkpoint_update)
                 if self.config.save_model:
                     shared_storage.save_checkpoint.remote()
-            shared_storage.set_info.remote(
-                {
-                    "training_step": self.training_step,
-                    "lr": self.optimizer.param_groups[0]["lr"],
-                    "total_loss": total_loss,
-                    "value_loss": value_loss,
-                    "reward_loss": reward_loss,
-                    "policy_loss": policy_loss,
-                }
-            )
+            else:
+                shared_storage.set_info.remote(checkpoint_update)
 
             # Managing the self-play / training ratio
             if self.config.training_delay:

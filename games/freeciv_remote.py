@@ -138,6 +138,9 @@ class MuZeroConfig:
             city_min_distance=_env_int("FREECIV_CITY_MIN_DISTANCE", 3),
             expansion_min_cities=_env_int("FREECIV_EXPANSION_MIN_CITIES", 6),
             expansion_tiles_per_city=_env_int("FREECIV_EXPANSION_TILES_PER_CITY", 48),
+            wonder_min_turn=_env_int("FREECIV_WONDER_MIN_TURN", 0),
+            wonder_min_cities=_env_int("FREECIV_WONDER_MIN_CITIES", 1),
+            opponent_count=max(1, _env_int("FREECIV_AIFILL", 2) - 1),
         )
         self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
         self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
@@ -301,6 +304,17 @@ class Game(AbstractGame):
                 "FREECIV_EXPANSION_TILES_PER_CITY",
                 getattr(self.config, "expansion_tiles_per_city", 48),
             )
+            self.config.wonder_min_turn = _env_int(
+                "FREECIV_WONDER_MIN_TURN",
+                getattr(self.config, "wonder_min_turn", 0),
+            )
+            self.config.wonder_min_cities = _env_int(
+                "FREECIV_WONDER_MIN_CITIES",
+                getattr(self.config, "wonder_min_cities", 1),
+            )
+            self.config.opponent_count = max(
+                1, _env_int("FREECIV_AIFILL", 2) - 1
+            )
             self.observe_belief = bool(
                 getattr(config, "observe_belief", self.observe_belief)
             )
@@ -331,6 +345,9 @@ class Game(AbstractGame):
                 city_min_distance=_env_int("FREECIV_CITY_MIN_DISTANCE", 3),
                 expansion_min_cities=_env_int("FREECIV_EXPANSION_MIN_CITIES", 6),
                 expansion_tiles_per_city=_env_int("FREECIV_EXPANSION_TILES_PER_CITY", 48),
+                wonder_min_turn=_env_int("FREECIV_WONDER_MIN_TURN", 0),
+                wonder_min_cities=_env_int("FREECIV_WONDER_MIN_CITIES", 1),
+                opponent_count=max(1, _env_int("FREECIV_AIFILL", 2) - 1),
             )
             self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
             self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
@@ -449,6 +466,7 @@ class Game(AbstractGame):
         self._last_research_flags: dict[str, bool] = {}
         self._buildable_units: set[str] = set()
         self._buildable_buildings: set[str] = set()
+        self._buildables_refreshed = False
         self.autosettler_units: set[int] = set()
         self.visible_enemy_units: list[tuple[int, int]] = []
         self.visible_enemy_cities: list[tuple[int, int]] = []
@@ -456,6 +474,7 @@ class Game(AbstractGame):
         self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
         self.tile_owners: dict[tuple[int, int], int] = {}
         self.player_scores: dict[int, tuple[Optional[float], Optional[bool], str]] = {}
+        self.player_economy = None
         self._prepare_control_state()
 
         self.movement = alpha_live.FreecivMovement(
@@ -496,6 +515,7 @@ class Game(AbstractGame):
         self.final_save_requested = False
         self.acted_unit_slots: set[int] = set()
         self.acted_production_cities: set[int] = set()
+        self.acted_rate_this_turn = False
         self.forced_settler_move_slots: set[int] = set()
         self.max_forced_settler_moves_per_turn = max(
             1, _env_int("FREECIV_SETTLER_FORCE_MOVES_PER_TURN", 2)
@@ -758,6 +778,7 @@ class Game(AbstractGame):
         self.last_outcome = GameOutcome(0.0, 0.5, None, None, "unavailable")
         self.acted_unit_slots.clear()
         self.acted_production_cities.clear()
+        self.acted_rate_this_turn = False
         self.forced_settler_move_slots.clear()
         self.production_queue.clear()
         self.production_current.clear()
@@ -771,6 +792,7 @@ class Game(AbstractGame):
         self._last_research_flags = {}
         self._buildable_units = set()
         self._buildable_buildings = set()
+        self._buildables_refreshed = False
         self.autosettler_units = set()
         self.unit_activity_valid_masks = {}
         self.unit_current_activities = {}
@@ -780,6 +802,7 @@ class Game(AbstractGame):
         self.visible_enemy_unit_coords = set()
         self.tile_owners = {}
         self.player_scores = {}
+        self.player_economy = None
         self.known_tiles = {}
         self.known_terrains = {}
         self.known_enemy = {}
@@ -1582,6 +1605,7 @@ class Game(AbstractGame):
         state.max_actions_per_turn = self.max_actions_per_turn
         state.acted_unit_slots = {1: set(), -1: set()}
         state.acted_production_cities = {1: set(), -1: set()}
+        state.acted_rate_players = {1} if self.acted_rate_this_turn else set()
         state.visited = {
             1: snapshot.visited.copy(),
             -1: snapshot.visited.copy(),
@@ -1590,6 +1614,12 @@ class Game(AbstractGame):
         state.future_techs = {1: 0, -1: 0}
         state.kills = {1: 0, -1: 0}
         state.scores = {1: 0.0, -1: 0.0}
+        economy = self.player_economy
+        state.tax_rates = {1: int(economy.tax) if economy else 40, -1: 40}
+        state.luxury_rates = {1: int(economy.luxury) if economy else 0, -1: 0}
+        state.science_rates = {1: int(economy.science) if economy else 60, -1: 60}
+        state.max_rates = {1: int(economy.max_rate) if economy else 60, -1: 60}
+        state.gold = {1: float(economy.gold) if economy else 0.0, -1: 0.0}
         state.winner = None
         state.terminal_reason = None
         state.RESEARCH_TECHS = MultiheadState.RESEARCH_TECHS
@@ -1607,9 +1637,11 @@ class Game(AbstractGame):
         state.ECON_PRODUCTION_OFFSET = state.ECON_BUILD_CITY_OFFSET + self.max_units
         state.PRODUCTION_ITEM_COUNT = len(PRODUCTION_ITEM_NAMES)
         state.PRODUCTION_UNIT_COUNT = len(PRODUCTION_UNIT_NAMES)
-        state.ECON_PASS_OFFSET = (
+        state.RATE_PRESETS = MultiheadState.RATE_PRESETS
+        state.ECON_RATE_OFFSET = (
             state.ECON_PRODUCTION_OFFSET + self.max_cities * state.PRODUCTION_ITEM_COUNT
         )
+        state.ECON_PASS_OFFSET = state.ECON_RATE_OFFSET + len(state.RATE_PRESETS)
         state.ECON_SIZE = state.ECON_PASS_OFFSET + 1
         state.ACTION_SIZE = state.ECON_OFFSET + state.ECON_SIZE
         state.PASS_ACTION = state.ACTION_SIZE - 1
@@ -2034,13 +2066,14 @@ class Game(AbstractGame):
         if self.client is None or self.player_id is None:
             self._buildable_units = set()
             return
-        buildable = set()
-        for name in PRODUCTION_UNIT_NAMES:
-            if self._production_is_excluded(name):
-                continue
-            if self._player_can_build_unit(name):
-                buildable.add(name)
-        self._buildable_units = buildable
+        candidates = [
+            name
+            for name in PRODUCTION_UNIT_NAMES
+            if not self._production_is_excluded(name)
+        ]
+        self._buildable_units = self.client.player_buildable_names(
+            self.player_id, "unit", candidates
+        )
 
     def _player_can_build_building(self, building_name: str) -> bool:
         if self.client is None or self.player_id is None:
@@ -2068,11 +2101,10 @@ class Game(AbstractGame):
         if self.client is None or self.player_id is None:
             self._buildable_buildings = set()
             return
-        buildable = set()
-        for name in PRODUCTION_BUILDING_NAMES:
-            if self._player_can_build_building(name):
-                buildable.add(name)
-        self._buildable_buildings = buildable
+        self._buildable_buildings = self.client.player_buildable_names(
+            self.player_id, "building", list(PRODUCTION_BUILDING_NAMES)
+        )
+        self._buildables_refreshed = True
 
     def _log_production_options(
         self,
@@ -2343,7 +2375,7 @@ class Game(AbstractGame):
             return valid
         econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_RATE_OFFSET
         if prod_start >= len(valid):
             return valid
         settler_idx = None
@@ -2450,6 +2482,12 @@ class Game(AbstractGame):
                 return name in allowlist
             if name in blocklist:
                 return False
+            if self.turns < int(getattr(self.config, "wonder_min_turn", 0)):
+                return False
+            if len(self.city_slots) < int(
+                getattr(self.config, "wonder_min_cities", 1)
+            ):
+                return False
         if self._last_state is None:
             return True
         tech_flags = self._last_state.research_done.get(1, {})
@@ -2474,7 +2512,11 @@ class Game(AbstractGame):
             if self._production_is_excluded(name):
                 return 0
             if self.client is not None and self.player_id is not None:
-                if not self._player_can_build_unit(name):
+                if (
+                    name not in self._buildable_units
+                    if self._buildables_refreshed
+                    else not self._player_can_build_unit(name)
+                ):
                     return 0
         if kind == "building":
             if not self._building_allowed_by_water(city_id, name):
@@ -2482,7 +2524,11 @@ class Game(AbstractGame):
             if not self._building_allowed_by_requirements(city_id, name):
                 return 0
             if self.client is not None and self.player_id is not None:
-                if not self._player_can_build_building(name):
+                if (
+                    name not in self._buildable_buildings
+                    if self._buildables_refreshed
+                    else not self._player_can_build_building(name)
+                ):
                     return 0
             if name in self._city_buildings.get(city_id, set()):
                 return 0
@@ -2640,7 +2686,7 @@ class Game(AbstractGame):
             return valid
         econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_RATE_OFFSET
         if prod_start >= len(valid):
             return valid
         applied_value_mask = False
@@ -2733,7 +2779,7 @@ class Game(AbstractGame):
             return valid
         econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_RATE_OFFSET
         if prod_start >= len(valid):
             return valid
         for slot_idx in range(len(self.city_slots)):
@@ -2778,7 +2824,7 @@ class Game(AbstractGame):
         counts = self._combat_garrison_counts()
         econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+        prod_end = econ_offset + self._last_state.ECON_RATE_OFFSET
         applied = False
         for city_slot in range(min(len(self.city_slots), len(counts))):
             target = self._city_defense_target(city_slot)
@@ -2804,7 +2850,7 @@ class Game(AbstractGame):
             return None
         econ_offset = self._last_state.ECON_OFFSET
         prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-        prod_end = min(econ_offset + self._last_state.ECON_PASS_OFFSET, len(masked))
+        prod_end = min(econ_offset + self._last_state.ECON_RATE_OFFSET, len(masked))
         actions = [
             idx
             for idx in range(prod_start, prod_end)
@@ -3306,6 +3352,10 @@ class Game(AbstractGame):
         self._try_refresh_controlled_units()
         self._refresh_unit_status()
         self._refresh_player_scores()
+        try:
+            self.player_economy = self.client.player_economy()
+        except Exception:
+            self.player_economy = None
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         enemy_cities = self._visible_enemy_cities()
         self._last_state = self._build_state(snapshot, owned_cities, enemy_cities)
@@ -3516,7 +3566,7 @@ class Game(AbstractGame):
                 f"build_city action={action} unit_slot={unit_idx} unit_id={unit_id} success={built}"
             )
             return
-        if board_state.ECON_PRODUCTION_OFFSET <= econ_idx < board_state.ECON_PASS_OFFSET:
+        if board_state.ECON_PRODUCTION_OFFSET <= econ_idx < board_state.ECON_RATE_OFFSET:
             rel = econ_idx - board_state.ECON_PRODUCTION_OFFSET
             city_slot = rel // board_state.PRODUCTION_ITEM_COUNT
             item_idx = rel % board_state.PRODUCTION_ITEM_COUNT
@@ -3541,6 +3591,20 @@ class Game(AbstractGame):
                     file=sys.stderr,
                 )
             self.acted_production_cities.add(city_id)
+            return
+        if board_state.ECON_RATE_OFFSET <= econ_idx < board_state.ECON_PASS_OFFSET:
+            rate_idx = econ_idx - board_state.ECON_RATE_OFFSET
+            if rate_idx >= len(board_state.RATE_PRESETS):
+                return
+            tax, luxury, science = board_state.RATE_PRESETS[rate_idx]
+            success = self.client.set_rates(tax, luxury, science)
+            if success:
+                self.player_economy = self.client.player_economy()
+                self.acted_rate_this_turn = True
+            self._debug_action(
+                f"rates action={action} tax={tax} luxury={luxury} "
+                f"science={science} success={success}"
+            )
             return
 
     def step(self, action):
@@ -3586,6 +3650,7 @@ class Game(AbstractGame):
             self.actions_this_turn = 0
             self.acted_unit_slots.clear()
             self.acted_production_cities.clear()
+            self.acted_rate_this_turn = False
             self.forced_settler_move_slots.clear()
             if self.sleep:
                 time.sleep(self.sleep)
@@ -3630,14 +3695,15 @@ class Game(AbstractGame):
             "build_city": {"move", "build_city", "pass"},
             "2": {"move", "build_city", "research", "pass"},
             "research": {"move", "build_city", "research", "pass"},
-            "3": {"move", "build_city", "research", "production", "pass"},
-            "production": {"move", "build_city", "research", "production", "pass"},
-            "econ": {"move", "build_city", "research", "production", "pass"},
+            "3": {"move", "build_city", "research", "production", "rates", "pass"},
+            "production": {"move", "build_city", "research", "production", "rates", "pass"},
+            "econ": {"move", "build_city", "research", "production", "rates", "pass"},
             "4": {
                 "move",
                 "build_city",
                 "research",
                 "production",
+                "rates",
                 "attack",
                 "unit_activity",
                 "pass",
@@ -3647,6 +3713,7 @@ class Game(AbstractGame):
                 "build_city",
                 "research",
                 "production",
+                "rates",
                 "attack",
                 "unit_activity",
                 "pass",
@@ -3656,6 +3723,7 @@ class Game(AbstractGame):
                 "build_city",
                 "research",
                 "production",
+                "rates",
                 "attack",
                 "unit_activity",
                 "pass",
@@ -3698,6 +3766,11 @@ class Game(AbstractGame):
                 allowed[start:end] = 1
         if "production" in groups:
             start = econ_offset + state.ECON_PRODUCTION_OFFSET
+            end = min(econ_offset + state.ECON_RATE_OFFSET, len(allowed))
+            if start < len(allowed):
+                allowed[start:end] = 1
+        if "rates" in groups:
+            start = econ_offset + state.ECON_RATE_OFFSET
             end = min(econ_offset + state.ECON_PASS_OFFSET, len(allowed))
             if start < len(allowed):
                 allowed[start:end] = 1
@@ -3766,7 +3839,7 @@ class Game(AbstractGame):
         if not self.city_slots:
             econ_offset = self._last_state.ECON_OFFSET
             prod_start = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            prod_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+            prod_end = econ_offset + self._last_state.ECON_RATE_OFFSET
             valid[prod_start:prod_end] = 0
         if self.current_research:
             econ_offset = self._last_state.ECON_OFFSET
@@ -3820,11 +3893,20 @@ class Game(AbstractGame):
                 build_idx = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET + slot_idx
                 if 0 <= build_idx < len(valid):
                     valid[build_idx] = 0
+        if self.acted_rate_this_turn:
+            rate_start = (
+                self._last_state.ECON_OFFSET + self._last_state.ECON_RATE_OFFSET
+            )
+            rate_end = (
+                self._last_state.ECON_OFFSET + self._last_state.ECON_PASS_OFFSET
+            )
+            valid[rate_start:rate_end] = 0
         if self.debug_actions:
             econ_offset = self._last_state.ECON_OFFSET
             research_end = econ_offset + self._last_state.ECON_BUILD_CITY_OFFSET
             build_end = econ_offset + self._last_state.ECON_PRODUCTION_OFFSET
-            production_end = econ_offset + self._last_state.ECON_PASS_OFFSET
+            production_end = econ_offset + self._last_state.ECON_RATE_OFFSET
+            rates_end = econ_offset + self._last_state.ECON_PASS_OFFSET
             self._debug_action(
                 "legal "
                 f"move={numpy.count_nonzero(valid[:self._last_state.MOVE_SIZE])} "
@@ -3833,6 +3915,7 @@ class Game(AbstractGame):
                 f"research={numpy.count_nonzero(valid[econ_offset:research_end])} "
                 f"build_city={numpy.count_nonzero(valid[research_end:build_end])} "
                 f"production={numpy.count_nonzero(valid[build_end:production_end])} "
+                f"rates={numpy.count_nonzero(valid[production_end:rates_end])} "
                 f"units={sum(uid is not None for uid in self.unit_slots)} "
                 f"controlled={self.controlled_units} status={len(self.unit_status)} "
                 f"cities={len(self.city_slots)} "
@@ -3943,7 +4026,7 @@ class Game(AbstractGame):
         if tmp_state.ECON_BUILD_CITY_OFFSET <= econ_idx < tmp_state.ECON_PRODUCTION_OFFSET:
             unit_idx = econ_idx - tmp_state.ECON_BUILD_CITY_OFFSET
             return f"build_city_u{unit_idx}"
-        if tmp_state.ECON_PRODUCTION_OFFSET <= econ_idx < tmp_state.ECON_PASS_OFFSET:
+        if tmp_state.ECON_PRODUCTION_OFFSET <= econ_idx < tmp_state.ECON_RATE_OFFSET:
             rel = econ_idx - tmp_state.ECON_PRODUCTION_OFFSET
             city_slot = rel // tmp_state.PRODUCTION_ITEM_COUNT
             item_idx = rel % tmp_state.PRODUCTION_ITEM_COUNT
@@ -3951,4 +4034,9 @@ class Game(AbstractGame):
             if kind == "unit":
                 return f"produce_c{city_slot}_{name}"
             return f"build_c{city_slot}_{name}"
+        if tmp_state.ECON_RATE_OFFSET <= econ_idx < tmp_state.ECON_PASS_OFFSET:
+            tax, luxury, science = tmp_state.RATE_PRESETS[
+                econ_idx - tmp_state.ECON_RATE_OFFSET
+            ]
+            return f"rates_t{tax}_l{luxury}_s{science}"
         return str(action_number)

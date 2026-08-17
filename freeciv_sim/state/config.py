@@ -48,6 +48,14 @@ class MapConfig:
     grass_shield: int = 1
     grass_trade: int = 1
     tax_science_rate: float = 0.6
+    initial_tax_rate: int = 40
+    initial_luxury_rate: int = 0
+    initial_science_rate: int = 60
+    initial_max_rate: int = 60
+    initial_gold: int = 0
+    gold_norm: int = 1000
+    # Non-MuZero nations represented by the aggregate opponent.
+    opponent_count: int = 1
     research_rate_multiplier: float = 1.0
     production_rate_multiplier: float = 1.0
     production_queue_max: int = 3
@@ -86,6 +94,10 @@ class MapConfig:
         "Cure for Cancer",
         "SETI Program",
     )
+    # Great wonders remain legal only after both thresholds are reached.
+    # Defaults preserve the original unrestricted policy.
+    wonder_min_turn: int = 0
+    wonder_min_cities: int = 1
 
 
 @dataclass

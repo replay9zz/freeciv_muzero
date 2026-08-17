@@ -25,6 +25,16 @@ from freeciv_sim.state.multihead_state import (
 from .tech_policy import pick_next_priority_tech
 
 
+BELIEF_OBSERVATION_PLANES = (
+    "visible_units",
+    "visible_cities",
+    "belief_units",
+    "threat",
+    "age",
+    "territory",
+)
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None or raw == "":
@@ -57,10 +67,17 @@ def _make_map_config(max_turns: int | None = None) -> MapConfig:
         max_turns = _env_int("FREECIV_MAX_TURNS", 100)
     allow_sea_units = not _env_bool("FREECIV_NO_SEA_UNITS", False)
     cfg = MapConfig(
-        map_w=4,
-        map_h=16,
+        map_w=_env_int("FREECIV_MAP_W", 32),
+        map_h=_env_int("FREECIV_MAP_H", 32),
         max_turns=max_turns,
         allow_sea_units=allow_sea_units,
+        auto_worker_units=_env_bool("FREECIV_AUTO_WORKERS", False),
+        city_min_distance=_env_int("FREECIV_CITY_MIN_DISTANCE", 3),
+        expansion_min_cities=_env_int("FREECIV_EXPANSION_MIN_CITIES", 6),
+        expansion_tiles_per_city=_env_int("FREECIV_EXPANSION_TILES_PER_CITY", 48),
+        wonder_min_turn=_env_int("FREECIV_WONDER_MIN_TURN", 0),
+        wonder_min_cities=_env_int("FREECIV_WONDER_MIN_CITIES", 1),
+        opponent_count=max(1, _env_int("FREECIV_AIFILL", 2) - 1),
     )
     # cfg = MapConfig(map_w=4, map_h=16, max_turns=2000)
     cfg.attack_reward = 0.2
@@ -80,12 +97,13 @@ class MuZeroConfig:
         self.max_num_gpus = 1
 
         self.map_config = _make_map_config()
-        self.max_units = 6
-        self.max_cities = 3
+        self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
+        self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
         self.max_actions_per_turn = _env_int(
             "FREECIV_MAX_ACTIONS_PER_TURN",
-            max(1, self.max_units * 2),
+            max(1, self.max_units * 2 + self.max_cities),
         )
+        self.single_player = _env_bool("FREECIV_SIM_SINGLE_PLAYER", True)
 
         ### Game
         tmp_state = MultiheadState(
@@ -94,9 +112,18 @@ class MuZeroConfig:
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
-        self.observation_shape = tmp_state.encode(1).shape
+        self.observe_belief = _env_bool("FREECIV_OBSERVE_BELIEF", False)
+        self.base_observation_shape = tmp_state.encode(1).shape
+        if self.observe_belief:
+            self.observation_shape = (
+                self.base_observation_shape[0] + len(BELIEF_OBSERVATION_PLANES),
+                self.base_observation_shape[1],
+                self.base_observation_shape[2],
+            )
+        else:
+            self.observation_shape = self.base_observation_shape
         self.action_space = list(range(tmp_state.ACTION_SIZE))
-        self.players = list(range(2))
+        self.players = list(range(1 if self.single_player else 2))
         self.stacked_observations = 0
 
         # Evaluate
@@ -209,15 +236,21 @@ class MuZeroConfig:
 
 class Game(AbstractGame):
     def __init__(self, seed=None, config: MuZeroConfig | None = None):
+        self._muzero_config = config
         if config is not None and hasattr(config, "map_config"):
             self.config = config.map_config
             self.max_units = getattr(config, "max_units", 6)
             self.max_cities = getattr(config, "max_cities", 3)
+            self.observe_belief = bool(getattr(config, "observe_belief", False))
+            self.single_player = bool(getattr(config, "single_player", False))
         else:
             self.config = _make_map_config()
-            self.max_units = 6
-            self.max_cities = 3
+            self.max_units = _env_int("FREECIV_MAX_UNITS", 24)
+            self.max_cities = _env_int("FREECIV_MAX_CITIES", 16)
+            self.observe_belief = _env_bool("FREECIV_OBSERVE_BELIEF", False)
+            self.single_player = _env_bool("FREECIV_SIM_SINGLE_PLAYER", True)
         rng = numpy.random.default_rng(seed) if seed is not None else None
+        self.rng = rng if rng is not None else numpy.random.default_rng()
         self.provider = RandomMapProvider(
             self.config.map_w,
             self.config.map_h,
@@ -230,6 +263,10 @@ class Game(AbstractGame):
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
+        if config is not None:
+            self.state.max_actions_per_turn = int(
+                getattr(config, "max_actions_per_turn", self.state.max_actions_per_turn)
+            )
         self.player = 1
 
     def _score_diff(self) -> float:
@@ -238,7 +275,32 @@ class Game(AbstractGame):
         )
 
     def _observation(self):
-        return self.state.encode(self.player)
+        observation = self.state.encode(self.player)
+        if not self.observe_belief:
+            return observation
+        belief = numpy.zeros(
+            (
+                len(BELIEF_OBSERVATION_PLANES),
+                self.config.map_h,
+                self.config.map_w,
+            ),
+            dtype=observation.dtype,
+        )
+        return numpy.concatenate((observation, belief), axis=0)
+
+    def _play_simulated_opponent_turn(self) -> None:
+        """Advance the built-in opponent while exposing a one-player MuZero API."""
+        opponent_turn = self.state.turn
+        while self.state.turn == opponent_turn and self.state.terminal_reason is None:
+            valid = self.state.valid_moves(-1)
+            legal = numpy.flatnonzero(valid)
+            if len(legal) == 0:
+                action = self.state.PASS_ACTION
+            else:
+                non_pass = legal[legal != self.state.PASS_ACTION]
+                choices = non_pass if len(non_pass) else legal
+                action = int(self.rng.choice(choices))
+            self.state.step(-1, action)
 
     def step(self, action):
         prev_score = float(self.state.muzero_score(self.player))
@@ -250,16 +312,24 @@ class Game(AbstractGame):
         current_player = self.player
         prev_turn = self.state.turn
         self.state.step(current_player, action)
+        if (
+            self.single_player
+            and self.state.turn != prev_turn
+            and self.state.terminal_reason is None
+        ):
+            self._play_simulated_opponent_turn()
         done = self.state.terminal_reason is not None
         reward = float(self.state.muzero_score(current_player)) - prev_score
         if self.state.visited.get(current_player) is not None:
             visited_after = int(self.state.visited[current_player].sum())
             reward += (visited_after - visited_before) * self.config.move_reward
-        if self.state.turn != prev_turn:
+        if not self.single_player and self.state.turn != prev_turn:
             self.player = -current_player
         return self._observation(), reward, done
 
     def to_play(self):
+        if self.single_player:
+            return 0
         return 0 if self.player == 1 else 1
 
     def _production_is_worker_like(self, name: str) -> bool:
@@ -273,7 +343,7 @@ class Game(AbstractGame):
             return valid
         econ_offset = state.ECON_OFFSET
         prod_start = econ_offset + state.ECON_PRODUCTION_OFFSET
-        prod_end = econ_offset + state.ECON_PASS_OFFSET
+        prod_end = econ_offset + state.ECON_RATE_OFFSET
         if prod_start >= len(valid):
             return valid
         for city_idx in range(len(state.cities[player])):
@@ -414,6 +484,13 @@ class Game(AbstractGame):
             max_units=self.max_units,
             max_cities=self.max_cities,
         )
+        configured_max_actions = getattr(
+            getattr(self, "_muzero_config", None),
+            "max_actions_per_turn",
+            None,
+        )
+        if configured_max_actions is not None:
+            self.state.max_actions_per_turn = int(configured_max_actions)
         self.player = 1
         return self._observation()
 
@@ -448,7 +525,7 @@ class Game(AbstractGame):
         if self.state.ECON_BUILD_CITY_OFFSET <= econ_idx < self.state.ECON_PRODUCTION_OFFSET:
             unit_idx = econ_idx - self.state.ECON_BUILD_CITY_OFFSET
             return f"build_city_u{unit_idx}"
-        if self.state.ECON_PRODUCTION_OFFSET <= econ_idx < self.state.ECON_PASS_OFFSET:
+        if self.state.ECON_PRODUCTION_OFFSET <= econ_idx < self.state.ECON_RATE_OFFSET:
             rel = econ_idx - self.state.ECON_PRODUCTION_OFFSET
             city_slot = rel // self.state.PRODUCTION_ITEM_COUNT
             item_idx = rel % self.state.PRODUCTION_ITEM_COUNT
@@ -456,6 +533,11 @@ class Game(AbstractGame):
             if kind == "unit":
                 return f"produce_c{city_slot}_{name}"
             return f"build_c{city_slot}_{name}"
+        if self.state.ECON_RATE_OFFSET <= econ_idx < self.state.ECON_PASS_OFFSET:
+            tax, luxury, science = self.state.RATE_PRESETS[
+                econ_idx - self.state.ECON_RATE_OFFSET
+            ]
+            return f"rates_t{tax}_l{luxury}_s{science}"
         return str(action_number)
 
     def expert_agent(self):

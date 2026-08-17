@@ -220,10 +220,16 @@ class MultiheadState:
     acted_production_cities: Dict[Player, set[int]] = field(
         default_factory=lambda: {1: set(), -1: set()}
     )
+    acted_rate_players: set[Player] = field(default_factory=set)
     kills: Dict[Player, int] = field(default_factory=lambda: {1: 0, -1: 0})
     units_built: Dict[Player, int] = field(default_factory=lambda: {1: 0, -1: 0})
     future_techs: Dict[Player, int] = field(default_factory=lambda: {1: 0, -1: 0})
     scores: Dict[Player, float] = field(default_factory=lambda: {1: 0.0, -1: 0.0})
+    tax_rates: Dict[Player, int] = field(default_factory=lambda: {1: 40, -1: 40})
+    luxury_rates: Dict[Player, int] = field(default_factory=lambda: {1: 0, -1: 0})
+    science_rates: Dict[Player, int] = field(default_factory=lambda: {1: 60, -1: 60})
+    max_rates: Dict[Player, int] = field(default_factory=lambda: {1: 60, -1: 60})
+    gold: Dict[Player, float] = field(default_factory=lambda: {1: 0.0, -1: 0.0})
     winner: Optional[Player] = None
     terminal_reason: Optional[str] = None
     tech_costs: Dict[str, float] = field(default_factory=lambda: dict(TECH_COSTS))
@@ -255,6 +261,11 @@ class MultiheadState:
         "airbase",
     )
     UNIT_ACTIVITY_PER_UNIT = len(UNIT_ACTIVITY_NAMES)
+    RATE_PRESETS: Tuple[Tuple[int, int, int], ...] = tuple(
+        (tax, luxury, 100 - tax - luxury)
+        for tax in range(0, 101, 20)
+        for luxury in range(0, 101 - tax, 20)
+    )
 
     def __post_init__(self) -> None:
         self.movement = FreecivMovement(self.cfg.map_w, self.cfg.map_h)
@@ -264,16 +275,17 @@ class MultiheadState:
         self.UNIT_ACTIVITY_SIZE = self.max_units * self.UNIT_ACTIVITY_PER_UNIT
         self.UNIT_ACTIVITY_OFFSET = self.MOVE_SIZE + self.ATTACK_SIZE
         self.ECON_OFFSET = self.UNIT_ACTIVITY_OFFSET + self.UNIT_ACTIVITY_SIZE
-        # Econ head contains research actions, build-city actions (per unit slot),
-        # production actions (per city slot), and a pass/turn-end action.
+        # Econ head contains research, build-city, city production, rate presets,
+        # and a pass/turn-end action.
         self.ECON_RESEARCH_OFFSET = 0
         self.ECON_BUILD_CITY_OFFSET = len(self.RESEARCH_TECHS)
         self.ECON_PRODUCTION_OFFSET = self.ECON_BUILD_CITY_OFFSET + self.max_units
         self.PRODUCTION_ITEM_COUNT = len(PRODUCTION_ITEM_NAMES)
         self.PRODUCTION_UNIT_COUNT = len(PRODUCTION_UNIT_NAMES)
-        self.ECON_PASS_OFFSET = (
+        self.ECON_RATE_OFFSET = (
             self.ECON_PRODUCTION_OFFSET + self.max_cities * self.PRODUCTION_ITEM_COUNT
         )
+        self.ECON_PASS_OFFSET = self.ECON_RATE_OFFSET + len(self.RATE_PRESETS)
         self.ECON_SIZE = self.ECON_PASS_OFFSET + 1
         self.ACTION_SIZE = self.ECON_OFFSET + self.ECON_SIZE
         self.PASS_ACTION = self.ACTION_SIZE - 1  # last index in econ head
@@ -310,7 +322,14 @@ class MultiheadState:
         self.units_built = {1: 0, -1: 0}
         self.future_techs = {1: 0, -1: 0}
         self.scores = {1: 0.0, -1: 0.0}
+        self.tax_rates = {p: int(self.cfg.initial_tax_rate) for p in (1, -1)}
+        self.luxury_rates = {p: int(self.cfg.initial_luxury_rate) for p in (1, -1)}
+        self.science_rates = {p: int(self.cfg.initial_science_rate) for p in (1, -1)}
+        self.max_rates = {p: int(self.cfg.initial_max_rate) for p in (1, -1)}
+        self.gold = {p: float(self.cfg.initial_gold) for p in (1, -1)}
         self.acted_unit_slots = {1: set(), -1: set()}
+        self.acted_production_cities = {1: set(), -1: set()}
+        self.acted_rate_players = set()
         self._refresh_tech_costs()
         self._spawn_units()
 
@@ -330,7 +349,15 @@ class MultiheadState:
     def _spawn_units(self) -> None:
         assert self.gt is not None
         starts_me = [(0, 0)]
-        starts_opp = [(self.cfg.map_w - 1, self.cfg.map_h - 1)]
+        opponent_starts = (
+            (self.cfg.map_w - 1, self.cfg.map_h - 1),
+            (self.cfg.map_w - 1, 0),
+            (0, self.cfg.map_h - 1),
+            (self.cfg.map_w // 2, self.cfg.map_h - 1),
+            (self.cfg.map_w - 1, self.cfg.map_h // 2),
+            (self.cfg.map_w // 2, 0),
+            (0, self.cfg.map_h // 2),
+        )
         spawn_units = ("Settlers", "Workers", "Explorer", "Diplomat")
         missing = [name for name in spawn_units if name not in UNIT_SPECS]
         if missing:
@@ -339,7 +366,12 @@ class MultiheadState:
             )
         offsets = [(0, 0), (1, 0), (0, 1), (1, 1)]
         mx, my = starts_me[0]
-        ox, oy = starts_opp[0]
+        opponent_count = max(1, int(getattr(self.cfg, "opponent_count", 1)))
+        opponent_count = min(
+            opponent_count,
+            max(1, self.max_units // len(spawn_units)),
+            len(opponent_starts),
+        )
         for idx, name in enumerate(spawn_units):
             dx, dy = offsets[idx] if idx < len(offsets) else (0, 0)
             spec = UNIT_SPECS[name]
@@ -359,22 +391,25 @@ class MultiheadState:
                     spec.moves,
                 )
             )
-            vx, vy = self._find_spawn_near(ox - dx, oy - dy)
-            self.units[-1].append(
-                MHUnit(
-                    vx,
-                    vy,
-                    spec.hp,
-                    spec.atk,
-                    spec.df,
-                    spec.firepower,
-                    spec.name,
-                    True,
-                    spec.can_build_city,
-                    None,
-                    spec.moves,
+            for ox, oy in opponent_starts[:opponent_count]:
+                x_sign = -1 if ox > 0 else 1
+                y_sign = -1 if oy > 0 else 1
+                vx, vy = self._find_spawn_near(ox + x_sign * dx, oy + y_sign * dy)
+                self.units[-1].append(
+                    MHUnit(
+                        vx,
+                        vy,
+                        spec.hp,
+                        spec.atk,
+                        spec.df,
+                        spec.firepower,
+                        spec.name,
+                        True,
+                        spec.can_build_city,
+                        None,
+                        spec.moves,
+                    )
                 )
-            )
         self._ensure_unit_slots()
         for player in (1, -1):
             for u in self.units[player]:
@@ -531,10 +566,16 @@ class MultiheadState:
             1: set(self.acted_production_cities.get(1, set())),
             -1: set(self.acted_production_cities.get(-1, set())),
         }
+        new.acted_rate_players = set(self.acted_rate_players)
         new.kills = dict(self.kills)
         new.units_built = dict(self.units_built)
         new.future_techs = dict(self.future_techs)
         new.scores = dict(self.scores)
+        new.tax_rates = dict(self.tax_rates)
+        new.luxury_rates = dict(self.luxury_rates)
+        new.science_rates = dict(self.science_rates)
+        new.max_rates = dict(self.max_rates)
+        new.gold = dict(self.gold)
         new.winner = self.winner
         new.terminal_reason = self.terminal_reason
         new.tech_costs = dict(self.tech_costs)
@@ -555,9 +596,11 @@ class MultiheadState:
         new.ECON_RESEARCH_OFFSET = self.ECON_RESEARCH_OFFSET
         new.ECON_BUILD_CITY_OFFSET = self.ECON_BUILD_CITY_OFFSET
         new.ECON_PRODUCTION_OFFSET = self.ECON_PRODUCTION_OFFSET
+        new.ECON_RATE_OFFSET = self.ECON_RATE_OFFSET
         new.ECON_PASS_OFFSET = self.ECON_PASS_OFFSET
         new.PRODUCTION_ITEM_COUNT = self.PRODUCTION_ITEM_COUNT
         new.PRODUCTION_UNIT_COUNT = self.PRODUCTION_UNIT_COUNT
+        new.RATE_PRESETS = self.RATE_PRESETS
         new.ACTION_SIZE = self.ACTION_SIZE
         new.PASS_ACTION = self.PASS_ACTION
         return new
@@ -666,6 +709,18 @@ class MultiheadState:
                 moves[
                     prod_offset + city_idx * self.PRODUCTION_ITEM_COUNT + item_idx
                 ] = 1
+        # tax/luxury/science presets; Freeciv limits each rate by government.
+        rate_offset = offset + self.ECON_RATE_OFFSET
+        current_rates = (
+            self.tax_rates.get(player, 0),
+            self.luxury_rates.get(player, 0),
+            self.science_rates.get(player, 0),
+        )
+        max_rate = self.max_rates.get(player, 100)
+        if player not in self.acted_rate_players:
+            for rate_idx, rates in enumerate(self.RATE_PRESETS):
+                if rates != current_rates and max(rates) <= max_rate:
+                    moves[rate_offset + rate_idx] = 1
         # pass always valid
         moves[self.PASS_ACTION] = 1
         return moves
@@ -713,7 +768,9 @@ class MultiheadState:
             return "research"
         if self.ECON_BUILD_CITY_OFFSET <= econ_idx < self.ECON_PRODUCTION_OFFSET:
             return "explore"
-        if self.ECON_PRODUCTION_OFFSET <= econ_idx < self.ECON_PASS_OFFSET:
+        if self.ECON_PRODUCTION_OFFSET <= econ_idx < self.ECON_RATE_OFFSET:
+            return "production"
+        if self.ECON_RATE_OFFSET <= econ_idx < self.ECON_PASS_OFFSET:
             return "production"
         return None
 
@@ -812,7 +869,7 @@ class MultiheadState:
                         self.scores[player] += self.cfg.build_city_reward
                         self.acted_unit_slots.setdefault(player, set()).add(unit_idx)
             # production selection
-            elif self.ECON_PRODUCTION_OFFSET <= econ_idx < self.ECON_PASS_OFFSET:
+            elif self.ECON_PRODUCTION_OFFSET <= econ_idx < self.ECON_RATE_OFFSET:
                 rel = econ_idx - self.ECON_PRODUCTION_OFFSET
                 city_slot = rel // self.PRODUCTION_ITEM_COUNT
                 item_idx = rel % self.PRODUCTION_ITEM_COUNT
@@ -855,6 +912,15 @@ class MultiheadState:
                                     break
                                 city.production_queue.append((kind, name))
                     self.acted_production_cities.setdefault(player, set()).add(city_slot)
+            elif self.ECON_RATE_OFFSET <= econ_idx < self.ECON_PASS_OFFSET:
+                rate_idx = econ_idx - self.ECON_RATE_OFFSET
+                if 0 <= rate_idx < len(self.RATE_PRESETS):
+                    tax, luxury, science = self.RATE_PRESETS[rate_idx]
+                    if max(tax, luxury, science) <= self.max_rates.get(player, 100):
+                        self.tax_rates[player] = tax
+                        self.luxury_rates[player] = luxury
+                        self.science_rates[player] = science
+                        self.acted_rate_players.add(player)
         self._resolve_terminal()
         # Stay in the same turn unless we exceed the per-turn action cap.
         self.actions_this_turn += 1
@@ -1117,21 +1183,31 @@ class MultiheadState:
     def _building_is_palace(self, building_name: str) -> bool:
         return "palace" in (building_name or "").lower()
 
-    def _building_allowed_by_wonder_policy(self, building_name: str) -> bool:
+    def _building_allowed_by_wonder_policy(
+        self, player: Player, building_name: str
+    ) -> bool:
         if building_name not in GREAT_WONDER_NAMES:
             return True
         allowlist = getattr(self.cfg, "wonder_production_allowlist", ())
         if allowlist:
             return building_name in allowlist
         blocklist = getattr(self.cfg, "wonder_production_blocklist", ())
-        return building_name not in blocklist
+        if building_name in blocklist:
+            return False
+        if self.turn < int(getattr(self.cfg, "wonder_min_turn", 0)):
+            return False
+        if len(self.cities[player]) < int(
+            getattr(self.cfg, "wonder_min_cities", 1)
+        ):
+            return False
+        return True
 
     def _building_unlocked(
         self, player: Player, city: City, building_name: str
     ) -> bool:
         if self._building_is_palace(building_name):
             return False
-        if not self._building_allowed_by_wonder_policy(building_name):
+        if not self._building_allowed_by_wonder_policy(player, building_name):
             return False
         if building_name in city.buildings:
             return False
@@ -1257,6 +1333,7 @@ class MultiheadState:
 
     def _apply_city_economy(self) -> None:
         bulbs_by_player = {1: 0.0, -1: 0.0}
+        gold_by_player = {1: 0.0, -1: 0.0}
         for player in (1, -1):
             for city_idx, city in enumerate(self.cities[player]):
                 size = max(1, city.size)
@@ -1279,15 +1356,17 @@ class MultiheadState:
                 total_shields = (
                     self.cfg.city_shield + self.cfg.grass_shield * size
                 ) * getattr(self.cfg, "production_rate_multiplier", 1.0)
-                total_trade = self.cfg.city_trade + self.cfg.grass_trade * size - gold_upkeep
+                total_trade = self.cfg.city_trade + self.cfg.grass_trade * size
                 if total_trade < 0:
                     total_trade = 0.0
-                science_rate = getattr(self.cfg, "tax_science_rate", 0.0)
+                science_rate = self.science_rates.get(player, 0) / 100.0
+                tax_rate = self.tax_rates.get(player, 0) / 100.0
                 bulbs_by_player[player] += (
                     total_trade
                     * science_rate
                     * getattr(self.cfg, "research_rate_multiplier", 1.0)
                 )
+                gold_by_player[player] += total_trade * tax_rate - gold_upkeep
 
                 food_surplus = total_food - self.cfg.food_consumption * size
                 if food_surplus > 0:
@@ -1333,6 +1412,8 @@ class MultiheadState:
                             city.production_target = None
 
                 # Research bulbs are added from trade; completion handled below.
+        for player, amount in gold_by_player.items():
+            self.gold[player] = max(0.0, self.gold.get(player, 0.0) + amount)
         self._apply_research_bulbs(bulbs_by_player)
 
     def _apply_research_bulbs(self, bulbs_by_player: Dict[Player, float]) -> None:
@@ -1415,7 +1496,7 @@ class MultiheadState:
         self.actions_this_turn = 0
         self.acted_unit_slots = {1: set(), -1: set()}
         self.acted_production_cities = {1: set(), -1: set()}
-        self.acted_production_cities = {1: set(), -1: set()}
+        self.acted_rate_players.clear()
         for units in self.units.values():
             for unit in units:
                 if unit.alive:
@@ -1710,6 +1791,21 @@ class MultiheadState:
             min(self.num_actions / max(1, self.cfg.max_num_actions), 1.0),
         )
         channels.append(progress_plane)
+        for values in (
+            self.tax_rates,
+            self.luxury_rates,
+            self.science_rates,
+            self.max_rates,
+        ):
+            channels.append(np.full_like(unit_me, values.get(me, 0) / 100.0))
+            channels.append(np.full_like(unit_me, values.get(opp, 0) / 100.0))
+        gold_norm = max(1.0, float(getattr(self.cfg, "gold_norm", 1000)))
+        channels.append(
+            np.full_like(unit_me, min(1.0, self.gold.get(me, 0.0) / gold_norm))
+        )
+        channels.append(
+            np.full_like(unit_me, min(1.0, self.gold.get(opp, 0.0) / gold_norm))
+        )
         return np.stack(channels, axis=0)
 
     def _encode_unit_rule(self, unit: MHUnit, planes: List[np.ndarray]) -> None:

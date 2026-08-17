@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${ROOT_DIR}/scripts/common.sh"
+
+TRAINING_STEPS="${TRAINING_STEPS:-1000}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
+NUM_SIMULATIONS="${NUM_SIMULATIONS:-4}"
+MAX_TURNS="${MAX_TURNS:-100}"
+MAX_ACTIONS_PER_TURN="${MAX_ACTIONS_PER_TURN:-8}"
+CHECKPOINT_PATH="${CHECKPOINT_PATH:-}"
+REPLAY_BUFFER_PATH="${REPLAY_BUFFER_PATH:-}"
+USE_GPU="${USE_GPU:-1}"
+MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-}"
+MUZERO_SELFPLAY_ON_GPU="${MUZERO_SELFPLAY_ON_GPU:-true}"
+MUZERO_TRAIN_ON_GPU="${MUZERO_TRAIN_ON_GPU:-true}"
+MUZERO_BATCH_SIZE="${MUZERO_BATCH_SIZE:-32}"
+MUZERO_REPLAY_BUFFER_SIZE="${MUZERO_REPLAY_BUFFER_SIZE:-100}"
+MUZERO_CHANNELS="${MUZERO_CHANNELS:-32}"
+MUZERO_BLOCKS="${MUZERO_BLOCKS:-2}"
+MUZERO_NUM_UNROLL_STEPS="${MUZERO_NUM_UNROLL_STEPS:-5}"
+MUZERO_CHECKPOINT_INTERVAL="${MUZERO_CHECKPOINT_INTERVAL:-10}"
+MUZERO_SEED="${MUZERO_SEED:-0}"
+MUZERO_LR_INIT="${MUZERO_LR_INIT:-0.02}"
+MUZERO_MCTS_BACKUP_OPERATOR="${MUZERO_MCTS_BACKUP_OPERATOR:-wasserstein}"
+FREECIV_MAP_W="${FREECIV_MAP_W:-32}"
+FREECIV_MAP_H="${FREECIV_MAP_H:-32}"
+FREECIV_MAX_UNITS="${FREECIV_MAX_UNITS:-24}"
+FREECIV_MAX_CITIES="${FREECIV_MAX_CITIES:-16}"
+FREECIV_OBSERVE_BELIEF="${FREECIV_OBSERVE_BELIEF:-1}"
+FREECIV_SIM_SINGLE_PLAYER="${FREECIV_SIM_SINGLE_PLAYER:-1}"
+FREECIV_MUZERO_RULESET_DIR="${FREECIV_MUZERO_RULESET_DIR:-civ2civ3}"
+MUZERO_RESULTS_PATH="${MUZERO_RESULTS_PATH:-${ROOT_DIR}/results/freeciv_simulator/$(date +%Y-%m-%d--%H-%M-%S)}"
+
+if [ "${USE_GPU}" = "0" ]; then
+  export CUDA_VISIBLE_DEVICES=""
+  MUZERO_MAX_NUM_GPUS=0
+  MUZERO_SELFPLAY_ON_GPU=false
+  MUZERO_TRAIN_ON_GPU=false
+else
+  init_train_runtime train_simulator
+  MUZERO_MAX_NUM_GPUS="${MUZERO_MAX_NUM_GPUS:-1}"
+fi
+
+cd "${ROOT_DIR}"
+init_python_env
+
+export FREECIV_MAP_W FREECIV_MAP_H FREECIV_MAX_UNITS FREECIV_MAX_CITIES
+export FREECIV_OBSERVE_BELIEF FREECIV_SIM_SINGLE_PLAYER MUZERO_RESULTS_PATH
+export FREECIV_MUZERO_RULESET_DIR
+export MUZERO_DISABLE_TENSORBOARD="${MUZERO_DISABLE_TENSORBOARD:-1}"
+
+run_with_timing_and_log train_simulator python muzero.py freeciv "{
+  \"seed\": ${MUZERO_SEED},
+  \"checkpoint_path\": \"${CHECKPOINT_PATH}\",
+  \"replay_buffer_path\": \"${REPLAY_BUFFER_PATH}\",
+  \"training_steps\": ${TRAINING_STEPS},
+  \"num_workers\": ${NUM_WORKERS},
+  \"num_simulations\": ${NUM_SIMULATIONS},
+  \"max_turns\": ${MAX_TURNS},
+  \"max_actions_per_turn\": ${MAX_ACTIONS_PER_TURN},
+  \"max_num_gpus\": ${MUZERO_MAX_NUM_GPUS},
+  \"selfplay_on_gpu\": ${MUZERO_SELFPLAY_ON_GPU},
+  \"train_on_gpu\": ${MUZERO_TRAIN_ON_GPU},
+  \"reanalyse_on_gpu\": false,
+  \"use_last_model_value\": false,
+  \"batch_size\": ${MUZERO_BATCH_SIZE},
+  \"replay_buffer_size\": ${MUZERO_REPLAY_BUFFER_SIZE},
+  \"lr_init\": ${MUZERO_LR_INIT},
+  \"channels\": ${MUZERO_CHANNELS},
+  \"blocks\": ${MUZERO_BLOCKS},
+  \"num_unroll_steps\": ${MUZERO_NUM_UNROLL_STEPS},
+  \"checkpoint_interval\": ${MUZERO_CHECKPOINT_INTERVAL},
+  \"mcts_backup_operator\": \"${MUZERO_MCTS_BACKUP_OPERATOR}\"
+}"

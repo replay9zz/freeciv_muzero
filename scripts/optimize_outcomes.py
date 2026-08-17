@@ -39,6 +39,8 @@ BASELINE = {
     "num_unroll_steps": 10,
     "lr_init": 0.01,
     "wasserstein_uncertainty_coef": 0.25,
+    "wonder_min_turn": 0,
+    "wonder_min_cities": 1,
 }
 
 
@@ -108,6 +110,11 @@ def parser() -> argparse.ArgumentParser:
     out.add_argument("--test-simulations", type=int, default=16)
     out.add_argument("--num-workers", type=int, default=1)
     out.add_argument("--imitation-checkpoint", type=Path)
+    out.add_argument(
+        "--wonder-policy-only",
+        action="store_true",
+        help="Tune only early great-wonder unlock thresholds; keep learning settings fixed.",
+    )
     out.add_argument("--keep-replay-buffers", action="store_true")
     out.add_argument("--check", action="store_true")
     return out
@@ -138,6 +145,7 @@ def main() -> int:
         "objective": "win_rate_then_normalized_score_margin",
         "map": [32, 32],
         "mcts_backup_operator": "wasserstein",
+        "wonder_policy_only": args.wonder_policy_only,
     }
     if args.check:
         print(json.dumps(config, indent=2, sort_keys=True))
@@ -156,18 +164,49 @@ def main() -> int:
         raise SystemExit("Study settings changed; use a new --study-name.")
     if saved is None:
         study.set_user_attr("objective_config", config)
-        study.enqueue_trial(BASELINE)
+        study.enqueue_trial(
+            {
+                "wonder_min_turn": 0,
+                "wonder_min_cities": 1,
+                **({} if args.wonder_policy_only else {
+                    key: value
+                    for key, value in BASELINE.items()
+                    if not key.startswith("wonder_")
+                }),
+            }
+        )
 
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128]),
-            "replay_buffer_size": trial.suggest_categorical("replay_buffer_size", [4, 8, 10]),
-            "num_unroll_steps": trial.suggest_categorical("num_unroll_steps", [5, 10, 20]),
-            "lr_init": trial.suggest_float("lr_init", 1e-4, 2e-2, log=True),
-            "wasserstein_uncertainty_coef": trial.suggest_float(
-                "wasserstein_uncertainty_coef", 0.0, 0.5
+            "wonder_min_turn": trial.suggest_categorical(
+                "wonder_min_turn", [0, 30, 60, 90]
+            ),
+            "wonder_min_cities": trial.suggest_categorical(
+                "wonder_min_cities", [1, 2, 3, 4]
             ),
         }
+        if args.wonder_policy_only:
+            params.update(
+                batch_size=64,
+                replay_buffer_size=10,
+                num_unroll_steps=10,
+                lr_init=0.001,
+                wasserstein_uncertainty_coef=0.25,
+            )
+        else:
+            params.update(
+                batch_size=trial.suggest_categorical("batch_size", [32, 64, 128]),
+                replay_buffer_size=trial.suggest_categorical(
+                    "replay_buffer_size", [4, 8, 10]
+                ),
+                num_unroll_steps=trial.suggest_categorical(
+                    "num_unroll_steps", [5, 10, 20]
+                ),
+                lr_init=trial.suggest_float("lr_init", 1e-4, 2e-2, log=True),
+                wasserstein_uncertainty_coef=trial.suggest_float(
+                    "wasserstein_uncertainty_coef", 0.0, 0.5
+                ),
+            )
         trial_dir = output / f"trial-{trial.number:04d}"
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "params.json").write_text(
@@ -196,6 +235,9 @@ def main() -> int:
                     "MUZERO_MCTS_WASSERSTEIN_UNCERTAINTY_COEF": str(
                         params["wasserstein_uncertainty_coef"]
                     ),
+                    "FREECIV_WONDER_MIN_TURN": str(params["wonder_min_turn"]),
+                    "FREECIV_WONDER_MIN_CITIES": str(params["wonder_min_cities"]),
+                    "FREECIV_PRODUCTION_ESTIMATES": "1",
                     "GOOGLE_DRIVE_RESULTS": "",
                     "NOTIFY_EMAIL_TO": "",
                 }
@@ -240,7 +282,11 @@ def main() -> int:
         trial.set_user_attr("outcomes", [item.__dict__ for item in outcomes])
         return value
 
-    finished = sum(trial.state.is_finished() for trial in study.trials)
+    counted_states = {
+        optuna.trial.TrialState.COMPLETE,
+        optuna.trial.TrialState.PRUNED,
+    }
+    finished = sum(trial.state in counted_states for trial in study.trials)
     try:
         if finished < args.trials:
             study.optimize(
