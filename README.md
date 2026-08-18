@@ -10,7 +10,8 @@ License by Werner Duvaud. See [NOTICE](NOTICE) and [LICENSES/MIT.txt](LICENSES/M
 
 ## Layout
 
-`freeciv_muzero` now carries its own Freeciv remote helpers and no longer depends on sibling `freeciv_alpha_zero` or `freeciv_rl` directories for training scripts.
+`freeciv_muzero` carries its own Freeciv remote helpers. Training scripts depend
+only on the Freeciv source/data directory and the `freeciv_build_v3_2_uv` build.
 
 Runtime assumptions that still remain outside this directory:
 
@@ -125,9 +126,7 @@ opponents/evaluation anchors instead of evaluating only latest-vs-latest.
 The training scripts now prefer repo-local paths first:
 
 - `./freeciv_build_v3_2_uv`
-- `./freeciv_build_v3_2`
 - `../freeciv_build_v3_2_uv`
-- `../freeciv_build_v3_2`
 
 For scenarios they prefer:
 
@@ -318,3 +317,27 @@ summaries or deliberately selected artifacts in the repository.
 Example:
 
 https://github.com/user-attachments/assets/02942ee1-d173-4deb-b7ed-cb7ad01f3233
+
+## Project TODO
+
+- [ ] Detect terminal state and winner reliably in live Freeciv games.
+- [ ] Version observation/action schemas together with datasets and checkpoints.
+- [ ] Add repeatable simulator-to-live benchmarks with fixed seeds and opponents.
+
+Directory-specific work is tracked beside the relevant code:
+
+- [Repository automation](.github/README.md)
+- [Licenses](LICENSES/README.md)
+- [Configuration snapshots](config/README.md)
+- [Documentation](docs/README.md)
+- [Freeciv integration package](freeciv_sim/README.md)
+  - [Agents](freeciv_sim/agents/README.md)
+  - [Belief tracking](freeciv_sim/belief/README.md)
+  - [Evaluation](freeciv_sim/evaluation/README.md)
+  - [Imitation learning](freeciv_sim/imitation/README.md)
+  - [Live remote control](freeciv_sim/remote/README.md)
+  - [Rules](freeciv_sim/rules/README.md)
+  - [State](freeciv_sim/state/README.md)
+- [Game adapters](games/README.md)
+- [Operational scripts](scripts/README.md)
+- [Tests](tests/README.md)

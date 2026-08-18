@@ -121,3 +121,10 @@ GAMES=20 GPU_LIST=0,1,2,3,4 ./scripts/eval_record_dual_parallel.sh \
 The ablation runner keeps results local by default. Set `GOOGLE_DRIVE_RESULTS`
 explicitly to sync checkpoints, replay buffers, and TensorBoard event files to
 an rclone remote or mounted Drive path.
+
+## TODO
+
+- [ ] Archive confirmed duplicate wrappers and keep one canonical command per workflow.
+- [ ] Run `bash -n` and ShellCheck over maintained scripts in CI.
+- [ ] Centralize port allocation, process cleanup, and stale-server detection.
+- [ ] Write a manifest beside each result set with command, commit, ruleset, seed, and checkpoint metadata.
