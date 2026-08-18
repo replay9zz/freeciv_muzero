@@ -7,9 +7,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 default_build_dir() {
   local candidates=(
     "${ROOT_DIR}/freeciv_build_v3_2_uv"
-    "${ROOT_DIR}/freeciv_build_v3_2"
     "${ROOT_DIR}/../freeciv_build_v3_2_uv"
-    "${ROOT_DIR}/../freeciv_build_v3_2"
   )
   local candidate
   for candidate in "${candidates[@]}"; do

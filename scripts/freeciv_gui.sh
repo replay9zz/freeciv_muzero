@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${FREECIV_BUILD_DIR:=/home/ubuntu/freeciv_test/freeciv_build_v3_2}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+: "${FREECIV_BUILD_DIR:=${ROOT_DIR}/../freeciv_build_v3_2_uv}"
 : "${FREECIV_CLIENT_BIN:=freeciv-gtk3.22}"
 : "${FREECIV_CLIENT_ARGS:=}"
 

@@ -712,7 +712,7 @@ def main() -> None:
     if args.turn_score_csv:
         if list_player_scores is None:
             print(
-                "Warning: turn score CSV requested but freeciv_rl is unavailable.",
+                "Warning: turn score CSV requested but score helpers are unavailable.",
                 file=sys.stderr,
             )
         else:
