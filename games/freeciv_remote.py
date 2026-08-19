@@ -55,6 +55,11 @@ from freeciv_sim.evaluation import (
     production_asset_value,
     research_completion_value,
 )
+from freeciv_sim.evaluation.live_status import (
+    LiveTerminalStatus,
+    detect_live_terminal,
+    terminal_status_for_exception,
+)
 from freeciv_sim.rules.research import TECH_PREREQS, build_tech_costs
 from freeciv_sim.state.providers import GroundTruth, RandomMapProvider
 from freeciv_sim.remote.lua_actions import auto_settler as lua_auto_settler
@@ -63,7 +68,7 @@ from freeciv_sim.remote.lua_queries import (
     list_city_buildings,
     list_all_unit_status,
     list_player_known_techs,
-    list_player_scores,
+    live_game_snapshot,
     list_city_sizes,
     list_tile_owners,
     list_units_by_homecity,
@@ -474,6 +479,7 @@ class Game(AbstractGame):
         self.visible_enemy_unit_coords: set[tuple[int, int]] = set()
         self.tile_owners: dict[tuple[int, int], int] = {}
         self.player_scores: dict[int, tuple[Optional[float], Optional[bool], str]] = {}
+        self.live_terminal_status = LiveTerminalStatus(False, (), None)
         self.player_economy = None
         self._prepare_control_state()
 
@@ -802,6 +808,7 @@ class Game(AbstractGame):
         self.visible_enemy_unit_coords = set()
         self.tile_owners = {}
         self.player_scores = {}
+        self.live_terminal_status = LiveTerminalStatus(False, (), None)
         self.player_economy = None
         self.known_tiles = {}
         self.known_terrains = {}
@@ -1028,11 +1035,20 @@ class Game(AbstractGame):
     def _refresh_player_scores(self) -> None:
         if self.client is None:
             self.player_scores = {}
+            self.live_terminal_status = LiveTerminalStatus(False, (), None)
             return
         try:
-            self.player_scores = list_player_scores(self.client)
-        except Exception:
-            self.player_scores = {}
+            snapshot = live_game_snapshot(self.client)
+            statuses = snapshot.players
+            self.player_scores = {
+                pid: (score, winner, name)
+                for pid, (score, winner, _alive, name) in statuses.items()
+            }
+            self.live_terminal_status = detect_live_terminal(
+                statuses, snapshot.client_state
+            )
+        except Exception as exc:
+            self.live_terminal_status = terminal_status_for_exception(exc)
 
     def _unit_status_by_id(self) -> dict[int, tuple[int, int, int, str, int, int]]:
         status_by_id: dict[int, tuple[int, int, int, str, int, int]] = {}
@@ -3610,11 +3626,14 @@ class Game(AbstractGame):
     def step(self, action):
         try:
             board_state = self._sync_state()
-        except Exception:
+        except Exception as exc:
+            terminal_status = terminal_status_for_exception(exc)
             if self.restart_on_reset and self.client_cmd:
                 self._shutdown_client_for_restart()
             observation = self.reset()
-            self.last_outcome = GameOutcome(-1.0, 0.0, None, None, "error")
+            self.last_outcome = GameOutcome(
+                -1.0, 0.0, None, None, terminal_status.reason or "error"
+            )
             return observation, -1.0, True
         owned_cities = alpha_live.discover_player_cities(self.client, self.player_id)
         self._apply_action(action, board_state, owned_cities)
@@ -3658,10 +3677,13 @@ class Game(AbstractGame):
         done = self.turns >= self.config.max_turns
         try:
             board_state = self._sync_state()
-        except Exception:
+        except Exception as exc:
             done = True
+            self.live_terminal_status = terminal_status_for_exception(exc)
             board_state = self._last_state
-        if any(winner is True for _score, winner, _name in self.player_scores.values()):
+        if done and not self.live_terminal_status.terminal:
+            self.live_terminal_status = LiveTerminalStatus(True, (), "turn_limit")
+        if self.live_terminal_status.terminal:
             done = True
         reward = 0.0
         if done:

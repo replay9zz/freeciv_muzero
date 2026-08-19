@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from .lua_client import EvalResult, LuaRemoteClient
@@ -624,6 +625,93 @@ def list_player_scores(lr: LuaRemoteClient) -> Dict[int, Tuple[Optional[float], 
                 win_val = None
             scores[pid] = (score_val, win_val, name)
     return scores
+
+
+@dataclass(frozen=True)
+class LiveGameSnapshot:
+    players: Dict[int, Tuple[Optional[float], Optional[bool], Optional[bool], str]]
+    client_state: Optional[str]
+
+
+def live_game_snapshot(lr: LuaRemoteClient) -> LiveGameSnapshot:
+    """Return client state and player result flags in one atomic Lua reply."""
+    lua = (
+        "local parts = {}; "
+        "local cstate=nil; "
+        "if client and type(client.state) == 'function' then cstate=client.state() end; "
+        "parts[#parts + 1] = '@state|' .. tostring(cstate); "
+        "local ps = game.list_players and game.list_players() or nil; "
+        "local function emit(pl) "
+        "  if not pl then return end; "
+        "  local pid = pl.id or pl.player_num or -1; "
+        "  local pname = tostring(pl.name or ''):gsub('[|;]','/'); "
+        "  local score=nil; if pl.score_game then score = pl:score_game() end; "
+        "  local win=nil; if pl.is_winner then win = pl:is_winner() end; "
+        "  local alive=pl.is_alive; "
+        "  parts[#parts + 1] = string.format('%d|%s|%s|%s|%s', "
+        "    pid, tostring(score), tostring(win), tostring(alive), pname); "
+        "end; "
+        "if type(ps) == 'table' then for _, pl in ipairs(ps) do emit(pl) end "
+        "else for i=0,63 do local pl=find.player and find.player(i); if pl then emit(pl) end end end; "
+        "return table.concat(parts, ';')"
+    )
+    result = lr.eval(lua)
+    return parse_live_game_snapshot(result.last_return())
+
+
+def list_player_game_status(
+    lr: LuaRemoteClient,
+) -> Dict[int, Tuple[Optional[float], Optional[bool], Optional[bool], str]]:
+    """Compatibility wrapper returning player fields from a live snapshot."""
+    return live_game_snapshot(lr).players
+
+
+def parse_live_game_snapshot(payload: Optional[str]) -> LiveGameSnapshot:
+    client_state = None
+    player_payload = payload
+    if payload:
+        entries = str(payload).split(";")
+        if entries and entries[0].startswith("@state|"):
+            raw_state = entries.pop(0).split("|", 1)[1].strip().lower()
+            if raw_state not in {"", "nil", "none", "unknown"}:
+                client_state = raw_state
+            player_payload = ";".join(entries)
+    return LiveGameSnapshot(parse_player_game_status(player_payload), client_state)
+
+
+def parse_player_game_status(
+    payload: Optional[str],
+) -> Dict[int, Tuple[Optional[float], Optional[bool], Optional[bool], str]]:
+    """Parse a status payload, skipping malformed entries without guessing."""
+    statuses: Dict[int, Tuple[Optional[float], Optional[bool], Optional[bool], str]] = {}
+    if not payload:
+        return statuses
+    for entry in str(payload).split(";"):
+        parts = entry.split("|", 4)
+        if len(parts) != 5:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        raw_score, raw_win, raw_alive, name = parts[1:]
+        try:
+            score = None if raw_score.strip().lower() in {"nil", "none", ""} else float(raw_score)
+        except ValueError:
+            score = None
+        winner = _parse_optional_bool(raw_win)
+        alive = _parse_optional_bool(raw_alive)
+        statuses[pid] = (score, winner, alive, name)
+    return statuses
+
+
+def _parse_optional_bool(value: str) -> Optional[bool]:
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    return None
 
 
 def list_city_scores(lr: LuaRemoteClient) -> List[Dict[str, object]]:

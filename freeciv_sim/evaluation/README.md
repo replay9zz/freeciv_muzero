@@ -8,7 +8,7 @@ Role: compute game outcomes and strategic-value metrics.
 
 ## TODO
 
-- [ ] Detect live terminal state, winner, draw, disconnect, and timeout consistently.
+- [x] Detect live terminal state, winner, draw, disconnect, and timeout consistently.
 - [ ] Define fixed seeds, opponents, rulesets, and turn limits for comparable evaluations.
 - [ ] Report aggregate win rate, score margin, variance, and confidence intervals.
-- [ ] Test partial and malformed server result payloads.
+- [x] Test partial and malformed server result payloads.

@@ -10,7 +10,7 @@ Role: communicate with a running Freeciv client through Lua and expose live game
 
 ## TODO
 
-- [ ] Implement reliable terminal/winner detection from live server state.
+- [x] Implement reliable terminal/winner detection from live server state.
 - [ ] Batch snapshot queries and profile per-turn RPC latency.
 - [ ] Test reconnect, timeout, partial reply, server exit, and reset failures.
 - [ ] Add an opt-in smoke test against a locally running Freeciv stack.

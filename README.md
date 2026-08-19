@@ -320,7 +320,7 @@ https://github.com/user-attachments/assets/02942ee1-d173-4deb-b7ed-cb7ad01f3233
 
 ## Project TODO
 
-- [ ] Detect terminal state and winner reliably in live Freeciv games.
+- [x] Detect terminal state and winner reliably in live Freeciv games.
 - [ ] Version observation/action schemas together with datasets and checkpoints.
 - [ ] Add repeatable simulator-to-live benchmarks with fixed seeds and opponents.
 
